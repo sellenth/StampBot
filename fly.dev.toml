@@ -1,0 +1,44 @@
+app = "drag-n-stamp-dev"
+
+# The region closest to the developer (San Jose).  See
+# https://fly.io/docs/reference/regions/ for valid options.
+primary_region = "sjc"
+
+# Graceful shutdown settings.  Phoenix defaults to `SIGTERM` and
+# `kill_timeout` controls how long Fly will wait before terminating
+# your application during deploys.
+kill_signal = "SIGTERM"
+kill_timeout = 5
+
+[build]
+  # Leave image unset to trigger a Docker build using the Dockerfile
+  # present in the repository root.
+
+[env]
+  # Host used by Phoenix when generating URLs.  This will be set
+  # automatically by Fly after your first deploy, but providing it
+  # here ensures local releases use the correct host when talking to
+  # your app.  Update this after the first deploy to match the
+  # assigned fly.dev hostname.
+  PHX_HOST = "drag-n-stamp-dev.fly.dev"
+  PORT = "4000"
+
+[[services]]
+  # The port your Phoenix app listens on inside the container.  Do
+  # not change this without updating the Dockerfile `EXPOSE` as well.
+  internal_port = 4000
+  protocol = "tcp"
+  # These definitions tell Fly to serve HTTP traffic on ports 80 and
+  # 443 and to automatically handle TLS termination for you.
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+  # Constrain the maximum concurrent HTTP requests per VM.  Adjust
+  # depending on your app’s memory/CPU requirements.
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 40

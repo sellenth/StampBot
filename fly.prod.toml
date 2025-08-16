@@ -1,0 +1,31 @@
+app = "drag-n-stamp-prod"
+
+# Production deployment configuration for drag‑n‑stamp.  This file is
+# similar to fly.dev.toml but targets a separate Fly application name
+# and allows you to tune concurrency limits separately.  When
+# deploying to production run `fly deploy -c fly.prod.toml`.
+
+primary_region = "sjc"
+kill_signal = "SIGTERM"
+kill_timeout = 5
+
+[build]
+  # Build from the local Dockerfile
+
+[env]
+  PHX_HOST = "drag-n-stamp-prod.fly.dev"
+  PORT = "4000"
+
+[[services]]
+  internal_port = 4000
+  protocol = "tcp"
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 100
+    soft_limit = 80

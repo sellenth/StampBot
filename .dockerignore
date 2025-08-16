@@ -1,0 +1,9 @@
+# Ignore build artifacts and dependencies so the Docker context
+# remains small.  These directories are re-created during the
+# container build and do not need to be copied from the host.
+_build
+deps
+assets/node_modules
+priv/static
+*.swp
+.env*
