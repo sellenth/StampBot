@@ -1,154 +1,92 @@
-<!DOCTYPE html>
-<html lang="en" class="[scrollbar-gutter:stable]">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title suffix=" · Phoenix Framework">
-      Timestamps
-    </.live_title>
-    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
-    </script>
-  </head>
-  <body class="bg-white antialiased">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-3xl">
-        <header class="px-4 py-6 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <a href={~p"/"}>
-                <svg viewBox="0 0 71 48" class="h-12" aria-label="Phoenix Framework">
-                  <path
-                    id="phoenix-a"
-                    fill="#FD4F00"
-                    d="m26.371 33.477-.552-.1c-3.92-.729-6.397-3.1-7.57-6.829-.733-2.324-.597-4.035.414-5.24C19.991 19.76 23.1 18.477 26.82 18.477c5.262 0 9.16 4.065 9.16 9.543 0 1.814-.433 3.529-1.238 4.976-.809 1.451-1.957 2.632-3.371 3.481Z"
-                  />
-                  <path
-                    id="phoenix-b"
-                    fill="#FD4F00"
-                    d="m26.371 33.477-.552-.1c-3.92-.729-6.397-3.1-7.57-6.829-.733-2.324-.597-4.035.414-5.24C19.991 19.76 23.1 18.477 26.82 18.477c5.262 0 9.16 4.065 9.16 9.543 0 1.814-.433 3.529-1.238 4.976-.809 1.451-1.957 2.632-3.371 3.481Z"
-                  />
-                </svg>
-              </a>
-              <h1 class="text-brand text-3xl font-bold">Timestamps</h1>
-            </div>
-            <div class="flex items-center gap-4 font-semibold leading-6 text-zinc-900">
-              <a href={~p"/"} class="hover:text-zinc-700">
-                Home
-              </a>
-            </div>
-          </div>
-        </header>
+<.flash_group flash={@flash} />
+<div class="page">
+  <div class="container">
+    <div class="flex flex-between flex-center mb-2">
+      <h1>Generated Timestamps</h1>
+      <a href={~p"/"} class="btn-secondary btn-small">Home</a>
+    </div>
 
-        <main class="px-4 py-10 sm:px-6 lg:px-8">
-          <div class="mx-auto max-w-2xl">
-            <.flash_group flash={@flash} />
-            
-            <div class="bg-gray-50 p-6 rounded-lg">
-              <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-900">
-                  Generated Timestamps (<%= length(@timestamps) %> total)
-                </h2>
-                <div class="flex gap-2">
-                  <select id="sort-select" onchange="sortTimestamps()" class="text-sm border border-gray-300 rounded px-3 py-1">
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="submitter">By Submitter</option>
-                    <option value="channel">By Channel</option>
-                  </select>
-                </div>
-              </div>
+    <div class="flex flex-between flex-center mb-2">
+      <p class="text-muted mb-0"><%= length(@timestamps) %> records</p>
+      <select id="sort-select" onchange="sortTimestamps()">
+        <option value="newest">Newest</option>
+        <option value="oldest">Oldest</option>
+        <option value="submitter">Submitter</option>
+        <option value="channel">Channel</option>
+      </select>
+    </div>
               
-              <!-- Submitter Stats -->
-              <div class="mb-6 p-4 bg-white rounded-lg border border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900 mb-3">📊 Submitter Leaderboard</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <%= for {submitter, count} <- submitter_stats(@timestamps) do %>
-                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span class="font-medium text-purple-700">🏆 <%= submitter %></span>
-                      <span class="text-gray-600"><%= count %> submissions</span>
-                    </div>
-                  <% end %>
-                </div>
-              </div>
-              
-              <%= if @timestamps == [] do %>
-                <p class="text-gray-600 text-center py-8">
-                  No timestamps generated yet. Use the bookmarklet on a YouTube video to create your first timestamp!
-                </p>
-              <% else %>
-                <div class="space-y-6">
-                  <%= for timestamp <- @timestamps do %>
-                    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={timestamp.inserted_at}>
-                      <div class="flex items-start justify-between mb-3">
-                        <div class="flex-1 min-w-0">
-                          <h3 class="text-lg font-medium text-gray-900 truncate">
-                            <%= timestamp.channel_name %>
-                          </h3>
-                          <div class="flex flex-wrap gap-2 mt-2">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              👤 <%= timestamp.submitter_username %>
-                            </span>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              📺 @<%= timestamp.username %>
-                            </span>
-                            <span class="text-xs text-gray-500">
-                              🕒 <%= Calendar.strftime(timestamp.inserted_at, "%B %d, %Y at %I:%M %p") %>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div class="mb-3">
-                        <a 
-                          href={timestamp.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          class="text-blue-600 hover:text-blue-800 text-sm font-medium break-all"
-                        >
-                          <%= timestamp.url %>
-                        </a>
-                      </div>
-                      
-                      <div class="mt-3 p-3 bg-gray-50 rounded-md">
-                        <h4 class="text-sm font-medium text-gray-700 mb-2">Generated Timestamps:</h4>
-                        <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono leading-relaxed"><%= timestamp.content %></pre>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% end %>
-            </div>
+    <div class="card">
+      <h3>Leaderboard</h3>
+      <div class="flex flex-col gap-1">
+        <%= for {submitter, count} <- submitter_stats(@timestamps) do %>
+          <div class="flex flex-between flex-center">
+            <span><%= submitter %></span>
+            <span class="text-small text-muted"><%= count %></span>
           </div>
-        </main>
+        <% end %>
       </div>
     </div>
+              
+    <%= if @timestamps == [] do %>
+      <div class="card text-center">
+        <p>No timestamps yet.</p>
+        <p class="text-small text-muted mb-0">Use bookmarklet on YouTube video.</p>
+      </div>
+    <% else %>
+      <div>
+        <%= for timestamp <- @timestamps do %>
+          <div class="card" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={timestamp.inserted_at}>
+            <div class="flex flex-between flex-center mb-1">
+              <h3><%= timestamp.channel_name %></h3>
+            </div>
+            <div class="flex gap-1 mb-2">
+              <span class="tag"><%= timestamp.submitter_username %></span>
+              <span class="tag">@<%= timestamp.username %></span>
+              <span class="tag text-small"><%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y") %></span>
+            </div>
+            
+            <div class="mb-2">
+              <a href={timestamp.url} target="_blank" rel="noopener noreferrer" class="text-small">
+                <%= timestamp.url %>
+              </a>
+            </div>
+            
+            <div class="code">
+              <p class="text-small mb-1">Generated Timestamps:</p>
+              <pre><%= timestamp.content %></pre>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
     
-    <script>
-      function sortTimestamps() {
-        const select = document.getElementById('sort-select');
-        const container = document.querySelector('.space-y-6');
-        const cards = Array.from(container.children);
-        
-        cards.sort((a, b) => {
-          switch(select.value) {
-            case 'newest':
-              return new Date(b.dataset.date) - new Date(a.dataset.date);
-            case 'oldest':
-              return new Date(a.dataset.date) - new Date(b.dataset.date);
-            case 'submitter':
-              return a.dataset.submitter.localeCompare(b.dataset.submitter);
-            case 'channel':
-              return a.dataset.channel.localeCompare(b.dataset.channel);
-            default:
-              return 0;
-          }
-        });
-        
-        container.innerHTML = '';
-        cards.forEach(card => container.appendChild(card));
+<script>
+  function sortTimestamps() {
+    const select = document.getElementById('sort-select');
+    const container = document.querySelector('.space-y-4');
+    if (!container) return;
+    
+    const cards = Array.from(container.children);
+    
+    cards.sort((a, b) => {
+      switch(select.value) {
+        case 'newest':
+          return new Date(b.dataset.date) - new Date(a.dataset.date);
+        case 'oldest':
+          return new Date(a.dataset.date) - new Date(b.dataset.date);
+        case 'submitter':
+          return a.dataset.submitter.localeCompare(b.dataset.submitter);
+        case 'channel':
+          return a.dataset.channel.localeCompare(b.dataset.channel);
+        default:
+          return 0;
       }
-    </script>
-  </body>
-</html>
+    });
+    
+    container.innerHTML = '';
+    cards.forEach(card => container.appendChild(card));
+  }
+</script>
