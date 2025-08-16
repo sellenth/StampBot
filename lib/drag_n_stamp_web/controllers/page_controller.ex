@@ -20,7 +20,12 @@ defmodule DragNStampWeb.PageController do
       |> order_by(desc: :inserted_at)
       |> Repo.all()
     
-    render(conn, :timestamps, timestamps: timestamps)
+    # Build the API endpoint URL dynamically for the modal
+    base_url = DragNStampWeb.Endpoint.url()
+    api_endpoint = "#{base_url}/api/gemini"
+    bookmarklet_code = build_bookmarklet_code(api_endpoint)
+    
+    render(conn, :timestamps, timestamps: timestamps, bookmarklet_code: bookmarklet_code)
   end
 
   defp build_bookmarklet_code(api_endpoint) do

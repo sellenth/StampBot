@@ -2,8 +2,12 @@
 <div class="page">
   <div class="container">
     <div class="flex flex-between flex-center mb-2">
-      <h1>Generated Timestamps</h1>
-      <a href={~p"/"} class="btn-secondary btn-small">Home</a>
+      <h1>YouTube Timestamps</h1>
+      <button id="setup-btn" onclick="openSetupModal()" class="btn btn-small">Setup Bookmarklet</button>
+      <div id="username-display" class="flex gap-1 flex-center hidden">
+        <span id="username-text" class="text-small text-muted"></span>
+        <button onclick="modifySetup()" class="btn-secondary btn-small">Modify</button>
+      </div>
     </div>
 
     <div class="flex flex-between flex-center mb-2">
@@ -60,8 +64,285 @@
         <% end %>
       </div>
     <% end %>
+    
+    <!-- Setup Modal -->
+    <div id="setup-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; align-items: center; justify-content: center;">
+      <div style="background: white; border: 1px solid #ddd; max-width: 90%; max-height: 90%; overflow-y: auto; padding: 2rem;">
+        <div class="flex flex-between flex-center mb-2">
+          <h2>Setup Bookmarklet</h2>
+          <button onclick="closeSetupModal()" class="btn-secondary btn-small">Close</button>
+        </div>
+        
+        <div class="card" id="username-form">
+          <h3>Set Username</h3>
+          <p>Enter your username to track submissions:</p>
+          <div class="flex gap-1">
+            <input 
+              type="text" 
+              id="submitter-username" 
+              placeholder="Username"
+              maxlength="50"
+            />
+            <button onclick="setUsername()" class="btn">Set</button>
+          </div>
+          <p class="text-small text-muted mb-0">Stored with all generated timestamps.</p>
+        </div>
+
+        <div class="card hidden" id="instructions">
+          <h3>How to Use</h3>
+          <ol>
+            <li>Username set. Use bookmarklet below.</li>
+            <li>Drag button to bookmarks bar</li>
+            <li>Go to YouTube video</li>
+            <li>Click bookmarklet</li>
+            <li>AI generates 10 timestamps</li>
+            <li>Results in alert and console</li>
+          </ol>
+          <div class="flex gap-1 mb-0" style="margin-top: 1rem;">
+            <p class="text-small text-muted mb-0">Current username: <strong id="current-username"></strong></p>
+            <button onclick="changeUsername()" class="btn-secondary btn-small">Change Username</button>
+          </div>
+        </div>
+
+        <div class="text-center hidden" id="bookmarklet-section">
+          <div class="card">
+            <p class="text-small">Bookmarklet code:</p>
+            <textarea
+              id="bookmarklet-code"
+              readonly
+              class="code"
+              style="height: 5rem; resize: none;"
+            ><%= @bookmarklet_code %></textarea>
+          </div>
+
+          <div class="mb-2">
+            <a
+              href={@bookmarklet_code}
+              class="btn"
+              draggable="true"
+              onclick="return false;"
+              style="cursor: grab;"
+            >
+              YouTube Timestamp Generator
+            </a>
+          </div>
+
+          <p class="text-small text-muted mb-1">Drag to bookmarks bar</p>
+
+          <button onclick="copyBookmarklet()" class="btn-secondary btn-small">
+            Copy Code
+          </button>
+
+          <div class="card">
+            <p class="text-small mb-0">Drag button to bookmarks or copy code manually.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Features</h3>
+          <ul>
+            <li>YouTube video validation</li>
+            <li>Channel extraction</li>
+            <li>AI-powered timestamps</li>
+            <li>Gemini 2.5 Flash</li>
+            <li>No installation</li>
+            <li>Browser-based</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <p class="text-small mb-0"><strong>Note:</strong> Works on YouTube videos only. Extracts channel info, defaults to "anonymous". Results in alert and console.</p>
+        </div>
+
+        <div class="card">
+          <p class="text-small mb-0"><strong>Bookmarks bar:</strong> Ctrl+Shift+B (Cmd+Shift+B on Mac) or Settings → Appearance → Show bookmarks bar.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+  // Initialize page on load
+  window.addEventListener('DOMContentLoaded', function() {
+    const savedUsername = localStorage.getItem('drag-n-stamp-username');
+    
+    // Update UI based on username status
+    if (savedUsername) {
+      // Hide setup button and show username with modify option
+      document.getElementById('setup-btn').classList.add('hidden');
+      document.getElementById('username-text').textContent = `Setup complete (${savedUsername})`;
+      document.getElementById('username-display').classList.remove('hidden');
+    }
+    
+    // Set up modal click handler
+    const modal = document.getElementById('setup-modal');
+    if (modal) {
+      // Ensure modal is hidden initially (belt and suspenders)
+      modal.style.display = 'none';
+      
+      // Close modal when clicking outside
+      modal.onclick = function(e) {
+        if (e.target === this) closeSetupModal();
+      }
+    }
+  });
+
+  // Modal functions
+  function openSetupModal() {
+    // Don't open modal if username is already configured
+    const savedUsername = localStorage.getItem('drag-n-stamp-username');
+    if (savedUsername) {
+      return; // Exit early, don't show modal
+    }
+    
+    const modal = document.getElementById('setup-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    
+    // Reset to initial state for new setup
+    document.getElementById('username-form').classList.remove('hidden');
+    document.getElementById('instructions').classList.add('hidden');
+    document.getElementById('bookmarklet-section').classList.add('hidden');
+  }
+  
+  // Allow users to modify their setup even with existing username
+  function modifySetup() {
+    const modal = document.getElementById('setup-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    
+    const savedUsername = localStorage.getItem('drag-n-stamp-username');
+    if (savedUsername) {
+      // Pre-fill the username and show the bookmarklet section
+      document.getElementById('submitter-username').value = savedUsername;
+      document.getElementById('current-username').textContent = savedUsername;
+      document.getElementById('username-form').classList.add('hidden');
+      document.getElementById('instructions').classList.remove('hidden');
+      document.getElementById('bookmarklet-section').classList.remove('hidden');
+      updateBookmarkletWithUsername(savedUsername);
+    } else {
+      // Show setup form if somehow username was cleared
+      document.getElementById('username-form').classList.remove('hidden');
+      document.getElementById('instructions').classList.add('hidden');
+      document.getElementById('bookmarklet-section').classList.add('hidden');
+    }
+  }
+  
+  // Allow users to change their username
+  function changeUsername() {
+    // Show the username form, hide the instructions
+    document.getElementById('username-form').classList.remove('hidden');
+    document.getElementById('instructions').classList.add('hidden');
+    document.getElementById('bookmarklet-section').classList.add('hidden');
+    
+    // Pre-fill with current username
+    const savedUsername = localStorage.getItem('drag-n-stamp-username');
+    if (savedUsername) {
+      document.getElementById('submitter-username').value = savedUsername;
+    }
+  }
+  
+  function closeSetupModal() {
+    const modal = document.getElementById('setup-modal');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+  
+  function setUsername() {
+    const usernameInput = document.getElementById('submitter-username');
+    const username = usernameInput.value.trim();
+    
+    if (!username) {
+      showCustomAlert('Username Required', 'Please enter username.', 'error');
+      return;
+    }
+    
+    // Save username to localStorage
+    localStorage.setItem('drag-n-stamp-username', username);
+    
+    // Hide username form and show bookmarklet section
+    document.getElementById('username-form').classList.add('hidden');
+    document.getElementById('instructions').classList.remove('hidden');
+    document.getElementById('bookmarklet-section').classList.remove('hidden');
+    
+    // Update bookmarklet code with the username
+    updateBookmarkletWithUsername(username);
+    
+    // Update the current username display
+    document.getElementById('current-username').textContent = username;
+    
+    // Update the main page display
+    document.getElementById('username-text').textContent = `Setup complete (${username})`;
+    
+    showCustomAlert('Username Set', `Welcome ${username}! Use bookmarklet below.`, 'success');
+  }
+
+  function updateBookmarkletWithUsername(submitterUsername) {
+    const textarea = document.getElementById('bookmarklet-code');
+    const bookmarkletLink = document.querySelector('a[draggable="true"]');
+    
+    // Get the current bookmarklet code and inject the submitter username
+    let code = textarea.value;
+    
+    // Replace the username='anonymous' with the actual submitter username
+    code = code.replace(
+      /username:'anonymous'/g, 
+      `username:'anonymous'`
+    );
+    
+    // Add submitter_username to the JSON payload
+    code = code.replace(
+      /body:JSON\.stringify\({([^}]+)}\)/,
+      `body:JSON.stringify({$1,submitter_username:'${submitterUsername}'})`
+    );
+    
+    textarea.value = code;
+    bookmarkletLink.href = code;
+  }
+
+  function showCustomAlert(title, message, type) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,system-ui,sans-serif';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:white;padding:24px;border:1px solid #ddd;max-width:400px;width:90%';
+
+    const titleEl = document.createElement('h3');
+    titleEl.style.cssText = 'margin:0 0 16px 0;font-size:18px;font-weight:600;color:#000';
+    titleEl.textContent = title;
+
+    const content = document.createElement('div');
+    content.style.cssText = 'color:#555;line-height:1.5;margin-bottom:20px';
+    content.textContent = message;
+
+    const button = document.createElement('button');
+    button.style.cssText = 'background:#000;color:white;border:none;padding:8px 16px;font-size:14px;cursor:pointer;float:right';
+    button.textContent = 'OK';
+    button.onclick = () => overlay.remove();
+
+    modal.appendChild(titleEl);
+    modal.appendChild(content);
+    modal.appendChild(button);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) overlay.remove();
+    };
+  }
+
+  function copyBookmarklet() {
+    const textarea = document.getElementById('bookmarklet-code');
+    textarea.select();
+    textarea.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(textarea.value).then(function() {
+      showCustomAlert('Copied', 'Bookmarklet copied to clipboard.', 'success');
+    }).catch(function() {
+      showCustomAlert('Failed', 'Please copy manually.', 'error');
+    });
+  }
+</script>
     
 <script>
   function sortTimestamps() {
