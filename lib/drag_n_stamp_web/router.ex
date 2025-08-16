@@ -19,6 +19,7 @@ defmodule DragNStampWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/timestamps", PageController, :timestamps
   end
 
   # API routes

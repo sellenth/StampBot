@@ -1,6 +1,7 @@
 defmodule DragNStampWeb.ApiController do
   use DragNStampWeb, :controller
   require Logger
+  alias DragNStamp.{Repo, Timestamp}
 
   def receive_url(conn, %{"url" => url} = params) do
     username = Map.get(params, "username", "anonymous")
@@ -41,6 +42,21 @@ defmodule DragNStampWeb.ApiController do
     if api_key do
       case call_gemini_api(formatted_prompt, api_key, url) do
         {:ok, response} ->
+          # Save timestamp to database
+          timestamp_attrs = %{
+            url: url,
+            channel_name: channel_name,
+            username: username,
+            content: response
+          }
+          
+          case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
+            {:ok, _timestamp} ->
+              Logger.info("Timestamp saved to database for URL: #{url}")
+            {:error, changeset} ->
+              Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
+          end
+          
           json(conn, %{
             status: "success",
             response: response

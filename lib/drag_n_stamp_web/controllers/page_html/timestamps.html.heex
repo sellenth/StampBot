@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title suffix=" · Phoenix Framework">
+      Timestamps
+    </.live_title>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body class="bg-white antialiased">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-3xl">
+        <header class="px-4 py-6 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <a href={~p"/"}>
+                <svg viewBox="0 0 71 48" class="h-12" aria-label="Phoenix Framework">
+                  <path
+                    id="phoenix-a"
+                    fill="#FD4F00"
+                    d="m26.371 33.477-.552-.1c-3.92-.729-6.397-3.1-7.57-6.829-.733-2.324-.597-4.035.414-5.24C19.991 19.76 23.1 18.477 26.82 18.477c5.262 0 9.16 4.065 9.16 9.543 0 1.814-.433 3.529-1.238 4.976-.809 1.451-1.957 2.632-3.371 3.481Z"
+                  />
+                  <path
+                    id="phoenix-b"
+                    fill="#FD4F00"
+                    d="m26.371 33.477-.552-.1c-3.92-.729-6.397-3.1-7.57-6.829-.733-2.324-.597-4.035.414-5.24C19.991 19.76 23.1 18.477 26.82 18.477c5.262 0 9.16 4.065 9.16 9.543 0 1.814-.433 3.529-1.238 4.976-.809 1.451-1.957 2.632-3.371 3.481Z"
+                  />
+                </svg>
+              </a>
+              <h1 class="text-brand text-3xl font-bold">Timestamps</h1>
+            </div>
+            <div class="flex items-center gap-4 font-semibold leading-6 text-zinc-900">
+              <a href={~p"/"} class="hover:text-zinc-700">
+                Home
+              </a>
+            </div>
+          </div>
+        </header>
+
+        <main class="px-4 py-10 sm:px-6 lg:px-8">
+          <div class="mx-auto max-w-2xl">
+            <.flash_group flash={@flash} />
+            
+            <div class="bg-gray-50 p-6 rounded-lg">
+              <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                Generated Timestamps (<%= length(@timestamps) %> total)
+              </h2>
+              
+              <%= if @timestamps == [] do %>
+                <p class="text-gray-600 text-center py-8">
+                  No timestamps generated yet. Use the bookmarklet on a YouTube video to create your first timestamp!
+                </p>
+              <% else %>
+                <div class="space-y-6">
+                  <%= for timestamp <- @timestamps do %>
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                      <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1 min-w-0">
+                          <h3 class="text-lg font-medium text-gray-900 truncate">
+                            <%= timestamp.channel_name %>
+                          </h3>
+                          <p class="text-sm text-gray-500 mt-1">
+                            @<%= timestamp.username %> • 
+                            <%= Calendar.strftime(timestamp.inserted_at, "%B %d, %Y at %I:%M %p") %>
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div class="mb-3">
+                        <a 
+                          href={timestamp.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          class="text-blue-600 hover:text-blue-800 text-sm font-medium break-all"
+                        >
+                          <%= timestamp.url %>
+                        </a>
+                      </div>
+                      
+                      <div class="mt-3 p-3 bg-gray-50 rounded-md">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Generated Timestamps:</h4>
+                        <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono leading-relaxed"><%= timestamp.content %></pre>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

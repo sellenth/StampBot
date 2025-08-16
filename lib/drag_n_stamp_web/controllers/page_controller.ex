@@ -1,5 +1,7 @@
 defmodule DragNStampWeb.PageController do
   use DragNStampWeb, :controller
+  alias DragNStamp.{Repo, Timestamp}
+  import Ecto.Query
 
   def home(conn, _params) do
     # Build the API endpoint URL dynamically based on the current request
@@ -10,6 +12,15 @@ defmodule DragNStampWeb.PageController do
     bookmarklet_code = build_bookmarklet_code(api_endpoint)
     
     render(conn, :home, layout: false, bookmarklet_code: bookmarklet_code)
+  end
+
+  def timestamps(conn, _params) do
+    timestamps = 
+      Timestamp
+      |> order_by(desc: :inserted_at)
+      |> Repo.all()
+    
+    render(conn, :timestamps, timestamps: timestamps)
   end
 
   defp build_bookmarklet_code(api_endpoint) do
