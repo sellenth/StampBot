@@ -31,9 +31,10 @@ defmodule DragNStampWeb.ApiController do
     api_key = System.get_env("GEMINI_API_KEY")
     channel_name = Map.get(params, "channel_name", "anonymous")
     username = Map.get(params, "username", "anonymous")
+    submitter_username = Map.get(params, "submitter_username", "anonymous")
     url = Map.get(params, "url")
 
-    Logger.info("Gemini request - Channel: #{channel_name}, Username: #{username}, URL: #{url}")
+    Logger.info("Gemini request - Channel: #{channel_name}, Username: #{username}, Submitter: #{submitter_username}, URL: #{url}")
 
     # Create the formatted prompt for timestamps
     formatted_prompt =
@@ -47,6 +48,7 @@ defmodule DragNStampWeb.ApiController do
             url: url,
             channel_name: channel_name,
             username: username,
+            submitter_username: submitter_username,
             content: response
           }
           

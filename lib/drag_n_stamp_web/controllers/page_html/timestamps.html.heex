@@ -46,9 +46,32 @@
             <.flash_group flash={@flash} />
             
             <div class="bg-gray-50 p-6 rounded-lg">
-              <h2 class="text-xl font-semibold text-gray-900 mb-4">
-                Generated Timestamps (<%= length(@timestamps) %> total)
-              </h2>
+              <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">
+                  Generated Timestamps (<%= length(@timestamps) %> total)
+                </h2>
+                <div class="flex gap-2">
+                  <select id="sort-select" onchange="sortTimestamps()" class="text-sm border border-gray-300 rounded px-3 py-1">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="submitter">By Submitter</option>
+                    <option value="channel">By Channel</option>
+                  </select>
+                </div>
+              </div>
+              
+              <!-- Submitter Stats -->
+              <div class="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-3">📊 Submitter Leaderboard</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <%= for {submitter, count} <- submitter_stats(@timestamps) do %>
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                      <span class="font-medium text-purple-700">🏆 <%= submitter %></span>
+                      <span class="text-gray-600"><%= count %> submissions</span>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
               
               <%= if @timestamps == [] do %>
                 <p class="text-gray-600 text-center py-8">
@@ -57,16 +80,23 @@
               <% else %>
                 <div class="space-y-6">
                   <%= for timestamp <- @timestamps do %>
-                    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={timestamp.inserted_at}>
                       <div class="flex items-start justify-between mb-3">
                         <div class="flex-1 min-w-0">
                           <h3 class="text-lg font-medium text-gray-900 truncate">
                             <%= timestamp.channel_name %>
                           </h3>
-                          <p class="text-sm text-gray-500 mt-1">
-                            @<%= timestamp.username %> • 
-                            <%= Calendar.strftime(timestamp.inserted_at, "%B %d, %Y at %I:%M %p") %>
-                          </p>
+                          <div class="flex flex-wrap gap-2 mt-2">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              👤 <%= timestamp.submitter_username %>
+                            </span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              📺 @<%= timestamp.username %>
+                            </span>
+                            <span class="text-xs text-gray-500">
+                              🕒 <%= Calendar.strftime(timestamp.inserted_at, "%B %d, %Y at %I:%M %p") %>
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
@@ -94,5 +124,31 @@
         </main>
       </div>
     </div>
+    
+    <script>
+      function sortTimestamps() {
+        const select = document.getElementById('sort-select');
+        const container = document.querySelector('.space-y-6');
+        const cards = Array.from(container.children);
+        
+        cards.sort((a, b) => {
+          switch(select.value) {
+            case 'newest':
+              return new Date(b.dataset.date) - new Date(a.dataset.date);
+            case 'oldest':
+              return new Date(a.dataset.date) - new Date(b.dataset.date);
+            case 'submitter':
+              return a.dataset.submitter.localeCompare(b.dataset.submitter);
+            case 'channel':
+              return a.dataset.channel.localeCompare(b.dataset.channel);
+            default:
+              return 0;
+          }
+        });
+        
+        container.innerHTML = '';
+        cards.forEach(card => container.appendChild(card));
+      }
+    </script>
   </body>
 </html>
