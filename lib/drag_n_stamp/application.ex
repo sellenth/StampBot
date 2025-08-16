@@ -7,8 +7,8 @@ defmodule DragNStamp.Application do
 
   @impl true
   def start(_type, _args) do
-    # Load environment variables from .env file in development
-    if Mix.env() == :dev do
+    # Load environment variables from .env file in development only
+    if Code.ensure_loaded?(Mix) and Mix.env() == :dev do
       load_env_file()
     end
     children = [

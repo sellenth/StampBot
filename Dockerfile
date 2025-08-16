@@ -15,8 +15,8 @@
 # versions.  See https://hub.docker.com/r/hexpm/elixir/tags for
 # available tags.
 ARG ELIXIR_VERSION=1.17.0
-ARG OTP_VERSION=27
-ARG ALPINE_VERSION=3.19
+ARG OTP_VERSION=27.0
+ARG ALPINE_VERSION=3.19.1
 FROM hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-alpine-${ALPINE_VERSION} AS build
 
 # Install build dependencies.  Node/npm are required for Tailwind
@@ -44,16 +44,11 @@ COPY config config
 RUN mix deps.get --only prod && \
     mix deps.compile
 
-# Build static assets.  We copy assets separately so Docker can
-# cache this layer when Elixir code changes.  The `npm run deploy`
-# target should build and minify CSS/JS for production.
+# Build static assets.  Phoenix 1.7+ uses esbuild and tailwind
+# instead of npm.  We copy assets separately so Docker can
+# cache this layer when Elixir code changes.
 COPY assets assets
-RUN cd assets && npm install && npm run deploy
-
-# Generate digests so Phoenix can serve static files with cache
-# busting filenames.  This step writes hashed versions into
-# priv/static.
-RUN mix phx.digest
+RUN mix assets.deploy
 
 # Copy the rest of the application source and compile the release.
 COPY lib lib

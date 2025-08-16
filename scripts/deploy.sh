@@ -34,4 +34,4 @@ echo "Deploying to $ENV using $CONFIG..."
 # invoking this script.  The `--remote-only` flag ensures the Docker
 # build occurs on Fly’s builders rather than locally.  Remove it if
 # you prefer local builds.
-fly deploy --remote-only -c "$CONFIG"
+fly deploy -c "$CONFIG"
