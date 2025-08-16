@@ -34,10 +34,10 @@ if config_env() == :prod do
   #
   # The `ssl: true` option ensures the database connection uses TLS.
   # Fly.io databases require encrypted connections by default, so we
-  # uncomment the setting here. Without this the connection will be
-  # refused when attempting to talk to your production Postgres.
+  # configure SSL with verify_none to avoid certificate verification issues.
   config :drag_n_stamp, DragNStamp.Repo,
     ssl: true,
+    ssl_opts: [verify: :verify_none],
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
