@@ -41,12 +41,9 @@
       <div>
         <%= for timestamp <- @timestamps do %>
           <div class="card" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={timestamp.inserted_at}>
-            <div class="flex flex-between flex-center mb-1">
-              <h3><%= timestamp.channel_name %></h3>
-            </div>
             <div class="flex gap-1 mb-2">
               <span class="tag"><%= timestamp.submitter_username %></span>
-              <span class="tag">@<%= timestamp.username %></span>
+              <span class="tag"><%= timestamp.channel_name %></span>
               <span class="tag text-small"><%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y") %></span>
             </div>
             

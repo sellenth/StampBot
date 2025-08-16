@@ -2,10 +2,11 @@ import Config
 
 # Configure your database
 config :drag_n_stamp, DragNStamp.Repo,
-  url: System.get_env("DATABASE_URL") || "postgresql://postgres:postgres@localhost/drag_n_stamp_dev",
+  url: System.fetch_env!("DATABASE_URL"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 10,
+  ssl: false
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

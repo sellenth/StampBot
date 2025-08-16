@@ -12,6 +12,9 @@ kill_timeout = 5
 [build]
   # Build from the local Dockerfile
 
+[deploy]
+  release_command = "eval \"DragNStamp.Release.create() && DragNStamp.Release.migrate()\""
+
 [env]
   PHX_HOST = "drag-n-stamp-prod.fly.dev"
   PORT = "4000"

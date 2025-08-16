@@ -14,6 +14,9 @@ kill_timeout = 5
   # Leave image unset to trigger a Docker build using the Dockerfile
   # present in the repository root.
 
+[deploy]
+  release_command = "eval \"DragNStamp.Release.migrate()\""
+
 [env]
   # Host used by Phoenix when generating URLs.  This will be set
   # automatically by Fly after your first deploy, but providing it

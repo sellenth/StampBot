@@ -36,8 +36,7 @@ if config_env() == :prod do
   # Fly.io databases require encrypted connections by default, so we
   # configure SSL with verify_none to avoid certificate verification issues.
   config :drag_n_stamp, DragNStamp.Repo,
-    ssl: true,
-    ssl_opts: [verify: :verify_none],
+    ssl: [verify: :verify_none],
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
