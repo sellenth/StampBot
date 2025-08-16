@@ -9,7 +9,8 @@ module.exports = {
   content: [
     "./js/**/*.js",
     "../lib/drag_n_stamp_web.ex",
-    "../lib/drag_n_stamp_web/**/*.*ex"
+    "../lib/drag_n_stamp_web/**/*.*ex",
+    "../lib/**/*.*ex"
   ],
   theme: {
     extend: {
@@ -19,7 +20,6 @@ module.exports = {
     },
   },
   plugins: [
-    require("@tailwindcss/forms"),
     // Allows prefixing tailwind classes with LiveView classes to add rules
     // only when LiveView classes are applied, for example:
     //

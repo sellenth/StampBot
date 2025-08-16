@@ -44,15 +44,14 @@ COPY config config
 RUN mix deps.get --only prod && \
     mix deps.compile
 
-# Build static assets.  Phoenix 1.7+ uses esbuild and tailwind
-# instead of npm.  We copy assets separately so Docker can
-# cache this layer when Elixir code changes.
-COPY assets assets
-RUN mix assets.deploy
-
-# Copy the rest of the application source and compile the release.
+# Copy the application source needed for Tailwind to scan for classes
 COPY lib lib
 COPY priv priv
+
+# Build static assets.  Phoenix 1.7+ uses esbuild and tailwind
+# instead of npm.  Tailwind needs lib directory to scan for classes.
+COPY assets assets
+RUN mix assets.deploy
 RUN mix release --overwrite
 
 ## ------------------------------------------------------
