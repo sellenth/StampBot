@@ -1,2 +1,1 @@
-username still doens't work, maybe set it on bookmark creation
-close first popup before second comes up
+prevent the same vid from being timestamped twice, just return the db content if attempt is made
