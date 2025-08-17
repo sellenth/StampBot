@@ -39,4 +39,4 @@ npm-debug.log
 .crush
 
 # Deployment logs
-logs/*
+/logs/
