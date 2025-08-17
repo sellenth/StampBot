@@ -33,11 +33,23 @@ defmodule DragNStampWeb.ApiController do
     submitter_username = Map.get(params, "submitter_username", "anonymous")
     url = Map.get(params, "url")
 
-    Logger.info("Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}")
+    Logger.info(
+      "Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}"
+    )
 
     # Create the formatted prompt for timestamps
     formatted_prompt =
-      "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. here's the link, be slightly humorous but not too much ;) channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, no extra commentary besides the timestmaps"
+      "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. here's the link, be slightly humorous but not too much ;) channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
+
+      construct a timestamp in a way that doesn't create a valid link in a youtube comment.
+      For example, the period is creating a link which may flag us as spam.
+      <bad>
+      0:00 __________ Parse.bot: ___ _____.
+      </bad>
+      <good>
+      0:00 __________ Parse bot: ___ _____.
+      </good>
+      "
 
     if api_key do
       case call_gemini_api(formatted_prompt, api_key, url) do
@@ -49,14 +61,15 @@ defmodule DragNStampWeb.ApiController do
             submitter_username: submitter_username,
             content: response
           }
-          
+
           case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
             {:ok, _timestamp} ->
               Logger.info("Timestamp saved to database for URL: #{url}")
+
             {:error, changeset} ->
               Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
           end
-          
+
           json(conn, %{
             status: "success",
             response: response
@@ -114,6 +127,7 @@ defmodule DragNStampWeb.ApiController do
         case Jason.decode(response_body) do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
+            text = text + "\n\nTimestamped by McCoder Douglas"
             {:ok, text}
 
           {:ok, %{"error" => error}} ->
