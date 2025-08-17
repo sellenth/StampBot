@@ -42,3 +42,38 @@ liveSocket.connect()
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
 
+// Dark mode functionality
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme')
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
+  
+  document.documentElement.setAttribute('data-theme', newTheme)
+  localStorage.setItem('theme', newTheme)
+  
+  // Update icon
+  const icon = document.getElementById('theme-icon')
+  if (icon) {
+    icon.textContent = newTheme === 'dark' ? '☀️' : '🌙'
+  }
+}
+
+// Initialize theme on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const savedTheme = localStorage.getItem('theme')
+  
+  // Use saved theme or browser preference
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const theme = savedTheme || (prefersDark ? 'dark' : 'light')
+  
+  document.documentElement.setAttribute('data-theme', theme)
+  
+  // Update icon
+  const icon = document.getElementById('theme-icon')
+  if (icon) {
+    icon.textContent = theme === 'dark' ? '☀️' : '🌙'
+  }
+})
+
+// Make toggleTheme globally available
+window.toggleTheme = toggleTheme
+

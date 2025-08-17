@@ -68,8 +68,8 @@
     <% end %>
 
     <!-- Setup Modal -->
-    <div id="setup-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; align-items: center; justify-content: center;">
-      <div style="background: white; border: 1px solid #ddd; max-width: 90%; max-height: 90%; overflow-y: auto; padding: 2rem;">
+    <div id="setup-modal" class="hidden modal-overlay">
+      <div class="modal-content">
         <div class="flex flex-between flex-center mb-2">
           <h2>Setup Bookmarklet</h2>
           <button onclick="closeSetupModal()" class="btn-secondary btn-small">Close</button>
@@ -238,7 +238,7 @@
     // Update the main page display
     document.getElementById('username-text').textContent = `Setup complete (${username})`;
 
-    showCustomAlert('Username Set', `Welcome ${username}! Use bookmarklet below.`, 'success');
+    showCustomAlert('Username Set', `Welcome ${username}! Use the bookmark tool below.`, 'success');
   }
 
   function updateBookmarkletWithUsername(submitterUsername) {
