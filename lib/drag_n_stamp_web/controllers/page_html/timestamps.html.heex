@@ -25,7 +25,7 @@
         </select>
       </div>
     </div>
-              
+
     <div class="card">
       <h3>Leaderboard</h3>
       <div class="flex flex-col gap-1">
@@ -37,7 +37,7 @@
         <% end %>
       </div>
     </div>
-              
+
     <%= if @timestamps == [] do %>
       <div class="card text-center">
         <p>No timestamps yet.</p>
@@ -52,13 +52,13 @@
               <span class="tag"><%= timestamp.channel_name %></span>
               <span class="tag text-small"><%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y") %></span>
             </div>
-            
+
             <div class="mb-2">
               <a href={timestamp.url} target="_blank" rel="noopener noreferrer" class="text-small">
                 <%= timestamp.url %>
               </a>
             </div>
-            
+
             <div class="code">
               <p class="text-small mb-1">Generated Timestamps:</p>
               <pre><%= timestamp.content %></pre>
@@ -67,7 +67,7 @@
         <% end %>
       </div>
     <% end %>
-    
+
     <!-- Setup Modal -->
     <div id="setup-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; align-items: center; justify-content: center;">
       <div style="background: white; border: 1px solid #ddd; max-width: 90%; max-height: 90%; overflow-y: auto; padding: 2rem;">
@@ -75,14 +75,14 @@
           <h2>Setup Bookmarklet</h2>
           <button onclick="closeSetupModal()" class="btn-secondary btn-small">Close</button>
         </div>
-        
+
         <div class="card" id="username-form">
           <h3>Set Username</h3>
           <p>Enter your username to track submissions:</p>
           <div class="flex gap-1">
-            <input 
-              type="text" 
-              id="submitter-username" 
+            <input
+              type="text"
+              id="submitter-username"
               placeholder="Username"
               maxlength="50"
             />
@@ -94,30 +94,15 @@
         <div class="card hidden" id="instructions">
           <h3>How to Use</h3>
           <ol>
-            <li>Username set. Use bookmarklet below.</li>
             <li>Drag button to bookmarks bar</li>
             <li>Go to YouTube video</li>
-            <li>Click bookmarklet</li>
-            <li>AI generates 10 timestamps</li>
-            <li>Results in alert and console</li>
+            <li>Click bookmark tool in your bookmarks bar</li>
+            <li>McDouglas creates some timestamps for you</li>
+            <li>It may take a moment, you can close the status popup and continue watching</li>
           </ol>
-          <div class="flex gap-1 mb-0" style="margin-top: 1rem;">
-            <p class="text-small text-muted mb-0">Current username: <strong id="current-username"></strong></p>
-            <button onclick="changeUsername()" class="btn-secondary btn-small">Change Username</button>
-          </div>
         </div>
 
         <div class="text-center hidden" id="bookmarklet-section">
-          <div class="card">
-            <p class="text-small">Bookmarklet code:</p>
-            <textarea
-              id="bookmarklet-code"
-              readonly
-              class="code"
-              style="height: 5rem; resize: none;"
-            ><%= @bookmarklet_code %></textarea>
-          </div>
-
           <div class="mb-2">
             <a
               href={@bookmarklet_code}
@@ -132,29 +117,30 @@
 
           <p class="text-small text-muted mb-1">Drag to bookmarks bar</p>
 
-          <button onclick="copyBookmarklet()" class="btn-secondary btn-small">
-            Copy Code
-          </button>
-
-          <div class="card">
+          <div class="card mt-4">
             <p class="text-small mb-0">Drag button to bookmarks or copy code manually.</p>
+            <p class="text-small mt-4 mx-auto text-muted mb-0">Current username: <strong id="current-username"></strong></p>
+            <button onclick="changeUsername()" class="btn-secondary btn-small">Change Username</button>
           </div>
         </div>
 
         <div class="card">
-          <h3>Features</h3>
-          <ul>
-            <li>YouTube video validation</li>
-            <li>Channel extraction</li>
-            <li>AI-powered timestamps</li>
-            <li>Gemini 2.5 Flash</li>
-            <li>No installation</li>
-            <li>Browser-based</li>
-          </ul>
+          <p class="text-small">Bookmarklet code:</p>
+          <textarea
+            id="bookmarklet-code"
+            readonly
+            class="code"
+            style="height: 5rem; resize: none;"
+          ><%= @bookmarklet_code %></textarea>
+
+          <button onclick="copyBookmarklet()" class="btn-secondary btn-small">
+          Copy Code
+          </button>
         </div>
 
+
         <div class="card">
-          <p class="text-small mb-0"><strong>Note:</strong> Works on YouTube videos only. Extracts channel info, defaults to "anonymous". Results in alert and console.</p>
+          <p class="text-small mb-0"><strong>Note:</strong> Works on YouTube videos only. Extracts channel info, defaults to "anonymous".</p>
         </div>
 
         <div class="card">
@@ -173,23 +159,23 @@
     if (savedUsername) {
       return; // Exit early, don't show modal
     }
-    
+
     const modal = document.getElementById('setup-modal');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
-    
+
     // Reset to initial state for new setup
     document.getElementById('username-form').classList.remove('hidden');
     document.getElementById('instructions').classList.add('hidden');
     document.getElementById('bookmarklet-section').classList.add('hidden');
   }
-  
+
   // Allow users to modify their setup even with existing username
   function modifySetup() {
     const modal = document.getElementById('setup-modal');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
-    
+
     const savedUsername = localStorage.getItem('drag-n-stamp-username');
     if (savedUsername) {
       // Pre-fill the username and show the bookmarklet section
@@ -206,75 +192,75 @@
       document.getElementById('bookmarklet-section').classList.add('hidden');
     }
   }
-  
+
   // Allow users to change their username
   function changeUsername() {
     // Show the username form, hide the instructions
     document.getElementById('username-form').classList.remove('hidden');
     document.getElementById('instructions').classList.add('hidden');
     document.getElementById('bookmarklet-section').classList.add('hidden');
-    
+
     // Pre-fill with current username
     const savedUsername = localStorage.getItem('drag-n-stamp-username');
     if (savedUsername) {
       document.getElementById('submitter-username').value = savedUsername;
     }
   }
-  
+
   function closeSetupModal() {
     const modal = document.getElementById('setup-modal');
     modal.classList.add('hidden');
     modal.style.display = 'none';
   }
-  
+
   function setUsername() {
     const usernameInput = document.getElementById('submitter-username');
     const username = usernameInput.value.trim();
-    
+
     if (!username) {
       showCustomAlert('Username Required', 'Please enter username.', 'error');
       return;
     }
-    
+
     // Save username to localStorage
     localStorage.setItem('drag-n-stamp-username', username);
-    
+
     // Hide username form and show bookmarklet section
     document.getElementById('username-form').classList.add('hidden');
     document.getElementById('instructions').classList.remove('hidden');
     document.getElementById('bookmarklet-section').classList.remove('hidden');
-    
+
     // Update bookmarklet code with the username
     updateBookmarkletWithUsername(username);
-    
+
     // Update the current username display
     document.getElementById('current-username').textContent = username;
-    
+
     // Update the main page display
     document.getElementById('username-text').textContent = `Setup complete (${username})`;
-    
+
     showCustomAlert('Username Set', `Welcome ${username}! Use bookmarklet below.`, 'success');
   }
 
   function updateBookmarkletWithUsername(submitterUsername) {
     const textarea = document.getElementById('bookmarklet-code');
     const bookmarkletLink = document.querySelector('a[draggable="true"]');
-    
+
     // Get the current bookmarklet code and inject the submitter username
     let code = textarea.value;
-    
+
     // Replace the username='anonymous' with the actual submitter username
     code = code.replace(
-      /username:'anonymous'/g, 
+      /username:'anonymous'/g,
       `username:'anonymous'`
     );
-    
+
     // Add submitter_username to the JSON payload
     code = code.replace(
       /body:JSON\.stringify\({([^}]+)}\)/,
       `body:JSON.stringify({$1,submitter_username:'${submitterUsername}'})`
     );
-    
+
     textarea.value = code;
     bookmarkletLink.href = code;
   }
@@ -321,19 +307,19 @@
     });
   }
 </script>
-    
+
 <script>
   // Initialize filters on page load
   window.addEventListener('DOMContentLoaded', function() {
     // Initialize existing username display code
     const savedUsername = localStorage.getItem('drag-n-stamp-username');
-    
+
     if (savedUsername) {
       document.getElementById('setup-btn').classList.add('hidden');
       document.getElementById('username-text').textContent = `Setup complete (${savedUsername})`;
       document.getElementById('username-display').classList.remove('hidden');
     }
-    
+
     const modal = document.getElementById('setup-modal');
     if (modal) {
       modal.style.display = 'none';
@@ -341,7 +327,7 @@
         if (e.target === this) closeSetupModal();
       }
     }
-    
+
     // Initialize filter options
     initializeFilters();
   });
@@ -350,14 +336,14 @@
     const cards = document.querySelectorAll('.timestamp-card');
     const submitters = new Set();
     const channels = new Set();
-    
+
     cards.forEach(card => {
       const submitter = card.dataset.submitter;
       const channel = card.dataset.channel;
       if (submitter) submitters.add(submitter);
       if (channel) channels.add(channel);
     });
-    
+
     // Populate submitter filter
     const submitterSelect = document.getElementById('submitter-filter');
     submitterSelect.innerHTML = '<option value="">All Submitters</option>';
@@ -367,7 +353,7 @@
       option.textContent = submitter;
       submitterSelect.appendChild(option);
     });
-    
+
     // Populate channel filter
     const channelSelect = document.getElementById('channel-filter');
     channelSelect.innerHTML = '<option value="">All Channels</option>';
@@ -384,18 +370,18 @@
     const channelFilter = document.getElementById('channel-filter').value;
     const sortSelect = document.getElementById('sort-select').value;
     const container = document.getElementById('timestamps-container');
-    
+
     if (!container) return;
-    
+
     const cards = Array.from(container.querySelectorAll('.timestamp-card'));
-    
+
     // Filter cards
     const filteredCards = cards.filter(card => {
       const submitterMatch = !submitterFilter || card.dataset.submitter === submitterFilter;
       const channelMatch = !channelFilter || card.dataset.channel === channelFilter;
       return submitterMatch && channelMatch;
     });
-    
+
     // Sort filtered cards
     filteredCards.sort((a, b) => {
       switch(sortSelect) {
@@ -411,16 +397,16 @@
           return 0;
       }
     });
-    
+
     // Hide all cards first
     cards.forEach(card => card.style.display = 'none');
-    
+
     // Show filtered and sorted cards
     filteredCards.forEach(card => {
       card.style.display = 'block';
       container.appendChild(card); // Re-append to maintain order
     });
-    
+
     // Update record count
     const recordCount = document.getElementById('record-count');
     if (recordCount) {
