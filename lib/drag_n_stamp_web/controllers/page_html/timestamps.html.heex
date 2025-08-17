@@ -11,13 +11,19 @@
     </div>
 
     <div class="flex flex-between flex-center mb-2">
-      <p class="text-muted mb-0"><%= length(@timestamps) %> records</p>
-      <select id="sort-select" onchange="sortTimestamps()">
-        <option value="newest">Newest</option>
-        <option value="oldest">Oldest</option>
-        <option value="submitter">Submitter</option>
-        <option value="channel">Channel</option>
-      </select>
+      <p class="text-muted mb-0"><span id="record-count"><%= length(@timestamps) %></span> records</p>
+      <div class="flex gap-1">
+        <select id="submitter-filter" onchange="applyFilters()">
+          <option value="">All Submitters</option>
+        </select>
+        <select id="channel-filter" onchange="applyFilters()">
+          <option value="">All Channels</option>
+        </select>
+        <select id="sort-select" onchange="applyFilters()">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+        </select>
+      </div>
     </div>
               
     <div class="card">
@@ -38,9 +44,9 @@
         <p class="text-small text-muted mb-0">Use bookmarklet on YouTube video.</p>
       </div>
     <% else %>
-      <div>
+      <div id="timestamps-container">
         <%= for timestamp <- @timestamps do %>
-          <div class="card" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={timestamp.inserted_at}>
+          <div class="card timestamp-card" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={NaiveDateTime.to_iso8601(timestamp.inserted_at)}>
             <div class="flex gap-1 mb-2">
               <span class="tag"><%= timestamp.submitter_username %></span>
               <span class="tag"><%= timestamp.channel_name %></span>
@@ -160,31 +166,6 @@
 </div>
 
 <script>
-  // Initialize page on load
-  window.addEventListener('DOMContentLoaded', function() {
-    const savedUsername = localStorage.getItem('drag-n-stamp-username');
-    
-    // Update UI based on username status
-    if (savedUsername) {
-      // Hide setup button and show username with modify option
-      document.getElementById('setup-btn').classList.add('hidden');
-      document.getElementById('username-text').textContent = `Setup complete (${savedUsername})`;
-      document.getElementById('username-display').classList.remove('hidden');
-    }
-    
-    // Set up modal click handler
-    const modal = document.getElementById('setup-modal');
-    if (modal) {
-      // Ensure modal is hidden initially (belt and suspenders)
-      modal.style.display = 'none';
-      
-      // Close modal when clicking outside
-      modal.onclick = function(e) {
-        if (e.target === this) closeSetupModal();
-      }
-    }
-  });
-
   // Modal functions
   function openSetupModal() {
     // Don't open modal if username is already configured
@@ -342,15 +323,82 @@
 </script>
     
 <script>
-  function sortTimestamps() {
-    const select = document.getElementById('sort-select');
-    const container = document.querySelector('.space-y-4');
+  // Initialize filters on page load
+  window.addEventListener('DOMContentLoaded', function() {
+    // Initialize existing username display code
+    const savedUsername = localStorage.getItem('drag-n-stamp-username');
+    
+    if (savedUsername) {
+      document.getElementById('setup-btn').classList.add('hidden');
+      document.getElementById('username-text').textContent = `Setup complete (${savedUsername})`;
+      document.getElementById('username-display').classList.remove('hidden');
+    }
+    
+    const modal = document.getElementById('setup-modal');
+    if (modal) {
+      modal.style.display = 'none';
+      modal.onclick = function(e) {
+        if (e.target === this) closeSetupModal();
+      }
+    }
+    
+    // Initialize filter options
+    initializeFilters();
+  });
+
+  function initializeFilters() {
+    const cards = document.querySelectorAll('.timestamp-card');
+    const submitters = new Set();
+    const channels = new Set();
+    
+    cards.forEach(card => {
+      const submitter = card.dataset.submitter;
+      const channel = card.dataset.channel;
+      if (submitter) submitters.add(submitter);
+      if (channel) channels.add(channel);
+    });
+    
+    // Populate submitter filter
+    const submitterSelect = document.getElementById('submitter-filter');
+    submitterSelect.innerHTML = '<option value="">All Submitters</option>';
+    Array.from(submitters).sort().forEach(submitter => {
+      const option = document.createElement('option');
+      option.value = submitter;
+      option.textContent = submitter;
+      submitterSelect.appendChild(option);
+    });
+    
+    // Populate channel filter
+    const channelSelect = document.getElementById('channel-filter');
+    channelSelect.innerHTML = '<option value="">All Channels</option>';
+    Array.from(channels).sort().forEach(channel => {
+      const option = document.createElement('option');
+      option.value = channel;
+      option.textContent = channel;
+      channelSelect.appendChild(option);
+    });
+  }
+
+  function applyFilters() {
+    const submitterFilter = document.getElementById('submitter-filter').value;
+    const channelFilter = document.getElementById('channel-filter').value;
+    const sortSelect = document.getElementById('sort-select').value;
+    const container = document.getElementById('timestamps-container');
+    
     if (!container) return;
     
-    const cards = Array.from(container.children);
+    const cards = Array.from(container.querySelectorAll('.timestamp-card'));
     
-    cards.sort((a, b) => {
-      switch(select.value) {
+    // Filter cards
+    const filteredCards = cards.filter(card => {
+      const submitterMatch = !submitterFilter || card.dataset.submitter === submitterFilter;
+      const channelMatch = !channelFilter || card.dataset.channel === channelFilter;
+      return submitterMatch && channelMatch;
+    });
+    
+    // Sort filtered cards
+    filteredCards.sort((a, b) => {
+      switch(sortSelect) {
         case 'newest':
           return new Date(b.dataset.date) - new Date(a.dataset.date);
         case 'oldest':
@@ -364,7 +412,19 @@
       }
     });
     
-    container.innerHTML = '';
-    cards.forEach(card => container.appendChild(card));
+    // Hide all cards first
+    cards.forEach(card => card.style.display = 'none');
+    
+    // Show filtered and sorted cards
+    filteredCards.forEach(card => {
+      card.style.display = 'block';
+      container.appendChild(card); // Re-append to maintain order
+    });
+    
+    // Update record count
+    const recordCount = document.getElementById('record-count');
+    if (recordCount) {
+      recordCount.textContent = filteredCards.length;
+    }
   }
 </script>
