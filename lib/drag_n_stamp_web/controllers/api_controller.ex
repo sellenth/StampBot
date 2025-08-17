@@ -27,6 +27,16 @@ defmodule DragNStampWeb.ApiController do
     })
   end
 
+  defp extract_timestamps_only(text) do
+    text
+    |> String.split("\n")
+    |> Enum.filter(fn line ->
+      # Match lines that start with timestamp pattern like "0:00", "1:23", "12:34", etc.
+      String.match?(line, ~r/^\s*\d+:\d+/)
+    end)
+    |> Enum.join("\n")
+  end
+
   def gemini(conn, params) do
     api_key = System.get_env("GEMINI_API_KEY")
     channel_name = Map.get(params, "channel_name", "anonymous")
@@ -127,8 +137,9 @@ defmodule DragNStampWeb.ApiController do
         case Jason.decode(response_body) do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
-            text = text <> "\n\nTimestamps by McCoder Douglas"
-            {:ok, text}
+            cleaned_text = extract_timestamps_only(text)
+            final_text = cleaned_text <> "\n\nTimestamps by McCoder Douglas"
+            {:ok, final_text}
 
           {:ok, %{"error" => error}} ->
             {:error, error["message"]}

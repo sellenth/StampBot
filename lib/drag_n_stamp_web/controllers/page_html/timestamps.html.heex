@@ -50,7 +50,7 @@
             <div class="flex gap-1 mb-2">
               <span class="tag"><%= timestamp.submitter_username %></span>
               <span class="tag"><%= timestamp.channel_name %></span>
-              <span class="tag text-small"><%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y") %></span>
+              <span class="tag text-small"><%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p") %></span>
             </div>
 
             <div class="mb-2">
@@ -59,9 +59,8 @@
               </a>
             </div>
 
-            <div class="code">
-              <p class="text-small mb-1">Generated Timestamps:</p>
-              <pre><%= timestamp.content %></pre>
+            <div class=" !py-0 code">
+              Generated Timestamps:<br><%= timestamp.content %>
             </div>
           </div>
         <% end %>
