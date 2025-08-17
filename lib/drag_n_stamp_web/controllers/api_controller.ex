@@ -127,7 +127,7 @@ defmodule DragNStampWeb.ApiController do
         case Jason.decode(response_body) do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
-            text = text + "\n\nTimestamped by McCoder Douglas"
+            text = text <> "\n\nTimestamps by McCoder Douglas"
             {:ok, text}
 
           {:ok, %{"error" => error}} ->
