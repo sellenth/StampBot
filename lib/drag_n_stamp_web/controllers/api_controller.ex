@@ -27,6 +27,19 @@ defmodule DragNStampWeb.ApiController do
     })
   end
 
+  defp normalize_youtube_url(url) do
+    cond do
+      String.contains?(url, "youtu.be/") ->
+        # Extract video ID from youtu.be URL
+        case Regex.run(~r/youtu\.be\/([^?&]+)/, url) do
+          [_, video_id] -> "https://www.youtube.com/watch?v=#{video_id}"
+          _ -> url
+        end
+      
+      true -> url
+    end
+  end
+
   defp extract_timestamps_only(text) do
     text
     |> String.split("\n")
@@ -41,7 +54,7 @@ defmodule DragNStampWeb.ApiController do
     api_key = System.get_env("GEMINI_API_KEY")
     channel_name = Map.get(params, "channel_name", "anonymous")
     submitter_username = Map.get(params, "submitter_username", "anonymous")
-    url = Map.get(params, "url")
+    url = Map.get(params, "url") |> normalize_youtube_url()
 
     Logger.info(
       "Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}"

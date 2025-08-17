@@ -15,7 +15,7 @@ defmodule DragNStamp.Timestamp do
     timestamp
     |> cast(attrs, [:url, :channel_name, :submitter_username, :content])
     |> validate_required([:url, :channel_name, :content])
-    |> validate_format(:url, ~r/^https?:\/\/.*youtube.*\/watch\?v=.*/,
+    |> validate_format(:url, ~r/^https?:\/\/(.*youtube.*\/watch\?v=.*|youtu\.be\/.*)/,
       message: "must be a valid YouTube URL"
     )
   end
