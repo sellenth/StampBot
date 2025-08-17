@@ -3,14 +3,16 @@
   <div class="container">
     <div class="flex flex-between flex-center mb-2">
       <h1>YouTube Timestamps</h1>
-      <button id="setup-btn" onclick="openSetupModal()" class="btn btn-small">Setup Bookmarklet</button>
+      <button id="setup-btn" onclick="openSetupModal()" class="btn btn-small">
+        Setup Bookmarklet
+      </button>
       <div id="username-display" class="flex gap-1 flex-center hidden">
         <span id="username-text" class="text-small text-muted"></span>
         <button onclick="modifySetup()" class="btn-secondary btn-small">Modify</button>
       </div>
     </div>
-
-    <!-- URL Input Section -->
+    
+<!-- URL Input Section -->
     <div class="card mb-2">
       <h3>Generate Timestamps</h3>
       <div class="flex gap-1">
@@ -23,11 +25,13 @@
         />
         <button onclick="generateFromURL()" class="btn" id="generate-btn">Generate</button>
       </div>
-      <p class="text-small text-muted mb-0">Or use the bookmarklet below for one-click generation</p>
+      <p class="text-small text-muted mb-0">
+        Or use the bookmarklet below for one-click generation
+      </p>
     </div>
 
     <div class="flex flex-between flex-center mb-2">
-      <p class="text-muted mb-0"><span id="record-count"><%= length(@timestamps) %></span> records</p>
+      <p class="text-muted mb-0"><span id="record-count">{length(@timestamps)}</span> records</p>
       <div class="flex gap-1">
         <select id="submitter-filter" onchange="applyFilters()">
           <option value="">All Submitters</option>
@@ -47,8 +51,8 @@
       <div class="flex flex-col gap-1">
         <%= for {submitter, count} <- submitter_stats(@timestamps) do %>
           <div class="flex flex-between flex-center">
-            <span><%= submitter %></span>
-            <span class="text-small text-muted"><%= count %></span>
+            <span>{submitter}</span>
+            <span class="text-small text-muted">{count}</span>
           </div>
         <% end %>
       </div>
@@ -62,28 +66,38 @@
     <% else %>
       <div id="timestamps-container">
         <%= for timestamp <- @timestamps do %>
-          <div class="card timestamp-card" data-submitter={timestamp.submitter_username} data-channel={timestamp.channel_name} data-date={NaiveDateTime.to_iso8601(timestamp.inserted_at)}>
+          <div
+            class="card timestamp-card"
+            data-submitter={timestamp.submitter_username}
+            data-channel={timestamp.channel_name}
+            data-date={NaiveDateTime.to_iso8601(timestamp.inserted_at)}
+          >
             <div class="flex gap-1 mb-2">
-              <span class="tag"><%= timestamp.submitter_username %></span>
-              <span class="tag"><%= timestamp.channel_name %></span>
-              <span class="tag text-small timestamp-locale" data-timestamp={NaiveDateTime.to_iso8601(timestamp.inserted_at)}><%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p") %></span>
+              <span class="tag">{timestamp.submitter_username}</span>
+              <span class="tag">{timestamp.channel_name}</span>
+              <span
+                class="tag text-small timestamp-locale"
+                data-timestamp={NaiveDateTime.to_iso8601(timestamp.inserted_at)}
+              >
+                {Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p")}
+              </span>
             </div>
 
             <div class="mb-2">
               <a href={timestamp.url} target="_blank" rel="noopener noreferrer" class="text-small">
-                <%= timestamp.url %>
+                {timestamp.url}
               </a>
             </div>
 
             <div class=" !py-0 code">
-              Generated Timestamps:<br><%= timestamp.content %>
+              Generated Timestamps:<br />{timestamp.content}
             </div>
           </div>
         <% end %>
       </div>
     <% end %>
-
-    <!-- Setup Modal -->
+    
+<!-- Setup Modal -->
     <div id="setup-modal" class="hidden modal-overlay">
       <div class="modal-content">
         <div class="flex flex-between flex-center mb-2">
@@ -134,8 +148,12 @@
 
           <div class="card mt-4">
             <p class="text-small mb-0">Drag button to bookmarks or copy code manually.</p>
-            <p class="text-small mt-4 mx-auto text-muted mb-0">Current username: <strong id="current-username"></strong></p>
-            <button onclick="changeUsername()" class="btn-secondary btn-small">Change Username</button>
+            <p class="text-small mt-4 mx-auto text-muted mb-0">
+              Current username: <strong id="current-username"></strong>
+            </p>
+            <button onclick="changeUsername()" class="btn-secondary btn-small">
+              Change Username
+            </button>
           </div>
         </div>
 
@@ -149,17 +167,22 @@
           ><%= @bookmarklet_code %></textarea>
 
           <button onclick="copyBookmarklet()" class="btn-secondary btn-small">
-          Copy Code
+            Copy Code
           </button>
         </div>
 
-
         <div class="card">
-          <p class="text-small mb-0"><strong>Note:</strong> Works on YouTube videos only. Extracts channel info, defaults to "anonymous".</p>
+          <p class="text-small mb-0">
+            <strong>Note:</strong>
+            Works on YouTube videos only. Extracts channel info, defaults to "anonymous".
+          </p>
         </div>
 
         <div class="card">
-          <p class="text-small mb-0"><strong>Bookmarks bar:</strong> Ctrl+Shift+B (Cmd+Shift+B on Mac) or Settings → Appearance → Show bookmarks bar.</p>
+          <p class="text-small mb-0">
+            <strong>Bookmarks bar:</strong>
+            Ctrl+Shift+B (Cmd+Shift+B on Mac) or Settings → Appearance → Show bookmarks bar.
+          </p>
         </div>
       </div>
     </div>

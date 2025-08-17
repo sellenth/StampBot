@@ -11,6 +11,7 @@ defmodule DragNStamp.Application do
     if Code.ensure_loaded?(Mix) and Mix.env() == :dev do
       load_env_file()
     end
+
     children = [
       DragNStampWeb.Telemetry,
       DragNStamp.Repo,
@@ -40,6 +41,7 @@ defmodule DragNStamp.Application do
 
   defp load_env_file do
     env_file = ".env"
+
     if File.exists?(env_file) do
       env_file
       |> File.read!()
@@ -49,10 +51,13 @@ defmodule DragNStamp.Application do
           [key, value] ->
             key = String.trim(key)
             value = String.trim(value)
+
             if key != "" and value != "" do
               System.put_env(key, value)
             end
-          _ -> :ok
+
+          _ ->
+            :ok
         end
       end)
     end

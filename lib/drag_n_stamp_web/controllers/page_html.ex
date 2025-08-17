@@ -7,7 +7,7 @@ defmodule DragNStampWeb.PageHTML do
   use DragNStampWeb, :html
 
   embed_templates "page_html/*"
-  
+
   def submitter_stats(timestamps) do
     timestamps
     |> Enum.group_by(& &1.submitter_username)

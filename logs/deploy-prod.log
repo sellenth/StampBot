@@ -1,0 +1,223 @@
+Deploying to prod using fly.prod.toml...
+==> Verifying app config
+Validating fly.prod.toml
+[32m✓[0m Configuration is valid
+--> Verified app config
+==> Building image
+Waiting for depot builder...
+
+==> Building image with Depot
+--> build:  (​)
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 3.41kB 0.2s
+#1 transferring dockerfile: 3.42kB 0.3s done
+#1 DONE 0.3s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 0.2s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:38387523653efa0039f8e1c89bb74a30504e76ee9f565e25c9a09841f9427b05
+#3 resolve docker.io/docker/dockerfile:1@sha256:38387523653efa0039f8e1c89bb74a30504e76ee9f565e25c9a09841f9427b05 done
+#3 CACHED
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 3.42kB 0.3s done
+#1 DONE 0.3s
+
+#4 [internal] load build definition from Dockerfile
+#4 Deduplicating step ID [internal] load build definition from Dockerfile, another build is calculating it done
+#4 DONE 0.0s
+
+#5 [internal] load metadata for docker.io/hexpm/elixir:1.17.0-erlang-27.0-alpine-3.19.1
+#5 ...
+
+#6 [internal] load metadata for docker.io/library/alpine:3.19.1
+#6 DONE 0.2s
+
+#5 [internal] load metadata for docker.io/hexpm/elixir:1.17.0-erlang-27.0-alpine-3.19.1
+#5 DONE 0.2s
+
+#7 [internal] load .dockerignore
+#7 transferring context: 70B 0.1s
+#7 transferring context: 322B 0.3s done
+#7 DONE 0.3s
+
+#8 [internal] load build context
+#8 transferring context: 26.18kB 0.5s done
+#8 DONE 0.5s
+
+#9 [build  2/12] RUN apk add --no-cache build-base git npm curl python3
+#9 CACHED
+
+#10 [build  6/12] COPY config config
+#10 CACHED
+
+#11 [build  5/12] COPY mix.exs mix.lock ./
+#11 Deduplicating step ID [build  5/12] COPY mix.exs mix.lock ./, another build is calculating it done
+#11 CACHED
+
+#12 [build  3/12] WORKDIR /app
+#12 CACHED
+
+#13 [build  4/12] RUN mix local.hex --force &&     mix local.rebar --force
+#13 CACHED
+
+#14 [build  7/12] RUN mix deps.get --only prod &&     mix deps.compile
+#14 CACHED
+
+#15 [build  8/12] COPY lib lib
+#15 DONE 0.0s
+
+#16 [build  1/12] FROM docker.io/hexpm/elixir:1.17.0-erlang-27.0-alpine-3.19.1@sha256:87814372556a694f56ae3f86f4da945b112a40a60b34e7d68c709715cc6878ce
+#16 resolve docker.io/hexpm/elixir:1.17.0-erlang-27.0-alpine-3.19.1@sha256:87814372556a694f56ae3f86f4da945b112a40a60b34e7d68c709715cc6878ce done
+#16 ...
+
+#17 [build  9/12] COPY priv priv
+#17 DONE 0.0s
+
+#18 [build 10/12] COPY assets assets
+#18 DONE 0.0s
+
+#19 [app 1/4] FROM docker.io/library/alpine:3.19.1@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b
+#19 resolve docker.io/library/alpine:3.19.1@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b done
+#19 ...
+
+#20 [build 11/12] RUN mix assets.deploy
+#20 1.021 
+#20 1.021 16:19:37.406 [debug] Downloading tailwind from https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.3/tailwindcss-linux-x64
+#20 3.363 
+#20 3.364 Rebuilding...
+#20 4.002 
+#20 4.002 Done in 712ms.
+#20 4.060 
+#20 4.060 16:19:40.447 [debug] Downloading esbuild from https://registry.npmjs.org/@esbuild/linux-x64/0.17.11
+#20 4.491 
+#20 4.491   ../priv/static/assets/app.js  130.5kb
+#20 4.491 
+#20 4.491 ⚡ Done in 39ms
+#20 4.535 Compiling 19 files (.ex)
+#20 5.708 Generated drag_n_stamp app
+#20 6.125 Check your digested files at "priv/static"
+#20 DONE 6.2s
+
+#21 [build 12/12] RUN mix release --overwrite
+#21 1.061 * assembling drag_n_stamp-0.1.0 on MIX_ENV=prod
+#21 1.067 * using config/runtime.exs to configure the release at runtime
+#21 1.534 * skipping elixir.bat for windows (bin/elixir.bat not found in the Elixir installation)
+#21 1.535 * skipping iex.bat for windows (bin/iex.bat not found in the Elixir installation)
+#21 3.701 
+#21 3.701 Release created at _build/prod/rel/drag_n_stamp
+#21 3.701 
+#21 3.701     # To start your system
+#21 3.701     _build/prod/rel/drag_n_stamp/bin/drag_n_stamp start
+#21 3.701 
+#21 3.701 Once the release is running:
+#21 3.701 
+#21 3.701     # To connect to it remotely
+#21 3.701     _build/prod/rel/drag_n_stamp/bin/drag_n_stamp remote
+#21 3.701 
+#21 3.701     # To stop it gracefully (you may also send SIGINT/SIGTERM)
+#21 3.701     _build/prod/rel/drag_n_stamp/bin/drag_n_stamp stop
+#21 3.701 
+#21 3.701 To list all commands:
+#21 3.701 
+#21 3.701     _build/prod/rel/drag_n_stamp/bin/drag_n_stamp
+#21 3.701 
+#21 DONE 4.6s
+
+#16 [build  1/12] FROM docker.io/hexpm/elixir:1.17.0-erlang-27.0-alpine-3.19.1@sha256:87814372556a694f56ae3f86f4da945b112a40a60b34e7d68c709715cc6878ce
+#16 ...
+
+#22 [app 2/4] RUN apk add --no-cache libstdc++ openssl ncurses-libs
+#22 CACHED
+
+#23 [app 3/4] WORKDIR /app
+#23 CACHED
+
+#24 [app 4/4] COPY --from=build /app/_build/prod/rel/drag_n_stamp ./
+#24 DONE 3.4s
+
+#19 [app 1/4] FROM docker.io/library/alpine:3.19.1@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b
+#19 ...
+
+#25 exporting to image
+#25 exporting layers
+#25 exporting layers 0.4s done
+#25 exporting manifest sha256:61fe410629fb812bba94ffe2c2de3820393d4808bfa72831a1eecb5b40f8b4f6 done
+#25 exporting config sha256:2a676f60b07d47ff76e3f18cb7542bddabc888a856be9ede80eb07a1e85d6987 done
+#25 pushing layers for registry.fly.io/drag-n-stamp-prod:deployment-01K2WD7XG0M4VK9SS8ABNYFCC2@sha256:61fe410629fb812bba94ffe2c2de3820393d4808bfa72831a1eecb5b40f8b4f6
+#25 pushing layer sha256:c86256f3fbdaf416f93ca1b0f3e0dd491eced8b56cd22306ede1bdb5482a6fce
+#25 pushing layer sha256:2a676f60b07d47ff76e3f18cb7542bddabc888a856be9ede80eb07a1e85d6987
+#25 pushing layer sha256:98e3fcee03681932ca37243282ba3e73df2d4cd9d09394de5650a3e2ca191795
+#25 pushing layer sha256:4abcf20661432fb2d719aaf90656f55c287f8ca915dc1c92ec14ff61e67fbaf8
+#25 pushing layer sha256:e95c742d462c0072a5dc8442bf02d2dbdc6bc0f52575125014497f7fad888c75
+#25 pushing layer sha256:4abcf20661432fb2d719aaf90656f55c287f8ca915dc1c92ec14ff61e67fbaf8 0.5s done
+#25 pushing layer sha256:98e3fcee03681932ca37243282ba3e73df2d4cd9d09394de5650a3e2ca191795 1.6s done
+#25 pushing layer sha256:e95c742d462c0072a5dc8442bf02d2dbdc6bc0f52575125014497f7fad888c75 2.2s done
+#25 pushing layer sha256:2a676f60b07d47ff76e3f18cb7542bddabc888a856be9ede80eb07a1e85d6987 3.1s done
+#25 pushing layers for registry.fly.io/drag-n-stamp-prod:deployment-01K2WD7XG0M4VK9SS8ABNYFCC2@sha256:61fe410629fb812bba94ffe2c2de3820393d4808bfa72831a1eecb5b40f8b4f6 5.1s done
+#25 pushing layer sha256:c86256f3fbdaf416f93ca1b0f3e0dd491eced8b56cd22306ede1bdb5482a6fce 5.1s done
+#25 pushing manifest for registry.fly.io/drag-n-stamp-prod:deployment-01K2WD7XG0M4VK9SS8ABNYFCC2@sha256:61fe410629fb812bba94ffe2c2de3820393d4808bfa72831a1eecb5b40f8b4f6
+#25 pushing manifest for registry.fly.io/drag-n-stamp-prod:deployment-01K2WD7XG0M4VK9SS8ABNYFCC2@sha256:61fe410629fb812bba94ffe2c2de3820393d4808bfa72831a1eecb5b40f8b4f6 0.9s done
+#25 DONE 6.5s
+
+#19 [app 1/4] FROM docker.io/library/alpine:3.19.1@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b
+--> Build Summary:  (​)
+[38;5;252m--> Building image done[0m
+image: registry.fly.io/drag-n-stamp-prod:deployment-01K2WD7XG0M4VK9SS8ABNYFCC2
+image size: 19 MB
+
+Watch your deployment at https://fly.io/apps/drag-n-stamp-prod/monitoring
+
+Running drag-n-stamp-prod release_command: eval "DragNStamp.Release.migrate()"
+> Created release_command machine 286075dce51708
+> Waiting for 286075dce51708 to have state: stopped
+> Machine 286075dce51708 has state: stopped
+Starting machine
+> Waiting for 286075dce51708 to have state: started
+> Waiting for 286075dce51708 to have state: started
+> Machine 286075dce51708 has state: started
+> Waiting for 286075dce51708 to have state: destroyed
+> Machine 286075dce51708 has state: destroyed
+> Waiting for 286075dce51708 to get exit event
+✔ release_command 286075dce51708 completed successfully
+Updating existing machines in 'drag-n-stamp-prod' with rolling strategy
+> [1/2] Acquiring lease for 7819513a943d38
+> [1/2] Acquired lease for 7819513a943d38
+> [2/2] Acquiring lease for 48e3277b321268
+> [2/2] Acquired lease for 48e3277b321268
+> [1/2] Updating machine config for 7819513a943d38
+> [1/2] Updating 7819513a943d38 [app]
+> [1/2] Updated machine config for 7819513a943d38
+> [1/2] Waiting for machine 7819513a943d38 to reach a good state
+> [1/2] Machine 7819513a943d38 reached started state
+
+WARNING The app is not listening on the expected address and will not be reachable by fly-proxy.
+You can fix this by configuring your app to listen on the following addresses:
+  - 0.0.0.0:4000
+Found these processes inside the machine with open listening sockets:
+  PROCESS                         | ADDRESSES                             
+----------------------------------*---------------------------------------
+  /.fly/hallpass                  | [fdaa:d:cdb2:a7b:4bb:85db:69b0:2]:22  
+  /app/erts-15.0/bin/epmd -daemon | 0.0.0.0:4369, [::]:4369               
+
+> [1/2] Running smoke checks on machine 7819513a943d38
+> [1/2] Running machine checks on machine 7819513a943d38
+> [1/2] Checking health of machine 7819513a943d38
+✔ [1/2] Machine 7819513a943d38 is now in a good state
+> [2/2] Updating machine config for 48e3277b321268
+> [2/2] Updating 48e3277b321268 [app]
+> [2/2] Updated machine config for 48e3277b321268
+> [2/2] Waiting for machine 48e3277b321268 to reach a good state
+> [2/2] Machine 48e3277b321268 reached started state
+> [2/2] Running smoke checks on machine 48e3277b321268
+> [2/2] Running machine checks on machine 48e3277b321268
+> [2/2] Checking health of machine 48e3277b321268
+✔ [2/2] Machine 48e3277b321268 is now in a good state
+> [2/2] Clearing lease for 48e3277b321268
+> [1/2] Clearing lease for 7819513a943d38
+✔ [2/2] Cleared lease for 48e3277b321268
+✔ [1/2] Cleared lease for 7819513a943d38
+Checking DNS configuration for drag-n-stamp-prod.fly.dev
+
+Visit your newly deployed app at https://drag-n-stamp-prod.fly.dev/

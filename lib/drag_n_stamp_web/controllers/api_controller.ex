@@ -47,6 +47,24 @@ defmodule DragNStampWeb.ApiController do
       "Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}"
     )
 
+    # Check if we already have timestamps for this URL
+    case Repo.get_by(Timestamp, url: url) do
+      %Timestamp{content: content} ->
+        Logger.info("Found existing timestamps for URL: #{url}")
+
+        json(conn, %{
+          status: "success",
+          response: content,
+          cached: true
+        })
+
+      nil ->
+        Logger.info("No existing timestamps found for URL: #{url}, calling Gemini API")
+        generate_new_timestamps(conn, api_key, channel_name, submitter_username, url)
+    end
+  end
+
+  defp generate_new_timestamps(conn, api_key, channel_name, submitter_username, url) do
     # Create the formatted prompt for timestamps
     formatted_prompt =
       "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. here's the link, be slightly humorous but not too much ;) channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
@@ -82,7 +100,8 @@ defmodule DragNStampWeb.ApiController do
 
           json(conn, %{
             status: "success",
-            response: response
+            response: response,
+            cached: false
           })
 
         {:error, reason} ->

@@ -7,10 +7,10 @@ defmodule DragNStamp.Repo.Migrations.CreateTimestamps do
       add :channel_name, :string, null: false
       add :username, :string, null: false
       add :content, :text, null: false
-      
+
       timestamps()
     end
-    
+
     create index(:timestamps, [:channel_name])
     create index(:timestamps, [:url])
   end
