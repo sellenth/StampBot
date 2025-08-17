@@ -37,3 +37,6 @@ npm-debug.log
 
 .env
 .crush
+
+# Deployment logs
+logs/*
