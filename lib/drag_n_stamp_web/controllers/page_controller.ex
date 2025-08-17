@@ -2,6 +2,7 @@ defmodule DragNStampWeb.PageController do
   use DragNStampWeb, :controller
   alias DragNStamp.{Repo, Timestamp}
   import Ecto.Query
+  require Logger
 
 
   def timestamps(conn, _params) do
@@ -19,6 +20,84 @@ defmodule DragNStampWeb.PageController do
   end
 
   defp build_bookmarklet_code(api_endpoint) do
-    "javascript:(function(){function showCustomAlert(title,message,type){var overlay=document.createElement('div');overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif';var modal=document.createElement('div');modal.style.cssText='background:white;padding:24px;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,0.25);max-width:500px;width:90%;max-height:80vh;overflow-y:auto';var header=document.createElement('div');header.style.cssText='display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e5e7eb';var icon=document.createElement('div');icon.style.cssText='width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:white';if(type==='success'){icon.style.background='#10b981';icon.textContent='✓'}else if(type==='error'){icon.style.background='#ef4444';icon.textContent='✕'}else{icon.style.background='#3b82f6';icon.textContent='i'}var titleEl=document.createElement('h3');titleEl.style.cssText='margin:0;font-size:18px;font-weight:600;color:#111827';titleEl.textContent=title;header.appendChild(icon);header.appendChild(titleEl);var content=document.createElement('div');content.style.cssText='color:#374151;line-height:1.5;margin-bottom:20px;white-space:pre-wrap';content.textContent=message;var button=document.createElement('button');button.style.cssText='background:#3b82f6;color:white;border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;float:right';button.textContent='OK';button.onclick=function(){overlay.remove()};modal.appendChild(header);modal.appendChild(content);modal.appendChild(button);overlay.appendChild(modal);document.body.appendChild(overlay);overlay.onclick=function(e){if(e.target===overlay)overlay.remove()}}var e='#{api_endpoint}',u=window.location.href,y=u.indexOf('youtube.com')>-1||u.indexOf('youtu.be')>-1||u.indexOf('m.youtube.com')>-1;if(!y){showCustomAlert('YouTube Required','This bookmarklet only works on YouTube videos!','error');return;}showCustomAlert('Processing...','Analyzing video and generating timestamps. This may take up to 5 minutes.','info');var channelName='anonymous';try{console.log('Attempting to extract channel name...');var channelSelectors=['#channel-name a','#text a','.ytd-channel-name a','[class*=\"channel\"] a','.owner-text a','.ytd-video-owner-renderer a'];for(var i=0;i<channelSelectors.length;i++){var chEl=document.querySelector(channelSelectors[i]);if(chEl&&chEl.textContent){channelName=chEl.textContent.trim();console.log('Channel name found with selector',channelSelectors[i],':',channelName);break;}}console.log('Final channel name:',channelName);}catch(x){console.log('Error extracting channel info:',x);}fetch(e,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel_name:channelName,url:u})}).then(function(r){return r.json();}).then(function(d){var message='Video: '+u+'\\nChannel: '+channelName+'\\n\\nTimestamps:\\n'+d.response;showCustomAlert('Timestamps Generated!',message,'success');console.log('Gemini Response:',d);}).catch(function(er){showCustomAlert('Error','Failed to generate timestamps. Check console for details.','error');console.error('Error:',er);});})();"
+    "javascript:(function(){function showCustomAlert(title,message,type){var isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;console.log('Browser theme detected - Dark mode:',isDark);var bgColor=isDark?'#1a1a1a':'white';var textColor=isDark?'#fff':'#111827';var borderColor=isDark?'#404040':'#e5e7eb';var contentColor=isDark?'#ccc':'#374151';var btnBg=isDark?'#fff':'#3b82f6';var btnColor=isDark?'#000':'white';console.log('Modal colors - bg:',bgColor,'text:',textColor);var overlay=document.createElement('div');overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif';var modal=document.createElement('div');modal.style.cssText='background:'+bgColor+';padding:24px;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,0.25);max-width:500px;width:90%;max-height:80vh;overflow-y:auto';var header=document.createElement('div');header.style.cssText='display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid '+borderColor;var icon=document.createElement('div');icon.style.cssText='width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:white';if(type==='success'){icon.style.background='#10b981';icon.textContent='✓'}else if(type==='error'){icon.style.background='#ef4444';icon.textContent='✕'}else{icon.style.background='#3b82f6';icon.textContent='i'}var titleEl=document.createElement('h3');titleEl.style.cssText='margin:0;font-size:18px;font-weight:600;color:'+textColor;titleEl.textContent=title;header.appendChild(icon);header.appendChild(titleEl);var content=document.createElement('div');content.style.cssText='color:'+contentColor+';line-height:1.5;margin-bottom:20px;white-space:pre-wrap';content.textContent=message;var button=document.createElement('button');button.style.cssText='background:'+btnBg+';color:'+btnColor+';border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;float:right';button.textContent='OK';button.onclick=function(){overlay.remove()};modal.appendChild(header);modal.appendChild(content);modal.appendChild(button);overlay.appendChild(modal);document.body.appendChild(overlay);overlay.onclick=function(e){if(e.target===overlay)overlay.remove()}}var e='#{api_endpoint}',u=window.location.href,y=u.indexOf('youtube.com')>-1||u.indexOf('youtu.be')>-1||u.indexOf('m.youtube.com')>-1;if(!y){showCustomAlert('YouTube Required','This bookmarklet only works on YouTube videos!','error');return;}showCustomAlert('Processing...','Analyzing video and generating timestamps. This may take up to 5 minutes.','info');var channelName='anonymous';try{console.log('Attempting to extract channel name...');var channelSelectors=['#channel-name a','#text a','.ytd-channel-name a','[class*=\"channel\"] a','.owner-text a','.ytd-video-owner-renderer a'];for(var i=0;i<channelSelectors.length;i++){var chEl=document.querySelector(channelSelectors[i]);if(chEl&&chEl.textContent){channelName=chEl.textContent.trim();console.log('Channel name found with selector',channelSelectors[i],':',channelName);break;}}console.log('Final channel name:',channelName);}catch(x){console.log('Error extracting channel info:',x);}fetch(e,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel_name:channelName,url:u})}).then(function(r){return r.json();}).then(function(d){var message='Video: '+u+'\\nChannel: '+channelName+'\\n\\nTimestamps:\\n'+d.response;showCustomAlert('Timestamps Generated!',message,'success');console.log('Gemini Response:',d);}).catch(function(er){showCustomAlert('Error','Failed to generate timestamps. Check console for details.','error');console.error('Error:',er);});})();"
+  end
+
+  def process_youtube_url(conn, %{"path" => path}) do
+    # Reconstruct the original YouTube URL
+    query_string = conn.query_string
+    full_path = Enum.join(path, "/")
+    
+    youtube_url = if query_string != "" do
+      "https://www.youtube.com/#{full_path}?#{query_string}"
+    else
+      "https://www.youtube.com/#{full_path}"
+    end
+    
+    Logger.info("Processing YouTube URL redirect: #{youtube_url}")
+    
+    # Fire async request to gemini endpoint
+    Task.start(fn ->
+      fire_gemini_request(youtube_url)
+    end)
+    
+    # Immediately redirect back to YouTube
+    redirect(conn, external: youtube_url)
+  end
+  
+  defp fire_gemini_request(youtube_url) do
+    # Get the base URL for our API endpoint
+    base_url = DragNStampWeb.Endpoint.url()
+    api_endpoint = "#{base_url}/api/gemini"
+    
+    # Extract channel name (basic extraction from URL if possible, otherwise anonymous)
+    channel_name = extract_channel_from_url(youtube_url) || "anonymous"
+    
+    payload = %{
+      url: youtube_url,
+      channel_name: channel_name,
+      submitter_username: "domain-swap"
+    }
+    
+    headers = [{"Content-Type", "application/json"}]
+    body = Jason.encode!(payload)
+    
+    # Fire and forget HTTP request to our own API
+    case Finch.build(:post, api_endpoint, headers, body) 
+         |> Finch.request(DragNStamp.Finch, receive_timeout: 10_000) do
+      {:ok, _response} ->
+        Logger.info("Successfully fired gemini request for: #{youtube_url}")
+      {:error, reason} ->
+        Logger.error("Failed to fire gemini request: #{inspect(reason)}")
+    end
+  end
+  
+  defp extract_channel_from_url(url) do
+    # Try to extract channel info from URL patterns
+    cond do
+      String.contains?(url, "/@") ->
+        # Pattern: youtube.com/@channelname/video
+        url
+        |> String.split("/@")
+        |> Enum.at(1)
+        |> case do
+          nil -> nil
+          part -> part |> String.split("/") |> Enum.at(0)
+        end
+      
+      String.contains?(url, "/c/") ->
+        # Pattern: youtube.com/c/channelname
+        url
+        |> String.split("/c/")
+        |> Enum.at(1)
+        |> case do
+          nil -> nil
+          part -> part |> String.split("/") |> Enum.at(0)
+        end
+      
+      true ->
+        # Can't extract from URL, will be anonymous
+        nil
+    end
   end
 end

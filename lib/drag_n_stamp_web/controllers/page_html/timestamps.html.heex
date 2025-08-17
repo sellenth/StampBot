@@ -10,6 +10,22 @@
       </div>
     </div>
 
+    <!-- URL Input Section -->
+    <div class="card mb-2">
+      <h3>Generate Timestamps</h3>
+      <div class="flex gap-1">
+        <input
+          type="text"
+          id="url-input"
+          placeholder="Paste YouTube URL here..."
+          class="flex-1"
+          style="flex: 1"
+        />
+        <button onclick="generateFromURL()" class="btn" id="generate-btn">Generate</button>
+      </div>
+      <p class="text-small text-muted mb-0">Or use the bookmarklet below for one-click generation</p>
+    </div>
+
     <div class="flex flex-between flex-center mb-2">
       <p class="text-muted mb-0"><span id="record-count"><%= length(@timestamps) %></span> records</p>
       <div class="flex gap-1">
@@ -303,6 +319,76 @@
       showCustomAlert('Copied', 'Bookmarklet copied to clipboard.', 'success');
     }).catch(function() {
       showCustomAlert('Failed', 'Please copy manually.', 'error');
+    });
+  }
+
+  function generateFromURL() {
+    const urlInput = document.getElementById('url-input');
+    const generateBtn = document.getElementById('generate-btn');
+    const url = urlInput.value.trim();
+    
+    // Validate YouTube URL
+    if (!url) {
+      showCustomAlert('URL Required', 'Please enter a YouTube URL.', 'error');
+      return;
+    }
+    
+    const isYouTube = url.includes('youtube.com') || url.includes('youtu.be') || url.includes('m.youtube.com');
+    if (!isYouTube) {
+      showCustomAlert('Invalid URL', 'Please enter a valid YouTube URL.', 'error');
+      return;
+    }
+    
+    // Get username from localStorage or use anonymous
+    const submitterUsername = localStorage.getItem('drag-n-stamp-username') || 'anonymous';
+    
+    // Disable button and show loading state
+    generateBtn.disabled = true;
+    generateBtn.textContent = 'Generating...';
+    
+    // Extract channel name if we're on YouTube page (won't work from our domain)
+    const channelName = 'anonymous'; // Default since we can't extract from URL alone
+    
+    // Show loading message
+    showCustomAlert('Processing...', 'Analyzing video and generating timestamps. This may take up to 5 minutes.', 'info');
+    
+    // Get the base URL
+    const baseUrl = window.location.origin;
+    const apiEndpoint = baseUrl + '/api/gemini';
+    
+    // Make the API request
+    fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: url,
+        channel_name: channelName,
+        submitter_username: submitterUsername
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        showCustomAlert('Success!', 'Timestamps generated successfully! Refreshing page...', 'success');
+        // Refresh page after 2 seconds to show new timestamp
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        showCustomAlert('Error', data.message || 'Failed to generate timestamps.', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showCustomAlert('Error', 'Failed to generate timestamps. Please try again.', 'error');
+    })
+    .finally(() => {
+      // Re-enable button
+      generateBtn.disabled = false;
+      generateBtn.textContent = 'Generate';
+      urlInput.value = '';
     });
   }
 </script>

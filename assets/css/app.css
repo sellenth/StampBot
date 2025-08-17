@@ -208,7 +208,7 @@ textarea:focus {
 /* Dark mode toggle */
 .theme-toggle {
   position: fixed;
-  top: 1rem;
+  bottom: 1rem;
   right: 1rem;
   padding: 0.5rem;
   background: var(--bg-tertiary);
