@@ -7,13 +7,14 @@ defmodule DragNStamp.Timestamp do
     field :channel_name, :string
     field :submitter_username, :string
     field :content, :string
+    field :distilled_content, :string
 
     timestamps()
   end
 
   def changeset(timestamp, attrs) do
     timestamp
-    |> cast(attrs, [:url, :channel_name, :submitter_username, :content])
+    |> cast(attrs, [:url, :channel_name, :submitter_username, :content, :distilled_content])
     |> validate_required([:url, :channel_name, :content])
     |> validate_format(:url, ~r/^https?:\/\/(.*youtube.*\/watch\?v=.*|youtu\.be\/.*)/,
       message: "must be a valid YouTube URL"

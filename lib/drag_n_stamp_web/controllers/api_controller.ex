@@ -62,14 +62,18 @@ defmodule DragNStampWeb.ApiController do
 
     # Check if we already have timestamps for this URL
     case Repo.get_by(Timestamp, url: url) do
-      %Timestamp{content: content} ->
-        Logger.info("Found existing timestamps for URL: #{url}")
+      %Timestamp{distilled_content: distilled_content} when not is_nil(distilled_content) ->
+        Logger.info("Found existing distilled timestamps for URL: #{url}")
 
         json(conn, %{
           status: "success",
-          response: content,
+          response: distilled_content,
           cached: true
         })
+
+      %Timestamp{content: content} = timestamp ->
+        Logger.info("Found existing timestamps but no distilled version for URL: #{url}, distilling...")
+        distill_existing_timestamps(conn, api_key, timestamp, content)
 
       nil ->
         Logger.info("No existing timestamps found for URL: #{url}, calling Gemini API")
@@ -104,18 +108,19 @@ defmodule DragNStampWeb.ApiController do
           }
 
           case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
-            {:ok, _timestamp} ->
+            {:ok, timestamp} ->
               Logger.info("Timestamp saved to database for URL: #{url}")
+              # Now distill the timestamps
+              distill_timestamps(conn, api_key, timestamp, response)
 
             {:error, changeset} ->
               Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
+              json(conn, %{
+                status: "success",
+                response: response,
+                cached: false
+              })
           end
-
-          json(conn, %{
-            status: "success",
-            response: response,
-            cached: false
-          })
 
         {:error, reason} ->
           conn
@@ -172,6 +177,131 @@ defmodule DragNStampWeb.ApiController do
             cleaned_text = extract_timestamps_only(text)
             final_text = cleaned_text <> "\n\nTimestamps by McCoder Douglas"
             {:ok, final_text}
+
+          {:ok, %{"error" => error}} ->
+            {:error, error["message"]}
+
+          {:error, reason} ->
+            {:error, "Failed to parse response: #{reason}"}
+        end
+
+      {:error, reason} ->
+        {:error, "HTTP request failed: #{inspect(reason)}"}
+
+      {:ok, %Finch.Response{status: status}} ->
+        {:error, "HTTP request failed with status: #{status}"}
+    end
+  end
+
+  defp distill_existing_timestamps(conn, api_key, timestamp, content) do
+    case distill_timestamps_content(content, api_key) do
+      {:ok, distilled_content} ->
+        # Update the existing timestamp record
+        case Repo.update(Timestamp.changeset(timestamp, %{distilled_content: distilled_content})) do
+          {:ok, _updated_timestamp} ->
+            Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
+
+          {:error, changeset} ->
+            Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
+        end
+
+        json(conn, %{
+          status: "success",
+          response: distilled_content,
+          cached: true
+        })
+
+      {:error, reason} ->
+        Logger.error("Failed to distill existing timestamps: #{reason}")
+        # Fall back to original content
+        json(conn, %{
+          status: "success",
+          response: content,
+          cached: true
+        })
+    end
+  end
+
+  defp distill_timestamps(conn, api_key, timestamp, content) do
+    case distill_timestamps_content(content, api_key) do
+      {:ok, distilled_content} ->
+        # Update the timestamp record with distilled content
+        case Repo.update(Timestamp.changeset(timestamp, %{distilled_content: distilled_content})) do
+          {:ok, _updated_timestamp} ->
+            Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
+
+          {:error, changeset} ->
+            Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
+        end
+
+        json(conn, %{
+          status: "success",
+          response: distilled_content,
+          cached: false
+        })
+
+      {:error, reason} ->
+        Logger.error("Failed to distill timestamps: #{reason}")
+        # Fall back to original content
+        json(conn, %{
+          status: "success",
+          response: content,
+          cached: false
+        })
+    end
+  end
+
+  defp distill_timestamps_content(content, api_key) do
+    distillation_prompt = """
+    You are given a list of timestamps for a YouTube video. Your task is to select only the MOST IMPORTANT timestamps, aiming for approximately 1 timestamp per 90 seconds of video content.
+
+    Rules:
+    1. Keep only the most significant moments or topics
+    2. Aim for no more than 1 timestamp per 90 seconds
+    3. Preserve the exact format of the timestamps you select
+    4. Do not modify the text of the selected timestamps
+    5. Return only the selected timestamps, nothing else
+
+    Here are the timestamps to distill:
+
+    #{content}
+    """
+
+    case call_gemini_api_text_only(distillation_prompt, api_key) do
+      {:ok, response} ->
+        cleaned_response = extract_timestamps_only(response)
+        final_response = cleaned_response <> "\n\nTimestamps by McCoder Douglas"
+        {:ok, final_response}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp call_gemini_api_text_only(prompt, api_key) do
+    api_url =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=#{api_key}"
+
+    headers = [
+      {"Content-Type", "application/json"}
+    ]
+
+    body = %{
+      contents: [
+        %{
+          parts: [%{text: prompt}]
+        }
+      ]
+    }
+
+    request = Finch.build(:post, api_url, headers, Jason.encode!(body))
+
+    case Finch.request(request, DragNStamp.Finch, receive_timeout: 300_000) do
+      {:ok, %Finch.Response{status: 200, body: response_body}} ->
+        case Jason.decode(response_body) do
+          {:ok, %{"candidates" => candidates}} ->
+            text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
+            {:ok, text}
 
           {:ok, %{"error" => error}} ->
             {:error, error["message"]}
