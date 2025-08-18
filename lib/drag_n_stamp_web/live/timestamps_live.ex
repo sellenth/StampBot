@@ -33,27 +33,29 @@ defmodule DragNStampWeb.TimestampsLive do
 
   def handle_info({:timestamp_created, timestamp}, socket) do
     Logger.info("Received new timestamp via PubSub: #{timestamp.id}")
-    
+
     updated_timestamps = [timestamp | socket.assigns.timestamps]
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(:timestamps, sort_timestamps(updated_timestamps, socket.assigns.sort_by))
      |> put_flash(:info, "New timestamp received from #{timestamp.submitter_username}!")}
   end
 
-  def handle_event("generate_from_url", %{"url" => url}, socket) do
+  def handle_event("generate_from_url", %{"url" => url, "username" => username}, socket) do
     case validate_youtube_url(url) do
       :ok ->
+        submitter_username = if username && username != "", do: username, else: "anonymous"
+
         Task.start(fn ->
-          generate_timestamps(url, socket)
+          generate_timestamps(url, submitter_username, socket)
         end)
-        
-        {:noreply, 
+
+        {:noreply,
          socket
          |> assign(:loading, true)
          |> put_flash(:info, "Generating timestamps... This may take up to 5 minutes.")}
-      
+
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
     end
@@ -72,33 +74,35 @@ defmodule DragNStampWeb.TimestampsLive do
     cond do
       url == "" ->
         {:error, "Please enter a YouTube URL"}
-      
-      not (String.contains?(url, "youtube.com") or 
-           String.contains?(url, "youtu.be") or 
-           String.contains?(url, "m.youtube.com")) ->
+
+      not (String.contains?(url, "youtube.com") or
+             String.contains?(url, "youtu.be") or
+               String.contains?(url, "m.youtube.com")) ->
         {:error, "Please enter a valid YouTube URL"}
-      
+
       true ->
         :ok
     end
   end
 
-  defp generate_timestamps(url, socket) do
+  defp generate_timestamps(url, submitter_username, _socket) do
     base_url = DragNStampWeb.Endpoint.url()
     api_endpoint = "#{base_url}/api/gemini"
-    
+
     headers = [{"Content-Type", "application/json"}]
-    body = Jason.encode!(%{
-      url: url,
-      channel_name: "anonymous",
-      submitter_username: "web-interface"
-    })
-    
+
+    body =
+      Jason.encode!(%{
+        url: url,
+        channel_name: "tbd",
+        submitter_username: submitter_username
+      })
+
     case Finch.build(:post, api_endpoint, headers, body)
          |> Finch.request(DragNStamp.Finch, receive_timeout: 300_000) do
       {:ok, response} ->
         Logger.info("Timestamp generation completed: #{inspect(response.status)}")
-      
+
       {:error, reason} ->
         Logger.error("Failed to generate timestamps: #{inspect(reason)}")
     end
@@ -116,7 +120,7 @@ defmodule DragNStampWeb.TimestampsLive do
     assigns.timestamps
     |> Enum.filter(fn t ->
       (assigns.filter_submitter == "" or t.submitter_username == assigns.filter_submitter) and
-      (assigns.filter_channel == "" or t.channel_name == assigns.filter_channel)
+        (assigns.filter_channel == "" or t.channel_name == assigns.filter_channel)
     end)
   end
 

@@ -73,6 +73,12 @@ Hooks.UsernameSetup = {
           usernameText.textContent = `Setup complete (${username})`
         }
         
+        // Update the form username field
+        const usernameField = document.getElementById('form-username')
+        if (usernameField) {
+          usernameField.value = username
+        }
+        
         this.updateBookmarkletWithUsername(username)
         alert(`Welcome ${username}! Use the bookmark tool below.`)
       })
@@ -123,6 +129,21 @@ Hooks.BookmarkletCode = {
           alert('Failed to copy. Please copy manually.')
         })
       })
+    }
+  }
+}
+
+Hooks.UrlForm = {
+  mounted() {
+    // Update the hidden username field when the form is mounted
+    this.updateUsernameField()
+  },
+  
+  updateUsernameField() {
+    const usernameField = document.getElementById('form-username')
+    const savedUsername = localStorage.getItem('drag-n-stamp-username')
+    if (usernameField) {
+      usernameField.value = savedUsername || ''
     }
   }
 }

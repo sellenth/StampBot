@@ -173,7 +173,7 @@ defmodule DragNStampWeb.ApiController do
       
       {:error, reason} when attempt < 3 ->
         delay = if attempt == 1, do: 5_000, else: 60_000
-        Logger.warn("Gemini API attempt #{attempt} failed: #{reason}. Retrying in #{delay}ms...")
+        Logger.warning("Gemini API attempt #{attempt} failed: #{reason}. Retrying in #{delay}ms...")
         Process.sleep(delay)
         call_gemini_api_with_retry(prompt, api_key, video_url, attempt + 1)
       

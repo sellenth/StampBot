@@ -15,7 +15,7 @@
     <!-- URL Input Section -->
     <div class="card mb-2">
       <h3>Generate Timestamps</h3>
-      <form phx-submit="generate_from_url">
+      <form id="url-form" phx-submit="generate_from_url" phx-hook="UrlForm">
         <div class="flex gap-1">
           <input
             type="text"
@@ -25,6 +25,7 @@
             style="flex: 1"
             disabled={@loading}
           />
+          <input type="hidden" name="username" id="form-username" />
           <button type="submit" class="btn" disabled={@loading}>
             <%= if @loading, do: "Generating...", else: "Generate" %>
           </button>
