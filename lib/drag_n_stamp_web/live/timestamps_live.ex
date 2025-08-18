@@ -94,7 +94,7 @@ defmodule DragNStampWeb.TimestampsLive do
     body =
       Jason.encode!(%{
         url: url,
-        channel_name: "tbd",
+        channel_name: "anonymous",
         submitter_username: submitter_username
       })
 
