@@ -29,9 +29,14 @@ case "$ENV" in
 esac
 
 echo "Deploying to $ENV using $CONFIG..."
+
+# Get the current Git commit hash for image labeling
+COMMIT_HASH=$(git rev-parse --short HEAD)
+echo "Using commit hash: $COMMIT_HASH"
+
 # Build and deploy using the chosen configuration.  If you need to
 # set secrets or environment variables, run `fly secrets set` before
 # invoking this script.  The `--remote-only` flag ensures the Docker
-# build occurs on Fly’s builders rather than locally.  Remove it if
+# build occurs on Fly's builders rather than locally.  Remove it if
 # you prefer local builds.
-fly deploy -c "$CONFIG"
+fly deploy -c "$CONFIG" --image-label "commit-$COMMIT_HASH"

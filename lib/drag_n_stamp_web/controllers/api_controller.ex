@@ -35,12 +35,13 @@ defmodule DragNStampWeb.ApiController do
           [_, video_id] -> "https://www.youtube.com/watch?v=#{video_id}"
           _ -> url
         end
-      
-      true -> url
+
+      true ->
+        url
     end
   end
 
-  defp extract_timestamps_only(text) do
+  defp extract_timestamps_only(text) when is_binary(text) do
     text
     |> String.split("\n")
     |> Enum.filter(fn line ->
@@ -48,6 +49,16 @@ defmodule DragNStampWeb.ApiController do
       String.match?(line, ~r/^\s*\d+:\d+/)
     end)
     |> Enum.join("\n")
+  end
+
+  defp extract_timestamps_only(nil) do
+    Logger.error("extract_timestamps_only received nil - Gemini API returned no text")
+    {:error, :nil_response}
+  end
+
+  defp extract_timestamps_only(other) do
+    Logger.error("extract_timestamps_only received unexpected type: #{inspect(other)}")
+    {:error, :unexpected_type}
   end
 
   def gemini(conn, params) do
@@ -72,7 +83,10 @@ defmodule DragNStampWeb.ApiController do
         })
 
       %Timestamp{content: content} = timestamp ->
-        Logger.info("Found existing timestamps but no distilled version for URL: #{url}, distilling...")
+        Logger.info(
+          "Found existing timestamps but no distilled version for URL: #{url}, distilling..."
+        )
+
         distill_existing_timestamps(conn, api_key, timestamp, content)
 
       nil ->
@@ -94,10 +108,19 @@ defmodule DragNStampWeb.ApiController do
       <good>
       0:00 __________ Parse bot: ___ _____.
       </good>
+
+      if the channel name is anonymous, that just means a name wasn't supplied, DONT REFERENCE
+      ANONYMOUS.
+      <bad>
+      0:00 Welcome to the anonymous channel's RC helicopter extravaganza!
+      </bad>
+      <good>
+      0:00 Welcome to the RC helicopter extravaganza!
+      </good>
       "
 
     if api_key do
-      case call_gemini_api(formatted_prompt, api_key, url) do
+      case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
         {:ok, response} ->
           # Save timestamp to database
           timestamp_attrs = %{
@@ -110,11 +133,14 @@ defmodule DragNStampWeb.ApiController do
           case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
             {:ok, timestamp} ->
               Logger.info("Timestamp saved to database for URL: #{url}")
+              # Broadcast the new timestamp for LiveView updates
+              Phoenix.PubSub.broadcast(DragNStamp.PubSub, "timestamps", {:timestamp_created, timestamp})
               # Now distill the timestamps
               distill_timestamps(conn, api_key, timestamp, response)
 
             {:error, changeset} ->
               Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
+
               json(conn, %{
                 status: "success",
                 response: response,
@@ -127,7 +153,7 @@ defmodule DragNStampWeb.ApiController do
           |> put_status(:internal_server_error)
           |> json(%{
             status: "error",
-            message: "Failed to get response from Gemini API: #{reason}"
+            message: "Failed to get response from Gemini API after retries: #{reason}"
           })
       end
     else
@@ -137,6 +163,23 @@ defmodule DragNStampWeb.ApiController do
         status: "error",
         message: "GEMINI_API_KEY environment variable not set"
       })
+    end
+  end
+
+  defp call_gemini_api_with_retry(prompt, api_key, video_url, attempt \\ 1) do
+    case call_gemini_api(prompt, api_key, video_url) do
+      {:ok, response} ->
+        {:ok, response}
+      
+      {:error, reason} when attempt < 3 ->
+        delay = if attempt == 1, do: 5_000, else: 60_000
+        Logger.warn("Gemini API attempt #{attempt} failed: #{reason}. Retrying in #{delay}ms...")
+        Process.sleep(delay)
+        call_gemini_api_with_retry(prompt, api_key, video_url, attempt + 1)
+      
+      {:error, reason} ->
+        Logger.error("Gemini API failed after #{attempt} attempts: #{reason}")
+        {:error, reason}
     end
   end
 
@@ -174,9 +217,18 @@ defmodule DragNStampWeb.ApiController do
         case Jason.decode(response_body) do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
-            cleaned_text = extract_timestamps_only(text)
-            final_text = cleaned_text <> "\n\nTimestamps by McCoder Douglas"
-            {:ok, final_text}
+            Logger.info("Gemini API raw response: #{inspect(text)}")
+            
+            case extract_timestamps_only(text) do
+              {:error, reason} ->
+                Logger.error("Failed to extract timestamps: #{reason}")
+                {:error, "No valid timestamps in response"}
+              
+              cleaned_text ->
+                final_text = cleaned_text <> "\n\nTimestamps by McCoder Douglas"
+                Logger.info("Gemini API final processed text: #{inspect(final_text)}")
+                {:ok, final_text}
+            end
 
           {:ok, %{"error" => error}} ->
             {:error, error["message"]}
@@ -253,11 +305,10 @@ defmodule DragNStampWeb.ApiController do
 
   defp distill_timestamps_content(content, api_key) do
     distillation_prompt = """
-    You are given a list of timestamps for a YouTube video. Your task is to select only the MOST IMPORTANT timestamps, aiming for approximately 1 timestamp per 90 seconds of video content.
+    You are given a list of timestamps for a YouTube video. Your task is to select only the 10 MOST IMPORTANT timestamps. If there are fewer than 10, list them all. Secondary goal: try to get timestamps from throughout the whole video.
 
     Rules:
     1. Keep only the most significant moments or topics
-    2. Aim for no more than 1 timestamp per 90 seconds
     3. Preserve the exact format of the timestamps you select
     4. Do not modify the text of the selected timestamps
     5. Return only the selected timestamps, nothing else
@@ -269,9 +320,18 @@ defmodule DragNStampWeb.ApiController do
 
     case call_gemini_api_text_only(distillation_prompt, api_key) do
       {:ok, response} ->
-        cleaned_response = extract_timestamps_only(response)
-        final_response = cleaned_response <> "\n\nTimestamps by McCoder Douglas"
-        {:ok, final_response}
+        Logger.info("Gemini distillation raw response: #{inspect(response)}")
+        
+        case extract_timestamps_only(response) do
+          {:error, reason} ->
+            Logger.error("Failed to extract timestamps from distillation: #{reason}")
+            {:error, "No valid timestamps in distillation response"}
+          
+          cleaned_response ->
+            final_response = cleaned_response <> "\n\nTimestamps by McCoder Douglas"
+            Logger.info("Gemini distillation final processed text: #{inspect(final_response)}")
+            {:ok, final_response}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -301,6 +361,7 @@ defmodule DragNStampWeb.ApiController do
         case Jason.decode(response_body) do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
+            Logger.info("Gemini text-only API raw response: #{inspect(text)}")
             {:ok, text}
 
           {:ok, %{"error" => error}} ->

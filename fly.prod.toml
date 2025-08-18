@@ -10,25 +10,25 @@ kill_signal = "SIGTERM"
 kill_timeout = 5
 
 [build]
-  # Build from the local Dockerfile
+# Build from the local Dockerfile
 
 [deploy]
-  release_command = "eval \"DragNStamp.Release.migrate()\""
+#  release_command = "eval \"DragNStamp.Release.migrate()\""
 
 [env]
-  PHX_HOST = "drag-n-stamp-prod.fly.dev"
-  PORT = "4000"
+PHX_HOST = "drag-n-stamp-prod.fly.dev"
+PORT = "4000"
 
 [[services]]
-  internal_port = 4000
-  protocol = "tcp"
-  [[services.ports]]
-    handlers = ["http"]
-    port = 80
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
-  [services.concurrency]
-    type = "requests"
-    hard_limit = 100
-    soft_limit = 80
+internal_port = 4000
+protocol = "tcp"
+[[services.ports]]
+handlers = ["http"]
+port = 80
+[[services.ports]]
+handlers = ["tls", "http"]
+port = 443
+[services.concurrency]
+type = "requests"
+hard_limit = 100
+soft_limit = 80

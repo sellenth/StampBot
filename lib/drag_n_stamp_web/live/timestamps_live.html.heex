@@ -1,0 +1,201 @@
+<.flash_group flash={@flash} />
+<div class="page">
+  <div class="container">
+    <div class="flex flex-between flex-center mb-2">
+      <h1>YouTube Timestamps</h1>
+      <button id="setup-btn" phx-click={JS.show(to: "#setup-modal")} class="btn btn-small">
+        Setup Bookmarklet
+      </button>
+      <div id="username-display" class="flex gap-1 flex-center hidden">
+        <span id="username-text" class="text-small text-muted"></span>
+        <button phx-click={JS.show(to: "#setup-modal")} class="btn-secondary btn-small">Modify</button>
+      </div>
+    </div>
+    
+    <!-- URL Input Section -->
+    <div class="card mb-2">
+      <h3>Generate Timestamps</h3>
+      <form phx-submit="generate_from_url">
+        <div class="flex gap-1">
+          <input
+            type="text"
+            name="url"
+            placeholder="Paste YouTube URL here..."
+            class="flex-1"
+            style="flex: 1"
+            disabled={@loading}
+          />
+          <button type="submit" class="btn" disabled={@loading}>
+            <%= if @loading, do: "Generating...", else: "Generate" %>
+          </button>
+        </div>
+      </form>
+      <p class="text-small text-muted mb-0">
+        Or use the bookmarklet below for one-click generation
+      </p>
+    </div>
+
+    <div class="flex flex-between flex-center mb-2">
+      <p class="text-muted mb-0">
+        <span id="record-count"><%= length(filtered_timestamps(assigns)) %></span> records
+      </p>
+      <form phx-change="filter_changed" class="flex gap-1">
+        <select name="submitter">
+          <option value="">All Submitters</option>
+          <%= for submitter <- unique_submitters(@timestamps) do %>
+            <option value={submitter} selected={@filter_submitter == submitter}>
+              <%= submitter %>
+            </option>
+          <% end %>
+        </select>
+        <select name="channel">
+          <option value="">All Channels</option>
+          <%= for channel <- unique_channels(@timestamps) do %>
+            <option value={channel} selected={@filter_channel == channel}>
+              <%= channel %>
+            </option>
+          <% end %>
+        </select>
+        <select name="sort">
+          <option value="newest" selected={@sort_by == "newest"}>Newest</option>
+          <option value="oldest" selected={@sort_by == "oldest"}>Oldest</option>
+        </select>
+      </form>
+    </div>
+
+    <div class="card mb-2">
+      <h3>Leaderboard</h3>
+      <div class="flex flex-col gap-1">
+        <%= for {submitter, count} <- submitter_stats(@timestamps) do %>
+          <div class="flex flex-between flex-center">
+            <span><%= submitter %></span>
+            <span class="text-small text-muted"><%= count %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%= if filtered_timestamps(assigns) == [] do %>
+      <div class="card text-center">
+        <p>No timestamps yet.</p>
+        <p class="text-small text-muted mb-0">Use bookmarklet on YouTube video.</p>
+      </div>
+    <% else %>
+      <div id="timestamps-container">
+        <%= for timestamp <- filtered_timestamps(assigns) do %>
+          <div class="card timestamp-card">
+            <div class="flex gap-1 mb-2">
+              <span class="tag"><%= timestamp.submitter_username %></span>
+              <span class="tag"><%= timestamp.channel_name %></span>
+              <span class="tag text-small">
+                <%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p") %>
+              </span>
+            </div>
+
+            <div class="mb-2">
+              <a href={timestamp.url} target="_blank" rel="noopener noreferrer" class="text-small">
+                <%= timestamp.url %>
+              </a>
+            </div>
+
+            <div class="!py-0 code">
+              Generated Timestamps:<br /><%= timestamp.content %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+    
+    <!-- Setup Modal -->
+    <div id="setup-modal" class="hidden modal-overlay" phx-click-away={JS.hide()}>
+      <div class="modal-content" phx-click-away-stop>
+        <div class="flex flex-between flex-center mb-2">
+          <h2>Setup Bookmarklet</h2>
+          <button phx-click={JS.hide(to: "#setup-modal")} class="btn-secondary btn-small">Close</button>
+        </div>
+
+        <div class="card" id="username-form">
+          <h3>Set Username</h3>
+          <p>Enter your username to track submissions:</p>
+          <div class="flex gap-1">
+            <input
+              type="text"
+              id="submitter-username"
+              placeholder="Username"
+              maxlength="50"
+              phx-hook="UsernameSetup"
+            />
+            <button id="set-username-btn" class="btn">Set</button>
+          </div>
+          <p class="text-small text-muted mb-0">Stored with all generated timestamps.</p>
+        </div>
+
+        <div class="card hidden" id="instructions">
+          <h3>How to Use</h3>
+          <ol>
+            <li>Drag button to bookmarks bar</li>
+            <li>Go to YouTube video</li>
+            <li>Click bookmark tool in your bookmarks bar</li>
+            <li>McDouglas creates some timestamps for you</li>
+            <li>It may take a moment, you can close the status popup and continue watching</li>
+          </ol>
+        </div>
+
+        <div class="text-center hidden" id="bookmarklet-section">
+          <div class="mb-2">
+            <a
+              href={@bookmarklet_code}
+              class="btn"
+              draggable="true"
+              onclick="return false;"
+              style="cursor: grab;"
+            >
+              YouTube Timestamp Generator
+            </a>
+          </div>
+
+          <p class="text-small text-muted mb-1">Drag to bookmarks bar</p>
+
+          <div class="card mt-4">
+            <p class="text-small mb-0">Drag button to bookmarks or copy code manually.</p>
+            <p class="text-small mt-4 mx-auto text-muted mb-0">
+              Current username: <strong id="current-username"></strong>
+            </p>
+            <button id="change-username-btn" class="btn-secondary btn-small">
+              Change Username
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="text-small">Bookmarklet code:</p>
+          <textarea
+            id="bookmarklet-code"
+            readonly
+            class="code"
+            style="height: 5rem; resize: none;"
+            phx-hook="BookmarkletCode"
+          ><%= @bookmarklet_code %></textarea>
+
+          <button id="copy-bookmarklet-btn" class="btn-secondary btn-small">
+            Copy Code
+          </button>
+        </div>
+
+        <div class="card">
+          <p class="text-small mb-0">
+            <strong>Note:</strong>
+            Works on YouTube videos only. Extracts channel info, defaults to "anonymous".
+          </p>
+        </div>
+
+        <div class="card">
+          <p class="text-small mb-0">
+            <strong>Bookmarks bar:</strong>
+            Ctrl+Shift+B (Cmd+Shift+B on Mac) or Settings → Appearance → Show bookmarks bar.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -27,9 +27,9 @@
   --text-secondary: #ccc;
   --text-muted: #999;
   --border-color: #404040;
-  --btn-primary-bg: #fff;
-  --btn-primary-color: #000;
-  --btn-primary-hover: #ddd;
+  --btn-primary-bg: #1a1a1a;
+  --btn-primary-color: #fff;
+  --btn-primary-hover: #333;
   --btn-secondary-bg: #1a1a1a;
   --btn-secondary-color: #fff;
   --btn-secondary-border: #fff;
@@ -126,17 +126,18 @@ textarea:focus {
   padding: 0.75rem 1.5rem;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-color);
-  border: none;
+  border: 1px solid var(--btn-primary-bg);
   font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .btn:hover {
   background: var(--btn-primary-hover);
   color: var(--btn-primary-color);
+  border-color: var(--btn-primary-hover);
 }
 
 .btn-secondary {
@@ -153,6 +154,29 @@ textarea:focus {
 .btn-small {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
+}
+
+/* Dark mode button styling */
+[data-theme="dark"] .btn {
+  border: 2px solid #fff;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+[data-theme="dark"] .btn:hover {
+  background: #333;
+  border-color: #fff;
+}
+
+[data-theme="dark"] .btn-secondary {
+  border: 2px solid #fff;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background: #333;
+  border-color: #fff;
 }
 
 /* Cards */
@@ -245,6 +269,27 @@ textarea:focus {
   overflow-y: auto;
   padding: 2rem;
   transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Flash message theming */
+[data-theme="dark"] .flash-info {
+  background: #1a1a1a !important;
+  color: #fff !important;
+  border-color: #404040 !important;
+}
+
+[data-theme="dark"] .flash-error {
+  background: #1a1a1a !important;
+  color: #fff !important;
+  border-color: #ef4444 !important;
+}
+
+[data-theme="dark"] .flash-info .hero-information-circle-mini {
+  color: #10b981 !important;
+}
+
+[data-theme="dark"] .flash-error .hero-exclamation-circle-mini {
+  color: #ef4444 !important;
 }
 
 /* Responsive */
