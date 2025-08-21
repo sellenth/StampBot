@@ -54,6 +54,12 @@ defmodule DragNStampWeb.CoreComponents do
         >
           Leaderboard
         </.link>
+        <.link 
+          navigate={~p"/more-info"} 
+          class={["nav-link", @current_page == "more-info" && "nav-link-active"]}
+        >
+          More Info
+        </.link>
       </div>
     </nav>
     """
