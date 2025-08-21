@@ -4,11 +4,27 @@ defmodule DragNStampWeb.Plugs.CORS do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    conn
+    # Check if this is an extension request
+    user_agent = get_req_header(conn, "user-agent") |> List.first() || ""
+    is_extension = String.contains?(conn.request_path, "mode=extension") or String.contains?(user_agent, "Chrome-Extension")
+    
+    conn = conn
     |> put_resp_header("access-control-allow-origin", "*")
     |> put_resp_header("access-control-allow-methods", "GET, POST, OPTIONS")
     |> put_resp_header("access-control-allow-headers", "content-type")
-    |> handle_preflight()
+    
+    # Allow iframe embedding for extensions only
+    conn = if is_extension do
+      conn
+      |> put_resp_header("x-frame-options", "ALLOWALL")
+      |> put_resp_header("content-security-policy", "frame-ancestors 'self' chrome-extension: moz-extension:")
+    else
+      conn
+      |> put_resp_header("x-frame-options", "SAMEORIGIN")
+      |> put_resp_header("content-security-policy", "frame-ancestors 'self'")
+    end
+    
+    handle_preflight(conn)
   end
 
   defp handle_preflight(%{method: "OPTIONS"} = conn) do
