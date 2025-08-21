@@ -18,6 +18,46 @@ defmodule DragNStampWeb.CoreComponents do
   use Gettext, backend: DragNStampWeb.Gettext
 
   alias Phoenix.LiveView.JS
+  
+  # Import the verified routes for ~p sigil
+  use Phoenix.VerifiedRoutes, endpoint: DragNStampWeb.Endpoint, router: DragNStampWeb.Router
+
+  @doc """
+  Renders the main navigation component.
+  """
+  attr :current_page, :string, default: ""
+
+  def navigation(assigns) do
+    ~H"""
+    <nav class="navigation">
+      <div class="nav-brand">
+        <.link navigate={~p"/"} class="nav-brand-link">
+          YouTube Timestamps
+        </.link>
+      </div>
+      <div class="nav-links">
+        <.link 
+          navigate={~p"/"} 
+          class={["nav-link", @current_page == "home" && "nav-link-active"]}
+        >
+          Home
+        </.link>
+        <.link 
+          navigate={~p"/feed"} 
+          class={["nav-link", @current_page == "feed" && "nav-link-active"]}
+        >
+          Feed
+        </.link>
+        <.link 
+          navigate={~p"/leaderboard"} 
+          class={["nav-link", @current_page == "leaderboard" && "nav-link-active"]}
+        >
+          Leaderboard
+        </.link>
+      </div>
+    </nav>
+    """
+  end
 
   @doc """
   Renders a modal.

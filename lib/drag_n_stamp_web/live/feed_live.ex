@@ -1,0 +1,78 @@
+defmodule DragNStampWeb.FeedLive do
+  use DragNStampWeb, :live_view
+  alias DragNStamp.{Repo, Timestamp}
+  import Ecto.Query
+  require Logger
+
+  @topic "timestamps"
+
+  def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(DragNStamp.PubSub, @topic)
+    end
+
+    timestamps =
+      Timestamp
+      |> order_by(desc: :inserted_at)
+      |> Repo.all()
+
+    {:ok,
+     assign(socket,
+       timestamps: timestamps,
+       filter_submitter: "",
+       filter_channel: "",
+       sort_by: "newest"
+     )}
+  end
+
+  def handle_info({:timestamp_created, timestamp}, socket) do
+    Logger.info("Received new timestamp via PubSub: #{timestamp.id}")
+
+    updated_timestamps = [timestamp | socket.assigns.timestamps]
+
+    {:noreply,
+     socket
+     |> assign(:timestamps, sort_timestamps(updated_timestamps, socket.assigns.sort_by))
+     |> put_flash(:info, "New timestamp received from #{timestamp.submitter_username}!")}
+  end
+
+  def handle_event("filter_changed", params, socket) do
+    {:noreply,
+     assign(socket,
+       filter_submitter: params["submitter"] || "",
+       filter_channel: params["channel"] || "",
+       sort_by: params["sort"] || "newest"
+     )}
+  end
+
+  defp sort_timestamps(timestamps, sort_by) do
+    case sort_by do
+      "newest" -> Enum.sort_by(timestamps, & &1.inserted_at, {:desc, NaiveDateTime})
+      "oldest" -> Enum.sort_by(timestamps, & &1.inserted_at, {:asc, NaiveDateTime})
+      _ -> timestamps
+    end
+  end
+
+  defp filtered_timestamps(assigns) do
+    assigns.timestamps
+    |> Enum.filter(fn t ->
+      (assigns.filter_submitter == "" or t.submitter_username == assigns.filter_submitter) and
+        (assigns.filter_channel == "" or t.channel_name == assigns.filter_channel)
+    end)
+    |> sort_timestamps(assigns.sort_by)
+  end
+
+  defp unique_submitters(timestamps) do
+    timestamps
+    |> Enum.map(& &1.submitter_username)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp unique_channels(timestamps) do
+    timestamps
+    |> Enum.map(& &1.channel_name)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+end

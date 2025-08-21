@@ -1,0 +1,78 @@
+defmodule DragNStampWeb.HomeLive do
+  use DragNStampWeb, :live_view
+  require Logger
+
+  def mount(_params, _session, socket) do
+    base_url = DragNStampWeb.Endpoint.url()
+    api_endpoint = "#{base_url}/api/gemini"
+    bookmarklet_code = build_bookmarklet_code(api_endpoint)
+
+    {:ok,
+     assign(socket,
+       bookmarklet_code: bookmarklet_code,
+       loading: false
+     )}
+  end
+
+  def handle_event("generate_from_url", %{"url" => url, "username" => username}, socket) do
+    case validate_youtube_url(url) do
+      :ok ->
+        # Set username to "anonymous" if empty
+        submitter_username = if username && String.trim(username) != "", do: String.trim(username), else: "anonymous"
+
+        Task.start(fn ->
+          generate_timestamps(url, submitter_username, socket)
+        end)
+
+        {:noreply,
+         socket
+         |> assign(:loading, true)
+         |> put_flash(:info, "Generating timestamps... This may take up to 5 minutes.")}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  defp validate_youtube_url(url) do
+    cond do
+      url == "" ->
+        {:error, "Please enter a YouTube URL"}
+
+      not (String.contains?(url, "youtube.com") or
+             String.contains?(url, "youtu.be") or
+               String.contains?(url, "m.youtube.com")) ->
+        {:error, "Please enter a valid YouTube URL"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp generate_timestamps(url, submitter_username, _socket) do
+    base_url = DragNStampWeb.Endpoint.url()
+    api_endpoint = "#{base_url}/api/gemini"
+
+    headers = [{"Content-Type", "application/json"}]
+
+    body =
+      Jason.encode!(%{
+        url: url,
+        channel_name: "anonymous",
+        submitter_username: submitter_username
+      })
+
+    case Finch.build(:post, api_endpoint, headers, body)
+         |> Finch.request(DragNStamp.Finch, receive_timeout: 300_000) do
+      {:ok, response} ->
+        Logger.info("Timestamp generation completed: #{inspect(response.status)}")
+
+      {:error, reason} ->
+        Logger.error("Failed to generate timestamps: #{inspect(reason)}")
+    end
+  end
+
+  defp build_bookmarklet_code(api_endpoint) do
+    "javascript:(function(){function showCustomAlert(title,message,type){var isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;console.log('Browser theme detected - Dark mode:',isDark);var bgColor=isDark?'#1a1a1a':'white';var textColor=isDark?'#fff':'#111827';var borderColor=isDark?'#404040':'#e5e7eb';var contentColor=isDark?'#ccc':'#374151';var btnBg=isDark?'#fff':'#3b82f6';var btnColor=isDark?'#000':'white';console.log('Modal colors - bg:',bgColor,'text:',textColor);var overlay=document.createElement('div');overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif';var modal=document.createElement('div');modal.style.cssText='background:'+bgColor+';padding:24px;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,0.25);max-width:500px;width:90%;max-height:80vh;overflow-y:auto';var header=document.createElement('div');header.style.cssText='display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid '+borderColor;var icon=document.createElement('div');icon.style.cssText='width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:white';if(type==='success'){icon.style.background='#10b981';icon.textContent='✓'}else if(type==='error'){icon.style.background='#ef4444';icon.textContent='✕'}else{icon.style.background='#3b82f6';icon.textContent='i'}var titleEl=document.createElement('h3');titleEl.style.cssText='margin:0;font-size:18px;font-weight:600;color:'+textColor;titleEl.textContent=title;header.appendChild(icon);header.appendChild(titleEl);var content=document.createElement('div');content.style.cssText='color:'+contentColor+';line-height:1.5;margin-bottom:20px;white-space:pre-wrap';content.textContent=message;var button=document.createElement('button');button.style.cssText='background:'+btnBg+';color:'+btnColor+';border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;float:right';button.textContent='OK';button.onclick=function(){overlay.remove()};modal.appendChild(header);modal.appendChild(content);modal.appendChild(button);overlay.appendChild(modal);document.body.appendChild(overlay);overlay.onclick=function(e){if(e.target===overlay)overlay.remove()}}var e='#{api_endpoint}',u=window.location.href,y=u.indexOf('youtube.com')>-1||u.indexOf('youtu.be')>-1||u.indexOf('m.youtube.com')>-1;if(!y){showCustomAlert('YouTube Required','This bookmarklet only works on YouTube videos!','error');return;}showCustomAlert('Processing...','Analyzing video and generating timestamps. This may take up to 5 minutes.','info');var channelName='anonymous';try{console.log('Attempting to extract channel name...');var channelSelectors=['#channel-name a','#text a','.ytd-channel-name a','[class*=\"channel\"] a','.owner-text a','.ytd-video-owner-renderer a'];for(var i=0;i<channelSelectors.length;i++){var chEl=document.querySelector(channelSelectors[i]);if(chEl&&chEl.textContent){channelName=chEl.textContent.trim();console.log('Channel name found with selector',channelSelectors[i],':',channelName);break;}}console.log('Final channel name:',channelName);}catch(x){console.log('Error extracting channel info:',x);}fetch(e,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel_name:channelName,url:u})}).then(function(r){return r.json();}).then(function(d){var message='Video: '+u+'\\nChannel: '+channelName+'\\n\\nTimestamps:\\n'+d.response;showCustomAlert('Timestamps Generated!',message,'success');console.log('Gemini Response:',d);}).catch(function(er){showCustomAlert('Error','Failed to generate timestamps. Check console for details.','error');console.error('Error:',er);});})();"
+  end
+end

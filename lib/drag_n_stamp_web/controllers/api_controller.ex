@@ -4,7 +4,24 @@ defmodule DragNStampWeb.ApiController do
   alias DragNStamp.{Repo, Timestamp}
 
   def receive_url(conn, %{"url" => url} = params) do
-    username = Map.get(params, "username", "anonymous")
+    username =
+      case Map.get(params, "username") do
+        nil ->
+          "anonymous"
+
+        "" ->
+          "anonymous"
+
+        username when is_binary(username) ->
+          case String.trim(username) do
+            "" -> "anonymous"
+            trimmed -> trimmed
+          end
+
+        _ ->
+          "anonymous"
+      end
+
     Logger.info("Received URL: #{url}")
     Logger.info("Username: #{username}")
     Logger.info("Full params: #{inspect(params)}")
@@ -64,7 +81,25 @@ defmodule DragNStampWeb.ApiController do
   def gemini(conn, params) do
     api_key = System.get_env("GEMINI_API_KEY")
     channel_name = Map.get(params, "channel_name", "anonymous")
-    submitter_username = Map.get(params, "submitter_username", "anonymous")
+
+    submitter_username =
+      case Map.get(params, "submitter_username") do
+        nil ->
+          "anonymous"
+
+        "" ->
+          "anonymous"
+
+        username when is_binary(username) ->
+          case String.trim(username) do
+            "" -> "anonymous"
+            trimmed -> trimmed
+          end
+
+        _ ->
+          "anonymous"
+      end
+
     url = Map.get(params, "url") |> normalize_youtube_url()
 
     Logger.info(
@@ -134,7 +169,12 @@ defmodule DragNStampWeb.ApiController do
             {:ok, timestamp} ->
               Logger.info("Timestamp saved to database for URL: #{url}")
               # Broadcast the new timestamp for LiveView updates
-              Phoenix.PubSub.broadcast(DragNStamp.PubSub, "timestamps", {:timestamp_created, timestamp})
+              Phoenix.PubSub.broadcast(
+                DragNStamp.PubSub,
+                "timestamps",
+                {:timestamp_created, timestamp}
+              )
+
               # Now distill the timestamps
               distill_timestamps(conn, api_key, timestamp, response)
 
@@ -170,13 +210,17 @@ defmodule DragNStampWeb.ApiController do
     case call_gemini_api(prompt, api_key, video_url) do
       {:ok, response} ->
         {:ok, response}
-      
+
       {:error, reason} when attempt < 3 ->
         delay = if attempt == 1, do: 5_000, else: 60_000
-        Logger.warning("Gemini API attempt #{attempt} failed: #{reason}. Retrying in #{delay}ms...")
+
+        Logger.warning(
+          "Gemini API attempt #{attempt} failed: #{reason}. Retrying in #{delay}ms..."
+        )
+
         Process.sleep(delay)
         call_gemini_api_with_retry(prompt, api_key, video_url, attempt + 1)
-      
+
       {:error, reason} ->
         Logger.error("Gemini API failed after #{attempt} attempts: #{reason}")
         {:error, reason}
@@ -218,12 +262,12 @@ defmodule DragNStampWeb.ApiController do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
             Logger.info("Gemini API raw response: #{inspect(text)}")
-            
+
             case extract_timestamps_only(text) do
               {:error, reason} ->
                 Logger.error("Failed to extract timestamps: #{reason}")
                 {:error, "No valid timestamps in response"}
-              
+
               cleaned_text ->
                 final_text = cleaned_text <> "\n\nTimestamps by McCoder Douglas"
                 Logger.info("Gemini API final processed text: #{inspect(final_text)}")
@@ -309,9 +353,26 @@ defmodule DragNStampWeb.ApiController do
 
     Rules:
     1. Keep only the most significant moments or topics
-    3. Preserve the exact format of the timestamps you select
-    4. Do not modify the text of the selected timestamps
+    3. Preserve the format of the timecode of the timestamps you select
+    4. You may update the timestamp text to make the list more engaging
     5. Return only the selected timestamps, nothing else
+
+    <avoid>
+      <example>
+      0:00 Welcome to GosuCoder: Unveiling the lightning-fast "Sonic" AI model.
+      </example>
+      <explanation>
+      GosuCoder is the channel name, it doesn't really make sense. Don't add an introduction if it isn't in the video.
+      </explanation
+
+
+      <example>
+      10:58 The big reveal: Is it Mistral hiding in plain sight?
+      </example
+      <explanation>
+      I want to explore making the timestamps more engaging. The whole mystery of the video in this case was Mistral, so giving it away in text kind of disincentivizes video engagement.
+      </explanation>
+    </avoid>
 
     Here are the timestamps to distill:
 
@@ -321,12 +382,12 @@ defmodule DragNStampWeb.ApiController do
     case call_gemini_api_text_only(distillation_prompt, api_key) do
       {:ok, response} ->
         Logger.info("Gemini distillation raw response: #{inspect(response)}")
-        
+
         case extract_timestamps_only(response) do
           {:error, reason} ->
             Logger.error("Failed to extract timestamps from distillation: #{reason}")
             {:error, "No valid timestamps in distillation response"}
-          
+
           cleaned_response ->
             final_response = cleaned_response <> "\n\nTimestamps by McCoder Douglas"
             Logger.info("Gemini distillation final processed text: #{inspect(final_response)}")

@@ -1,0 +1,131 @@
+<.flash_group flash={@flash} />
+
+<.navigation current_page="leaderboard" />
+
+<div class="page">
+  <div class="container">
+    <div class="page-header">
+      <h1>Leaderboard</h1>
+      <p class="page-description">Top contributors and community statistics</p>
+    </div>
+
+    <div class="stats-overview">
+      <div class="stat-card">
+        <div class="stat-number"><%= total_timestamps(@timestamps) %></div>
+        <div class="stat-label">Total Timestamps</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number"><%= unique_contributors(@timestamps) %></div>
+        <div class="stat-label">Contributors</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number"><%= length(channel_stats(@timestamps)) %></div>
+        <div class="stat-label">Channels</div>
+      </div>
+    </div>
+
+    <div class="leaderboard-grid">
+      <div class="leaderboard-section">
+        <div class="section-header">
+          <h2>Top Contributors</h2>
+          <p class="section-description">Users with the most timestamp generations</p>
+        </div>
+        
+        <div class="leaderboard-list">
+          <%= if submitter_stats(@timestamps) == [] do %>
+            <div class="empty-state-small">
+              <p>No contributors yet. Be the first!</p>
+              <.link navigate={~p"/"} class="btn btn-small">
+                Generate Timestamps
+              </.link>
+            </div>
+          <% else %>
+            <%= for {{submitter, count, last_activity}, index} <- Enum.with_index(submitter_stats(@timestamps)) do %>
+              <div class="leaderboard-item">
+                <div class="rank-badge">
+                  <%= case index do %>
+                    <% 0 -> %>🥇
+                    <% 1 -> %>🥈
+                    <% 2 -> %>🥉
+                    <% _ -> %>#<%= index + 1 %>
+                  <% end %>
+                </div>
+                <div class="contributor-info">
+                  <div class="contributor-name"><%= submitter %></div>
+                  <div class="contributor-meta">
+                    Last active: <%= Calendar.strftime(last_activity, "%b %d, %Y") %>
+                  </div>
+                </div>
+                <div class="contribution-count">
+                  <%= count %> timestamp<%= if count != 1, do: "s" %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="leaderboard-section">
+        <div class="section-header">
+          <h2>Popular Channels</h2>
+          <p class="section-description">Most timestamped YouTube channels</p>
+        </div>
+        
+        <div class="channel-list">
+          <%= if channel_stats(@timestamps) == [] do %>
+            <div class="empty-state-small">
+              <p>No channels yet</p>
+            </div>
+          <% else %>
+            <%= for {channel, count} <- channel_stats(@timestamps) do %>
+              <div class="channel-item">
+                <div class="channel-name"><%= channel %></div>
+                <div class="channel-count">
+                  <%= count %> timestamp<%= if count != 1, do: "s" %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="recent-activity-section">
+      <div class="section-header">
+        <h2>Recent Activity</h2>
+        <p class="section-description">Latest timestamp generations</p>
+      </div>
+      
+      <div class="activity-list">
+        <%= if recent_activity(@timestamps) == [] do %>
+          <div class="empty-state-small">
+            <p>No recent activity</p>
+          </div>
+        <% else %>
+          <%= for timestamp <- recent_activity(@timestamps) do %>
+            <div class="activity-item">
+              <div class="activity-user">
+                <strong><%= timestamp.submitter_username %></strong>
+              </div>
+              <div class="activity-description">
+                generated timestamps for
+                <span class="activity-channel"><%= timestamp.channel_name %></span>
+              </div>
+              <div class="activity-time">
+                <%= Calendar.strftime(timestamp.inserted_at, "%b %d, %I:%M %p") %>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+      
+      <%= if length(@timestamps) > 5 do %>
+        <div class="activity-footer">
+          <.link navigate={~p"/feed"} class="btn btn-secondary">
+            View All Timestamps
+          </.link>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

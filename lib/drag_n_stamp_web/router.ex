@@ -18,7 +18,10 @@ defmodule DragNStampWeb.Router do
   scope "/", DragNStampWeb do
     pipe_through :browser
 
-    live "/", TimestampsLive
+    live "/", HomeLive
+    live "/feed", FeedLive
+    live "/leaderboard", LeaderboardLive
+    live "/more-info", MoreInfoLive
 
     # Catch-all route for YouTube URL processing (must be last)
     get "/*path", PageController, :process_youtube_url

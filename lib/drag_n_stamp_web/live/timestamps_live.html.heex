@@ -11,7 +11,7 @@
         <button phx-click={JS.show(to: "#setup-modal")} class="btn-secondary btn-small">Modify</button>
       </div>
     </div>
-    
+
     <!-- URL Input Section -->
     <div class="card mb-2">
       <h3>Generate Timestamps</h3>
@@ -106,9 +106,9 @@
         <% end %>
       </div>
     <% end %>
-    
+
     <!-- Setup Modal -->
-    <div id="setup-modal" class="hidden modal-overlay" phx-click-away={JS.hide()}>
+    <div id="setup-modal" class="hidden !flex modal-overlay" phx-click-away={JS.hide(to: "#setup-modal")}>
       <div class="modal-content" phx-click-away-stop>
         <div class="flex flex-between flex-center mb-2">
           <h2>Setup Bookmarklet</h2>

@@ -1,0 +1,80 @@
+<.flash_group flash={@flash} />
+
+<.navigation current_page="feed" />
+
+<div class="page">
+  <div class="container">
+    <div class="page-header">
+      <h1>Timestamp Feed</h1>
+      <p class="page-description">Browse all generated YouTube timestamps</p>
+    </div>
+
+    <div class="filters-section">
+      <div class="filters-header">
+        <p class="record-count">
+          <span id="record-count"><%= length(filtered_timestamps(assigns)) %></span> timestamps
+        </p>
+      </div>
+      
+      <form phx-change="filter_changed" class="filters-form">
+        <select name="submitter" class="filter-select">
+          <option value="">All Submitters</option>
+          <%= for submitter <- unique_submitters(@timestamps) do %>
+            <option value={submitter} selected={@filter_submitter == submitter}>
+              <%= submitter %>
+            </option>
+          <% end %>
+        </select>
+        
+        <select name="channel" class="filter-select">
+          <option value="">All Channels</option>
+          <%= for channel <- unique_channels(@timestamps) do %>
+            <option value={channel} selected={@filter_channel == channel}>
+              <%= channel %>
+            </option>
+          <% end %>
+        </select>
+        
+        <select name="sort" class="filter-select">
+          <option value="newest" selected={@sort_by == "newest"}>Newest First</option>
+          <option value="oldest" selected={@sort_by == "oldest"}>Oldest First</option>
+        </select>
+      </form>
+    </div>
+
+    <div class="timestamps-grid">
+      <%= if filtered_timestamps(assigns) == [] do %>
+        <div class="empty-state">
+          <h3>No timestamps found</h3>
+          <p>No timestamps match your current filters, or none have been generated yet.</p>
+          <.link navigate={~p"/"} class="btn">
+            Generate First Timestamp
+          </.link>
+        </div>
+      <% else %>
+        <%= for timestamp <- filtered_timestamps(assigns) do %>
+          <div class="timestamp-card">
+            <div class="timestamp-meta">
+              <span class="tag user-tag"><%= timestamp.submitter_username %></span>
+              <span class="tag channel-tag"><%= timestamp.channel_name %></span>
+              <span class="tag date-tag">
+                <%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p") %>
+              </span>
+            </div>
+
+            <div class="timestamp-url">
+              <a href={timestamp.url} target="_blank" rel="noopener noreferrer" class="video-link">
+                <%= timestamp.url %>
+              </a>
+            </div>
+
+            <div class="timestamp-content">
+              <h4>Generated Timestamps:</h4>
+              <pre class="timestamps-text"><%= timestamp.content %></pre>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>
