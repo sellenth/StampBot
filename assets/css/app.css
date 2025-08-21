@@ -826,10 +826,72 @@ textarea:focus {
   color: #ef4444 !important;
 }
 
+/* Setup page styles */
+.setup-section {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.setup-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.setup-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.setup-card h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.setup-steps {
+  margin-left: 1.5rem;
+  color: var(--text-secondary);
+}
+
+.setup-steps li {
+  margin-bottom: 0.5rem;
+}
+
+.bookmarklet-container {
+  text-align: center;
+  padding: 2rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.bookmarklet-button {
+  margin: 1.5rem 0;
+}
+
+.btn-large {
+  font-size: 1.1rem;
+  padding: 12px 24px;
+}
+
+.user-info {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .page { padding: 1rem 0.5rem; }
   h1 { font-size: 1.75rem; }
   .flex-sm-col { flex-direction: column; }
   .flex-sm-col .btn { margin-top: 0.5rem; }
+  .setup-section { padding: 0 0.5rem; }
 }

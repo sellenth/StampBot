@@ -5,145 +5,110 @@
 <div class="page">
   <div class="container">
     <div class="page-header">
-      <h1>More Info</h1>
-      <p class="page-description">Advanced tools and setup information</p>
+      <h1>Setup Bookmark tool</h1>
+      <p class="page-description">One-click timestamp generation for YouTube videos</p>
     </div>
 
-    <div class="feature-section">
-      <div class="feature-card">
-        <h3>Bookmarklet Tool</h3>
-        <p>Set up the one-click bookmarklet for instant timestamp generation while watching YouTube videos.</p>
-        <button id="setup-btn" phx-click={JS.show(to: "#setup-modal")} class="btn btn-secondary">
-          Setup Bookmarklet
+    <div class="setup-section">
+      <div class="setup-card" id="username-form">
+        <h3>Set Your Username</h3>
+        <p>Enter your username to track submissions:</p>
+        <div class="flex gap-1">
+          <input
+            type="text"
+            id="submitter-username"
+            placeholder="Username"
+            maxlength="50"
+            phx-hook="UsernameSetup"
+          />
+          <button id="set-username-btn" class="btn">Set Username</button>
+        </div>
+        <p class="text-small text-muted mb-0">This will be stored with all your generated timestamps.</p>
+      </div>
+
+      <div class="setup-card hidden" id="instructions">
+        <h3>How to Use the bookmark tool</h3>
+        <ol class="setup-steps">
+          <li>Drag the button below to your bookmarks bar</li>
+          <li>Navigate to any YouTube video</li>
+          <li>Click the bookmarklet in your bookmarks bar</li>
+          <li>AI automatically generates timestamps</li>
+          <li>View results in the feed (may take up to 5 minutes)</li>
+        </ol>
+      </div>
+
+      <div class="bookmarklet-container hidden" id="bookmarklet-section">
+        <h3>The Bookmark Tool</h3>
+        <div class="bookmarklet-button">
+          <a
+            href={@bookmarklet_code}
+            class="btn btn-large"
+            draggable="true"
+            onclick="return false;"
+            style="cursor: grab; font-size: 1.1rem; padding: 12px 24px;"
+          >
+            📺 YouTube Timestamp Generator
+          </a>
+        </div>
+
+        <p class="text-muted mb-2">Drag the button above to your bookmarks bar</p>
+
+        <div class="user-info">
+          <p class="text-small text-muted">
+            Current username: <strong id="current-username"></strong>
+          </p>
+          <button id="change-username-btn" class="btn-secondary btn-small">
+            Change Username
+          </button>
+          <p class="text-small text-muted mt-3">
+            If you change you're username, you'll have to add the bookmark again
+          </p>
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <h3>Bookmark Tool Code</h3>
+        <p class="text-small text-muted">Manual installation (copy and paste as bookmark URL):</p>
+        <textarea
+          id="bookmarklet-code"
+          readonly
+          class="code"
+          style="height: 3rem; resize: none; width: 100%; font-size: 0.85rem;"
+          phx-hook="BookmarkletCode"
+        ><%= @bookmarklet_code %></textarea>
+
+        <button id="copy-bookmarklet-btn" class="px-2 btn-secondary">
+          Copy Code
         </button>
       </div>
-    </div>
 
-    <div class="info-sections">
-      <div class="info-card">
-        <h3>How It Works</h3>
-        <p>Our AI-powered timestamp generator analyzes YouTube videos and creates detailed chapter markers automatically. The system uses advanced video processing to identify key moments and topics.</p>
-        <ul>
-          <li>Paste any YouTube URL on the home page</li>
-          <li>AI analyzes the video content</li>
-          <li>Get 10 most important timestamps</li>
-          <li>View results in the feed</li>
-        </ul>
-      </div>
-
-      <div class="info-card">
-        <h3>Bookmarklet Benefits</h3>
-        <p>The bookmarklet provides the fastest way to generate timestamps while browsing YouTube:</p>
-        <ul>
-          <li>One-click generation from any YouTube video</li>
-          <li>No need to copy/paste URLs</li>
-          <li>Works on any YouTube page</li>
-          <li>Automatic channel detection</li>
-          <li>Set your username once</li>
-        </ul>
-      </div>
-
-      <div class="info-card">
-        <h3>Privacy & Usage</h3>
-        <p>Your privacy is important to us:</p>
-        <ul>
-          <li>All generated timestamps are public</li>
-          <li>Username is optional (defaults to "anonymous")</li>
-          <li>No personal data is stored</li>
-          <li>Only YouTube URLs are processed</li>
-          <li>No tracking or analytics</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Setup Modal -->
-    <div id="setup-modal" class="modal-overlay hidden" phx-click-away={JS.hide(to: "#setup-modal")}>
-      <div class="modal-content" phx-click-away-stop>
-        <div class="flex flex-between flex-center mb-2">
-          <h2>Setup Bookmarklet</h2>
-          <button phx-click={JS.hide(to: "#setup-modal")} class="btn-secondary btn-small">Close</button>
+      <div class="info-sections">
+        <div class="info-card">
+          <h4>Requirements</h4>
+          <ul>
+            <li>Works on YouTube videos only</li>
+            <li>Bookmarks bar must be visible</li>
+            <li>JavaScript must be enabled</li>
+          </ul>
         </div>
 
-        <div class="card" id="username-form">
-          <h3>Set Username</h3>
-          <p>Enter your username to track submissions:</p>
-          <div class="flex gap-1">
-            <input
-              type="text"
-              id="submitter-username"
-              placeholder="Username"
-              maxlength="50"
-              phx-hook="UsernameSetup"
-            />
-            <button id="set-username-btn" class="btn">Set</button>
-          </div>
-          <p class="text-small text-muted mb-0">Stored with all generated timestamps.</p>
+        <div class="info-card">
+          <h4>Show Bookmarks Bar</h4>
+          <ul>
+            <li><strong>Chrome/Edge:</strong> Ctrl+Shift+B (Cmd+Shift+B on Mac)</li>
+            <li><strong>Firefox:</strong> Ctrl+B (Cmd+B on Mac)</li>
+            <li><strong>Safari:</strong> View → Show Bookmarks Bar</li>
+          </ul>
         </div>
 
-        <div class="card hidden" id="instructions">
-          <h3>How to Use</h3>
-          <ol>
-            <li>Drag button to bookmarks bar</li>
-            <li>Go to YouTube video</li>
-            <li>Click bookmark tool in your bookmarks bar</li>
-            <li>AI creates timestamps for you</li>
-            <li>It may take a moment, you can close the status popup and continue watching</li>
-          </ol>
-        </div>
-
-        <div class="text-center hidden" id="bookmarklet-section">
-          <div class="mb-2">
-            <a
-              href={@bookmarklet_code}
-              class="btn"
-              draggable="true"
-              onclick="return false;"
-              style="cursor: grab;"
-            >
-              YouTube Timestamp Generator
-            </a>
-          </div>
-
-          <p class="text-small text-muted mb-1">Drag to bookmarks bar</p>
-
-          <div class="card mt-4">
-            <p class="text-small mb-0">Drag button to bookmarks or copy code manually.</p>
-            <p class="text-small mt-4 mx-auto text-muted mb-0">
-              Current username: <strong id="current-username"></strong>
-            </p>
-            <button id="change-username-btn" class="btn-secondary btn-small">
-              Change Username
-            </button>
-          </div>
-        </div>
-
-        <div class="card">
-          <p class="text-small">Bookmarklet code:</p>
-          <textarea
-            id="bookmarklet-code"
-            readonly
-            class="code"
-            style="height: 5rem; resize: none;"
-            phx-hook="BookmarkletCode"
-          ><%= @bookmarklet_code %></textarea>
-
-          <button id="copy-bookmarklet-btn" class="btn-secondary btn-small">
-            Copy Code
-          </button>
-        </div>
-
-        <div class="card">
-          <p class="text-small mb-0">
-            <strong>Note:</strong>
-            Works on YouTube videos only. Extracts channel info, defaults to "anonymous".
-          </p>
-        </div>
-
-        <div class="card">
-          <p class="text-small mb-0">
-            <strong>Bookmarks bar:</strong>
-            Ctrl+Shift+B (Cmd+Shift+B on Mac) or Settings → Appearance → Show bookmarks bar.
-          </p>
+        <div class="info-card">
+          <h4>Features</h4>
+          <ul>
+            <li>Automatic channel detection</li>
+            <li>Generates 10 most important timestamps</li>
+            <li>Works on any YouTube video page</li>
+            <li>Username tracking for leaderboard</li>
+          </ul>
         </div>
       </div>
     </div>
