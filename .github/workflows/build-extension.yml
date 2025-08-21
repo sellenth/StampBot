@@ -1,0 +1,76 @@
+name: Build and Release Extension
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'extension/**'
+      - 'scripts/build-extension.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-extension:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build extension
+      run: |
+        chmod +x scripts/build-extension.sh
+        scripts/build-extension.sh
+        
+    - name: Get extension version
+      id: version
+      run: |
+        VERSION=$(grep '"version"' extension/manifest.json | sed 's/.*"version": "\(.*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extension version: $VERSION"
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-build
+        path: build/
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: extension-v${{ steps.version.outputs.version }}-${{ github.run_number }}
+        release_name: Chrome Extension v${{ steps.version.outputs.version }}
+        body: |
+          🚀 **Drag-n-Stamp Chrome Extension v${{ steps.version.outputs.version }}**
+          
+          ## Installation
+          1. Download the `.zip` file below
+          2. Open Chrome and go to `chrome://extensions/`
+          3. Enable "Developer mode" (top right)
+          4. Click "Load unpacked"
+          5. Extract the zip and select the `extension` folder
+          
+          ## Features
+          - ✨ One-click timestamp generation
+          - 🎯 Auto-detects YouTube videos
+          - 💾 Saves your username
+          - 🎨 Matches your system theme
+          
+          Compatible with Chrome, Edge, and Firefox!
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: build/drag-n-stamp-extension-latest.zip
+        asset_name: drag-n-stamp-extension-v${{ steps.version.outputs.version }}.zip
+        asset_content_type: application/zip
