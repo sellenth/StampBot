@@ -27,72 +27,73 @@ let Hooks = {}
 Hooks.UsernameSetup = {
   mounted() {
     const savedUsername = localStorage.getItem('drag-n-stamp-username')
-    const setupBtn = document.getElementById('setup-btn')
-    const usernameDisplay = document.getElementById('username-display')
-    const usernameText = document.getElementById('username-text')
-    const usernameForm = document.getElementById('username-form')
-    const instructions = document.getElementById('instructions')
-    const bookmarkletSection = document.getElementById('bookmarklet-section')
+    const usernameInputState = document.getElementById('username-input-state')
+    const usernameDisplayState = document.getElementById('username-display-state')
+    const currentUsernameDisplay = document.getElementById('current-username-display')
     const setUsernameBtn = document.getElementById('set-username-btn')
     const changeUsernameBtn = document.getElementById('change-username-btn')
+    const submitterUsernameInput = document.getElementById('submitter-username')
     
+    // Initialize state based on whether username exists
     if (savedUsername) {
-      if (setupBtn) setupBtn.classList.add('hidden')
-      if (usernameDisplay) {
-        usernameDisplay.classList.remove('hidden')
-        usernameText.textContent = `Setup complete (${savedUsername})`
-      }
-      if (usernameForm) usernameForm.classList.add('hidden')
-      if (instructions) instructions.classList.remove('hidden')
-      if (bookmarkletSection) {
-        bookmarkletSection.classList.remove('hidden')
-        document.getElementById('current-username').textContent = savedUsername
+      // Show display state
+      if (usernameInputState) usernameInputState.classList.add('hidden')
+      if (usernameDisplayState) {
+        usernameDisplayState.classList.remove('hidden')
+        if (currentUsernameDisplay) currentUsernameDisplay.textContent = savedUsername
       }
       this.updateBookmarkletWithUsername(savedUsername)
+    } else {
+      // Show input state
+      if (usernameInputState) usernameInputState.classList.remove('hidden')
+      if (usernameDisplayState) usernameDisplayState.classList.add('hidden')
     }
     
+    // Handle Set button click
     if (setUsernameBtn) {
       setUsernameBtn.addEventListener('click', () => {
-        const usernameInput = document.getElementById('submitter-username')
-        const username = usernameInput.value.trim()
+        const username = submitterUsernameInput.value.trim()
         
         if (!username) {
           alert('Please enter a username')
           return
         }
         
+        // Save username
         localStorage.setItem('drag-n-stamp-username', username)
         
-        if (usernameForm) usernameForm.classList.add('hidden')
-        if (instructions) instructions.classList.remove('hidden')
-        if (bookmarkletSection) {
-          bookmarkletSection.classList.remove('hidden')
-          document.getElementById('current-username').textContent = username
-        }
-        if (usernameText) {
-          usernameText.textContent = `Setup complete (${username})`
+        // Switch to display state
+        if (usernameInputState) usernameInputState.classList.add('hidden')
+        if (usernameDisplayState) {
+          usernameDisplayState.classList.remove('hidden')
+          if (currentUsernameDisplay) currentUsernameDisplay.textContent = username
         }
         
-        // Update the form username field
+        // Update the form username field if it exists (for other pages)
         const usernameField = document.getElementById('form-username')
         if (usernameField) {
           usernameField.value = username
         }
         
+        // Update bookmarklet
         this.updateBookmarkletWithUsername(username)
-        alert(`Welcome ${username}! Use the bookmark tool below.`)
+        
+        // Clear input
+        submitterUsernameInput.value = ''
       })
     }
     
+    // Handle Change Username button click
     if (changeUsernameBtn) {
       changeUsernameBtn.addEventListener('click', () => {
-        if (usernameForm) usernameForm.classList.remove('hidden')
-        if (instructions) instructions.classList.add('hidden')
-        if (bookmarkletSection) bookmarkletSection.classList.add('hidden')
+        // Switch to input state
+        if (usernameInputState) usernameInputState.classList.remove('hidden')
+        if (usernameDisplayState) usernameDisplayState.classList.add('hidden')
         
-        const savedUsername = localStorage.getItem('drag-n-stamp-username')
-        if (savedUsername) {
-          document.getElementById('submitter-username').value = savedUsername
+        // Pre-fill with current username
+        const currentUsername = localStorage.getItem('drag-n-stamp-username')
+        if (currentUsername && submitterUsernameInput) {
+          submitterUsernameInput.value = currentUsername
         }
       })
     }

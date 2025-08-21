@@ -10,23 +10,39 @@
     </div>
 
     <div class="setup-section">
-      <div class="setup-card" id="username-form">
-        <h3>Set Your Username</h3>
-        <p>Enter your username to track submissions:</p>
-        <div class="flex gap-1">
-          <input
-            type="text"
-            id="submitter-username"
-            placeholder="Username"
-            maxlength="50"
-            phx-hook="UsernameSetup"
-          />
-          <button id="set-username-btn" class="btn">Set Username</button>
+      <div class="setup-card" id="username-section">
+        <!-- Username input state (shown when no username is set) -->
+        <div id="username-input-state">
+          <h3>Set Your Username</h3>
+          <p>Enter your username to track submissions:</p>
+          <div class="flex gap-1">
+            <input
+              type="text"
+              id="submitter-username"
+              placeholder="Username"
+              maxlength="50"
+              phx-hook="UsernameSetup"
+            />
+            <button id="set-username-btn" class="btn" style="background: #000; color: #fff;">Set</button>
+          </div>
+          <p class="text-small text-muted mb-0">This will be stored with all your generated timestamps.</p>
         </div>
-        <p class="text-small text-muted mb-0">This will be stored with all your generated timestamps.</p>
+        
+        <!-- Username display state (shown when username is set) -->
+        <div id="username-display-state" class="hidden">
+          <p class="text-muted mb-2">
+            Current username: <strong id="current-username-display"></strong>
+          </p>
+          <button id="change-username-btn" class="btn-secondary btn-small">
+            Change Username
+          </button>
+          <p class="text-small text-muted mt-2">
+            If you change your username, you'll have to add the bookmark again
+          </p>
+        </div>
       </div>
 
-      <div class="setup-card hidden" id="instructions">
+      <div class="setup-card" id="instructions">
         <h3>How to Use the bookmark tool</h3>
         <ol class="setup-steps">
           <li>Drag the button below to your bookmarks bar</li>
@@ -37,7 +53,7 @@
         </ol>
       </div>
 
-      <div class="bookmarklet-container hidden" id="bookmarklet-section">
+      <div class="bookmarklet-container" id="bookmarklet-section">
         <h3>The Bookmark Tool</h3>
         <div class="bookmarklet-button">
           <a
@@ -52,18 +68,6 @@
         </div>
 
         <p class="text-muted mb-2">Drag the button above to your bookmarks bar</p>
-
-        <div class="user-info">
-          <p class="text-small text-muted">
-            Current username: <strong id="current-username"></strong>
-          </p>
-          <button id="change-username-btn" class="btn-secondary btn-small">
-            Change Username
-          </button>
-          <p class="text-small text-muted mt-3">
-            If you change you're username, you'll have to add the bookmark again
-          </p>
-        </div>
       </div>
 
       <div class="setup-card">
