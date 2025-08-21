@@ -31,10 +31,10 @@ zip -r "$ZIP_PATH" extension/ \
   -x "extension/.DS_Store" \
   -x "extension/*/.DS_Store"
 
-# Create a symlink to latest
+# Create a copy as latest (instead of symlink for better compatibility)
 cd "$BUILD_DIR"
 rm -f drag-n-stamp-extension-latest.zip
-ln -s "$ZIP_NAME" drag-n-stamp-extension-latest.zip
+cp "$ZIP_NAME" drag-n-stamp-extension-latest.zip
 
 echo "✅ Extension built successfully!"
 echo "📦 File: $ZIP_PATH"
