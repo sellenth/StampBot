@@ -135,15 +135,22 @@ Hooks.BookmarkletCode = {
 
 Hooks.UrlForm = {
   mounted() {
-    // Update the hidden username field when the form is mounted
+    // Update the username field when the form is mounted
     this.updateUsernameField()
   },
   
   updateUsernameField() {
-    const usernameField = document.getElementById('form-username')
+    // Update both visible username field and hidden field if they exist
+    const visibleUsernameField = document.querySelector('input[name="username"]')
+    const hiddenUsernameField = document.getElementById('form-username')
     const savedUsername = localStorage.getItem('drag-n-stamp-username')
-    if (usernameField) {
-      usernameField.value = savedUsername || ''
+    
+    if (visibleUsernameField && savedUsername) {
+      visibleUsernameField.value = savedUsername
+    }
+    
+    if (hiddenUsernameField) {
+      hiddenUsernameField.value = savedUsername || ''
     }
   }
 }
