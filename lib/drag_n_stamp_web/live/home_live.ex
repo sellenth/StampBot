@@ -2,15 +2,17 @@ defmodule DragNStampWeb.HomeLive do
   use DragNStampWeb, :live_view
   require Logger
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     base_url = DragNStampWeb.Endpoint.url()
     api_endpoint = "#{base_url}/api/gemini"
     bookmarklet_code = build_bookmarklet_code(api_endpoint)
+    is_extension_mode = params["mode"] == "extension"
 
     {:ok,
      assign(socket,
        bookmarklet_code: bookmarklet_code,
-       loading: false
+       loading: false,
+       extension_mode: is_extension_mode
      )}
   end
 

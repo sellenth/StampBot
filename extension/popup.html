@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="loading-state" class="loading">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+  <iframe 
+    id="app-frame" 
+    src="https://drag-n-stamp-prod.fly.dev/?mode=extension"
+    allow="clipboard-write">
+  </iframe>
+  <script src="popup.js"></script>
+</body>
+</html>

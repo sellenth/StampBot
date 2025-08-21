@@ -26,10 +26,11 @@ defmodule DragNStampWeb.CoreComponents do
   Renders the main navigation component.
   """
   attr :current_page, :string, default: ""
+  attr :extension_mode, :boolean, default: false
 
   def navigation(assigns) do
     ~H"""
-    <nav class="navigation">
+    <nav class={["navigation", @extension_mode && "navigation-compact"]} :if={!@extension_mode}>
       <div class="nav-brand">
         <.link navigate={~p"/"} class="nav-brand-link">
           YouTube Timestamps

@@ -1,8 +1,8 @@
 <.flash_group flash={@flash} />
 
-<.navigation current_page="home" />
+<.navigation current_page="home" extension_mode={@extension_mode} />
 
-<div class="page">
+<div class={["page", @extension_mode && "page-extension"]}>
   <div class="container home-container">
     <div class="hero-section">
       <h1 class="hero-title">YouTube Timestamps</h1>
