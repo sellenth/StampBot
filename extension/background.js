@@ -22,25 +22,31 @@ chrome.runtime.onInstalled.addListener(() => {
       chrome.storage.local.set({ username: null });
     }
   });
-});
-
-// Optional: Add context menu for right-click functionality
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'generate-timestamps',
-    title: 'Generate Timestamps with Drag-n-Stamp',
-    contexts: ['page', 'video'],
-    documentUrlPatterns: [
-      'https://www.youtube.com/*',
-      'https://youtube.com/*'
-    ]
-  });
+  
+  // Add context menu for right-click functionality
+  try {
+    chrome.contextMenus.create({
+      id: 'generate-timestamps',
+      title: 'Generate Timestamps with Drag-n-Stamp',
+      contexts: ['page', 'video'],
+      documentUrlPatterns: [
+        'https://www.youtube.com/*',
+        'https://youtube.com/*'
+      ]
+    });
+  } catch (error) {
+    console.log('Context menu creation failed:', error);
+  }
 });
 
 // Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'generate-timestamps') {
-    // Open the popup programmatically (note: this requires user interaction)
-    chrome.action.openPopup();
-  }
-});
+try {
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === 'generate-timestamps') {
+      // Open the popup programmatically (note: this requires user interaction)
+      chrome.action.openPopup();
+    }
+  });
+} catch (error) {
+  console.log('Context menu click handler failed:', error);
+}
