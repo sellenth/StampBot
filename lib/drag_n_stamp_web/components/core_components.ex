@@ -18,7 +18,7 @@ defmodule DragNStampWeb.CoreComponents do
   use Gettext, backend: DragNStampWeb.Gettext
 
   alias Phoenix.LiveView.JS
-  
+
   # Import the verified routes for ~p sigil
   use Phoenix.VerifiedRoutes, endpoint: DragNStampWeb.Endpoint, router: DragNStampWeb.Router
 
@@ -37,29 +37,29 @@ defmodule DragNStampWeb.CoreComponents do
         </.link>
       </div>
       <div class="nav-links">
-        <.link 
-          navigate={~p"/"} 
+        <.link
+          navigate={~p"/"}
           class={["nav-link", @current_page == "home" && "nav-link-active"]}
         >
           Home
         </.link>
-        <.link 
-          navigate={~p"/feed"} 
+        <.link
+          navigate={~p"/feed"}
           class={["nav-link", @current_page == "feed" && "nav-link-active"]}
         >
           Feed
         </.link>
-        <.link 
-          navigate={~p"/leaderboard"} 
+        <.link
+          navigate={~p"/leaderboard"}
           class={["nav-link", @current_page == "leaderboard" && "nav-link-active"]}
         >
           Leaderboard
         </.link>
-        <.link 
-          navigate={~p"/more-info"} 
+        <.link
+          navigate={~p"/more-info"}
           class={["nav-link", @current_page == "more-info" && "nav-link-active"]}
         >
-          More Info
+          Info
         </.link>
       </div>
     </nav>

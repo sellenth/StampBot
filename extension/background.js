@@ -43,8 +43,15 @@ chrome.runtime.onInstalled.addListener(() => {
 try {
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === 'generate-timestamps') {
-      // Open the popup programmatically (note: this requires user interaction)
-      chrome.action.openPopup();
+      // Store context menu trigger info for popup to use
+      chrome.storage.local.set({ 
+        contextMenuTriggered: true,
+        contextMenuUrl: tab.url,
+        contextMenuTimestamp: Date.now()
+      });
+      
+      // Note: chrome.action.openPopup() doesn't work from context menu in MV3
+      // User needs to click the extension icon to open popup
     }
   });
 } catch (error) {

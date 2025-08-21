@@ -6,14 +6,24 @@ async function initializePopup() {
   // Get current tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   
-  // Check if we're on YouTube
-  const isYouTube = tab.url && (
-    tab.url.includes('youtube.com/watch') || 
-    tab.url.includes('youtu.be/')
-  );
+  // Check for context menu trigger
+  const { contextMenuTriggered, contextMenuUrl, contextMenuTimestamp, username } = 
+    await chrome.storage.local.get(['contextMenuTriggered', 'contextMenuUrl', 'contextMenuTimestamp', 'username']);
   
-  // Get stored username
-  const { username } = await chrome.storage.local.get('username');
+  // Use context menu URL if triggered recently (within 5 seconds)
+  let currentUrl = tab.url;
+  if (contextMenuTriggered && contextMenuTimestamp && 
+      (Date.now() - contextMenuTimestamp < 5000)) {
+    currentUrl = contextMenuUrl;
+    // Clear the trigger flag
+    chrome.storage.local.remove(['contextMenuTriggered', 'contextMenuTimestamp']);
+  }
+  
+  // Check if we're on YouTube
+  const isYouTube = currentUrl && (
+    currentUrl.includes('youtube.com/watch') || 
+    currentUrl.includes('youtu.be/')
+  );
   
   // Wait for iframe to load
   iframe.addEventListener('load', () => {
@@ -25,7 +35,7 @@ async function initializePopup() {
     const message = {
       type: 'EXTENSION_INIT',
       data: {
-        url: isYouTube ? tab.url : null,
+        url: isYouTube ? currentUrl : null,
         username: username || null,
         isYouTube: isYouTube
       }
@@ -59,7 +69,7 @@ async function initializePopup() {
       case 'GET_CURRENT_URL':
         iframe.contentWindow.postMessage({
           type: 'CURRENT_URL',
-          data: { url: tab.url }
+          data: { url: currentUrl }
         }, '*');
         break;
         
