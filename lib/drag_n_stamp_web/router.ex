@@ -24,6 +24,9 @@ defmodule DragNStampWeb.Router do
     live "/feed", FeedLive
     live "/leaderboard", LeaderboardLive
     live "/more-info", MoreInfoLive
+    
+    # Static extension endpoint (no LiveView/WebSockets)
+    get "/extension", PageController, :extension
 
     # Catch-all route for YouTube URL processing (must be last)
     get "/*path", PageController, :process_youtube_url

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content={get_csrf_token()} />
+  <title>YouTube Timestamp Generator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      padding: 10px;
+      background: #fff;
+      color: #111827;
+    }
+    
+    .container {
+      max-width: 100%;
+    }
+    
+    .header {
+      padding: 15px 10px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    
+    .title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .description {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    
+    .form-section {
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    
+    .form-group {
+      margin-bottom: 12px;
+    }
+    
+    .label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #374151;
+    }
+    
+    .input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 10px 16px;
+      background: #000;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .btn:hover:not(:disabled) {
+      background: #333;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .help-text {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+    
+    .alert {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+    
+    .alert-info {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+    }
+    
+    .alert-success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+    }
+    
+    .alert-error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 class="title">YouTube Timestamps</h1>
+      <p class="description">Generate AI-powered timestamps for any YouTube video</p>
+    </div>
+    
+    <div id="alerts"></div>
+    
+    <div class="form-section">
+      <form id="timestamp-form">
+        <div class="form-group">
+          <label class="label" for="url">YouTube URL</label>
+          <input 
+            type="text" 
+            id="url" 
+            name="url" 
+            class="input" 
+            placeholder="https://youtube.com/watch?v=..." 
+            required
+          />
+        </div>
+        
+        <div class="form-group">
+          <label class="label" for="username">Username (optional)</label>
+          <input 
+            type="text" 
+            id="username" 
+            name="username" 
+            class="input" 
+            placeholder="Enter your username or leave blank for anonymous"
+          />
+        </div>
+        
+        <button type="submit" class="btn" id="submit-btn">
+          Generate Timestamps
+        </button>
+        
+        <p class="help-text">
+          Processing takes 3-5 minutes. You can close this popup after submitting.
+        </p>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+    // Get username from localStorage if available
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedUsername = localStorage.getItem('drag-n-stamp-username');
+      if (savedUsername) {
+        document.getElementById('username').value = savedUsername;
+      }
+    });
+    
+    // Handle form submission
+    document.getElementById('timestamp-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const url = document.getElementById('url').value.trim();
+      const username = document.getElementById('username').value.trim() || 'anonymous';
+      const submitBtn = document.getElementById('submit-btn');
+      const alertsDiv = document.getElementById('alerts');
+      
+      // Validate YouTube URL
+      if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+        showAlert('Please enter a valid YouTube URL', 'error');
+        return;
+      }
+      
+      // Save username if provided
+      if (username !== 'anonymous') {
+        localStorage.setItem('drag-n-stamp-username', username);
+      }
+      
+      // Disable button and show loading state
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Generating...';
+      
+      // Show processing message
+      showAlert('Processing video... This may take up to 5 minutes. You can close this window.', 'info');
+      
+      try {
+        const response = await fetch('<%= @api_endpoint %>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: JSON.stringify({
+            url: url,
+            channel_name: 'anonymous',
+            submitter_username: username
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          showAlert('Timestamps generated successfully!', 'success');
+          
+          // Display the timestamps
+          const timestampsDiv = document.createElement('div');
+          timestampsDiv.style.cssText = 'background: #f8f8f8; padding: 15px; border-radius: 8px; margin-top: 15px;';
+          timestampsDiv.innerHTML = '<h3 style="margin-bottom: 10px;">Generated Timestamps:</h3><pre style="white-space: pre-wrap; font-size: 0.85rem;">' + data.response + '</pre>';
+          document.querySelector('.container').appendChild(timestampsDiv);
+          
+          // Reset form
+          document.getElementById('url').value = '';
+        } else {
+          showAlert('Failed to generate timestamps. Please try again.', 'error');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        showAlert('An error occurred. Please try again.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Generate Timestamps';
+      }
+    });
+    
+    function showAlert(message, type) {
+      const alertsDiv = document.getElementById('alerts');
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-' + type;
+      alert.textContent = message;
+      alertsDiv.innerHTML = '';
+      alertsDiv.appendChild(alert);
+      
+      // Auto-hide success messages after 5 seconds
+      if (type === 'success') {
+        setTimeout(() => alert.remove(), 5000);
+      }
+    }
+  </script>
+</body>
+</html>

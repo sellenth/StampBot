@@ -2,6 +2,17 @@ defmodule DragNStampWeb.PageController do
   use DragNStampWeb, :controller
   require Logger
 
+  def extension(conn, _params) do
+    # Render a static page for the extension without LiveView/WebSockets
+    base_url = DragNStampWeb.Endpoint.url()
+    api_endpoint = "#{base_url}/api/gemini"
+    
+    render(conn, :extension, 
+      api_endpoint: api_endpoint,
+      layout: false  # Don't use the default layout with LiveView stuff
+    )
+  end
+
   def process_youtube_url(conn, %{"path" => path}) do
     # Reconstruct the original YouTube URL
     query_string = conn.query_string
