@@ -11,25 +11,24 @@
 
     <div class="setup-section">
       <!-- Chrome Extension Section -->
-      <div class="setup-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
-        <h3 style="color: white; display: flex; align-items: center; gap: 8px;">
-          🚀 Chrome Extension (Recommended)
+      <div class="setup-card chrome-extension-card">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          Chrome Extension (Recommended)
         </h3>
-        <p style="color: rgba(255,255,255,0.9); margin-bottom: 1rem;">
+        <p style="margin-bottom: 1rem;">
           Get the best experience with our Chrome extension! One-click timestamp generation directly from YouTube.
         </p>
         <div style="margin: 1.5rem 0;">
           <a
             href="https://github.com/sellenth/drag-n-stamp/raw/refs/heads/main/build/drag-n-stamp-extension-latest.zip"
             class="btn"
-            style="background: rgba(255,255,255,0.2); color: white; border: 2px solid white; backdrop-filter: blur(10px);"
             download
           >
-            📥 Download Extension
+            Download Extension
           </a>
           <a
             href="https://github.com/sellenth/drag-n-stamp/tree/main/build"
-            style="color: rgba(255,255,255,0.8); text-decoration: underline; margin-left: 1rem; font-size: 0.9rem;"
+            style="text-decoration: underline; margin-left: 1rem; font-size: 0.9rem; opacity: 0.8;"
             target="_blank"
           >
             View all releases
@@ -37,7 +36,7 @@
         </div>
         <details style="margin-top: 1rem;">
           <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">Installation Instructions</summary>
-          <ol style="margin-left: 1rem; color: rgba(255,255,255,0.9); font-size: 0.9rem;">
+          <ol style="margin-left: 1rem; font-size: 0.9rem; opacity: 0.9;">
             <li>Download the extension zip file above</li>
             <li>Open Chrome and go to <code>chrome://extensions/</code></li>
             <li>Enable "Developer mode" (top right toggle)</li>
@@ -115,7 +114,7 @@
           id="bookmarklet-code"
           readonly
           class="code"
-          style="height: 3rem; resize: none; width: 100%; font-size: 0.85rem;"
+          style="height: 5rem; resize: none; width: 100%; font-size: 0.85rem;"
           phx-hook="BookmarkletCode"
         ><%= @bookmarklet_code %></textarea>
 
