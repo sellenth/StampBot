@@ -33,7 +33,7 @@ defmodule DragNStampWeb.CoreComponents do
     <nav class={["navigation", @extension_mode && "navigation-compact"]} :if={!@extension_mode}>
       <div class="nav-brand">
         <.link navigate={~p"/"} class="nav-brand-link">
-          YouTube Timestamps
+        StampBot
         </.link>
       </div>
       <div class="nav-links">

@@ -1,0 +1,248 @@
+<!doctype html>
+<html>
+    <head>
+        <title>StampBot Robot Icon Generator</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                padding: 20px;
+                background: #f5f5f5;
+            }
+            .icon-container {
+                margin: 20px 0;
+            }
+            canvas {
+                border: 2px solid #3b82f6;
+                margin: 10px;
+                background: white;
+            }
+            .download-btn {
+                background: #3b82f6;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                margin: 5px;
+            }
+            .icon-grid {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+            }
+            .size-info {
+                font-weight: bold;
+                margin-top: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🤖 StampBot Robot Icon Generator</h1>
+        <p>
+            Click "Generate Icons" to create robot-themed favicons and social
+            media images
+        </p>
+
+        <button onclick="generateAllIcons()" class="download-btn">
+            Generate All Icons
+        </button>
+        <button onclick="downloadAll()" class="download-btn">
+            Download All as ZIP
+        </button>
+
+        <div class="icon-grid" id="iconGrid"></div>
+
+        <script>
+            const sizes = [
+                { name: "favicon-16x16", size: 16 },
+                { name: "favicon-32x32", size: 32 },
+                { name: "android-chrome-192x192", size: 192 },
+                { name: "android-chrome-512x512", size: 512 },
+                { name: "apple-touch-icon", size: 180 },
+            ];
+
+            function drawRobot(ctx, size) {
+                const scale = size / 64; // Base size 64x64
+
+                // Clear canvas
+                ctx.clearRect(0, 0, size, size);
+
+                // Robot colors
+                const robotBlue = "#3b82f6";
+                const darkBlue = "#1e40af";
+                const lightBlue = "#60a5fa";
+
+                // Head (main body)
+                ctx.fillStyle = robotBlue;
+                ctx.fillRect(8 * scale, 8 * scale, 48 * scale, 40 * scale);
+
+                // Head border/outline
+                ctx.strokeStyle = darkBlue;
+                ctx.lineWidth = 2 * scale;
+                ctx.strokeRect(8 * scale, 8 * scale, 48 * scale, 40 * scale);
+
+                // Eyes
+                ctx.fillStyle = "white";
+                ctx.fillRect(16 * scale, 20 * scale, 8 * scale, 8 * scale);
+                ctx.fillRect(40 * scale, 20 * scale, 8 * scale, 8 * scale);
+
+                // Eye pupils
+                ctx.fillStyle = darkBlue;
+                ctx.fillRect(18 * scale, 22 * scale, 4 * scale, 4 * scale);
+                ctx.fillRect(42 * scale, 22 * scale, 4 * scale, 4 * scale);
+
+                // Antenna
+                ctx.fillStyle = robotBlue;
+                ctx.fillRect(30 * scale, 2 * scale, 4 * scale, 8 * scale);
+
+                // Antenna tip
+                ctx.fillStyle = lightBlue;
+                ctx.beginPath();
+                ctx.arc(32 * scale, 2 * scale, 3 * scale, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Mouth/speaker grille
+                ctx.fillStyle = darkBlue;
+                for (let i = 0; i < 3; i++) {
+                    ctx.fillRect(
+                        (20 + i * 8) * scale,
+                        34 * scale,
+                        4 * scale,
+                        2 * scale,
+                    );
+                }
+
+                // Body (if size allows)
+                if (size >= 32) {
+                    ctx.fillStyle = robotBlue;
+                    ctx.fillRect(
+                        16 * scale,
+                        48 * scale,
+                        32 * scale,
+                        12 * scale,
+                    );
+
+                    // Body border
+                    ctx.strokeStyle = darkBlue;
+                    ctx.strokeRect(
+                        16 * scale,
+                        48 * scale,
+                        32 * scale,
+                        12 * scale,
+                    );
+
+                    // Chest panel
+                    ctx.fillStyle = lightBlue;
+                    ctx.fillRect(28 * scale, 52 * scale, 8 * scale, 4 * scale);
+                }
+            }
+
+            function generateIcon(size, name) {
+                const canvas = document.createElement("canvas");
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext("2d");
+
+                drawRobot(ctx, size);
+
+                return { canvas, name, size };
+            }
+
+            function generateAllIcons() {
+                const grid = document.getElementById("iconGrid");
+                grid.innerHTML = "";
+
+                sizes.forEach(({ name, size }) => {
+                    const { canvas } = generateIcon(size, name);
+
+                    const container = document.createElement("div");
+                    container.className = "icon-container";
+
+                    const sizeInfo = document.createElement("div");
+                    sizeInfo.className = "size-info";
+                    sizeInfo.textContent = `${name}.png (${size}x${size}px)`;
+
+                    const downloadBtn = document.createElement("button");
+                    downloadBtn.className = "download-btn";
+                    downloadBtn.textContent = "Download PNG";
+                    downloadBtn.onclick = () =>
+                        downloadCanvas(canvas, `${name}.png`);
+
+                    container.appendChild(sizeInfo);
+                    container.appendChild(canvas);
+                    container.appendChild(downloadBtn);
+                    grid.appendChild(container);
+                });
+
+                // Generate social media images
+                generateSocialMediaImages();
+            }
+
+            function generateSocialMediaImages() {
+                // OG Image (1200x630)
+                const ogCanvas = document.createElement("canvas");
+                ogCanvas.width = 1200;
+                ogCanvas.height = 630;
+                const ogCtx = ogCanvas.getContext("2d");
+
+                // Background gradient
+                const gradient = ogCtx.createLinearGradient(0, 0, 1200, 630);
+                gradient.addColorStop(0, "#3b82f6");
+                gradient.addColorStop(1, "#1e40af");
+                ogCtx.fillStyle = gradient;
+                ogCtx.fillRect(0, 0, 1200, 630);
+
+                // Draw large robot
+                ogCtx.save();
+                ogCtx.translate(200, 150);
+                drawRobot(ogCtx, 300);
+                ogCtx.restore();
+
+                // Add text
+                ogCtx.fillStyle = "white";
+                ogCtx.font = "bold 72px Arial";
+                ogCtx.fillText("StampBot", 600, 280);
+                ogCtx.font = "36px Arial";
+                ogCtx.fillText("The Easiest Timestamp Generator", 600, 350);
+                ogCtx.font = "24px Arial";
+                ogCtx.fillText("Create video timestamps instantly", 600, 400);
+
+                const ogContainer = document.createElement("div");
+                ogContainer.className = "icon-container";
+
+                const ogInfo = document.createElement("div");
+                ogInfo.className = "size-info";
+                ogInfo.textContent = "og-image.jpg (1200x630px)";
+
+                const ogDownloadBtn = document.createElement("button");
+                ogDownloadBtn.className = "download-btn";
+                ogDownloadBtn.textContent = "Download JPG";
+                ogDownloadBtn.onclick = () =>
+                    downloadCanvas(ogCanvas, "og-image.jpg", "image/jpeg");
+
+                ogContainer.appendChild(ogInfo);
+                ogContainer.appendChild(ogCanvas);
+                ogContainer.appendChild(ogDownloadBtn);
+                document.getElementById("iconGrid").appendChild(ogContainer);
+            }
+
+            function downloadCanvas(canvas, filename, mimeType = "image/png") {
+                const link = document.createElement("a");
+                link.download = filename;
+                link.href = canvas.toDataURL(mimeType, 0.9);
+                link.click();
+            }
+
+            function downloadAll() {
+                alert(
+                    "Generate icons first, then download each one individually. For batch download, use a favicon generator like favicon.io with one of these icons.",
+                );
+            }
+
+            // Generate icons on load
+            window.onload = () => {
+                generateAllIcons();
+            };
+        </script>
+    </body>
+</html>

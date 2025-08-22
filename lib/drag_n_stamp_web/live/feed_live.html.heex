@@ -4,7 +4,7 @@
   <div class="container">
     <div class="page-header">
       <h1>Timestamp Feed</h1>
-      <p class="page-description">Browse all generated YouTube timestamps</p>
+      <p class="page-description">Browse all generated timestamps</p>
     </div>
 
     <div class="filters-section">
@@ -13,7 +13,7 @@
           <span id="record-count"><%= length(filtered_timestamps(assigns)) %></span> timestamps
         </p>
       </div>
-      
+
       <form phx-change="filter_changed" class="filters-form">
         <select name="submitter" class="filter-select">
           <option value="">All Submitters</option>
@@ -23,7 +23,7 @@
             </option>
           <% end %>
         </select>
-        
+
         <select name="channel" class="filter-select">
           <option value="">All Channels</option>
           <%= for channel <- unique_channels(@timestamps) do %>
@@ -32,7 +32,7 @@
             </option>
           <% end %>
         </select>
-        
+
         <select name="sort" class="filter-select">
           <option value="newest" selected={@sort_by == "newest"}>Newest First</option>
           <option value="oldest" selected={@sort_by == "oldest"}>Oldest First</option>
@@ -69,9 +69,9 @@
             <div class="timestamp-content">
               <h4><%= if timestamp.distilled_content, do: "Generated Timestamps:", else: "Raw time data:" %></h4>
               <div class="timestamps-container">
-                <pre class="timestamps-text" 
+                <pre class="timestamps-text"
                      id={"timestamps-#{timestamp.id}"}
-                     phx-hook="ClickableTimestamps" 
+                     phx-hook="ClickableTimestamps"
                      data-video-url={timestamp.url}><%= timestamp.distilled_content || timestamp.content %></pre>
                 <button class="copy-btn-inside" onclick={"copyToClipboard('timestamps-#{timestamp.id}')"} title="Copy to clipboard">
                   📋

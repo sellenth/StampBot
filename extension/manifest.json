@@ -1,13 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Drag-n-Stamp YouTube Timestamps",
+  "name": "Stamp Bot",
   "version": "1.0.2",
-  "description": "Generate AI-powered timestamps for YouTube videos",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "contextMenus"
-  ],
+  "description": "Easily generate timestamps for YouTube videos",
+  "permissions": ["activeTab", "storage", "contextMenus"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://youtube.com/*",
