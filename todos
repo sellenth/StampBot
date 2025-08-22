@@ -1,2 +1,3 @@
-prevent the same vid from being timestamped twice, just return the db content if attempt is made
-why can't i run the release command on prod...
+- make enter keyboard press submit inputs
+- make timestamps in feed clickable
+- dark mode on extension only affects the input boxes. want the background to change too. (might need me to debug)

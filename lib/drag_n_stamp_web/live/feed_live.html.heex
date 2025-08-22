@@ -70,7 +70,10 @@
 
             <div class="timestamp-content">
               <h4>Generated Timestamps:</h4>
-              <pre class="timestamps-text"><%= timestamp.distilled_content || timestamp.content %></pre>
+              <pre class="timestamps-text" 
+                   id={"timestamps-#{timestamp.id}"}
+                   phx-hook="ClickableTimestamps" 
+                   data-video-url={timestamp.url}><%= timestamp.distilled_content || timestamp.content %></pre>
             </div>
           </div>
         <% end %>

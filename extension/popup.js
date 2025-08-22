@@ -31,13 +31,17 @@ async function initializePopup() {
     loadingState.style.display = 'none';
     iframe.style.display = 'block';
     
+    // Detect color scheme preference
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
     // Send initial data to iframe
     const message = {
       type: 'EXTENSION_INIT',
       data: {
         url: isYouTube ? currentUrl : null,
         username: username || null,
-        isYouTube: isYouTube
+        isYouTube: isYouTube,
+        darkMode: prefersDark
       }
     };
     

@@ -17,6 +17,12 @@
       padding: 10px;
       background: #fff;
       color: #111827;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    
+    body.dark-mode {
+      background: #1f2937;
+      color: #f9fafb;
     }
     
     .container {
@@ -28,6 +34,11 @@
       background: #f8f8f8;
       border-radius: 8px;
       margin-bottom: 15px;
+      transition: background-color 0.2s;
+    }
+    
+    body.dark-mode .header {
+      background: #374151;
     }
     
     .title {
@@ -45,6 +56,11 @@
       background: #f8f8f8;
       padding: 15px;
       border-radius: 8px;
+      transition: background-color 0.2s;
+    }
+    
+    body.dark-mode .form-section {
+      background: #374151;
     }
     
     .form-group {
@@ -57,6 +73,11 @@
       font-weight: 500;
       margin-bottom: 4px;
       color: #374151;
+      transition: color 0.2s;
+    }
+    
+    body.dark-mode .label {
+      color: #d1d5db;
     }
     
     .input {
@@ -65,6 +86,15 @@
       border: 1px solid #d1d5db;
       border-radius: 6px;
       font-size: 0.9rem;
+      background: #fff;
+      color: #111827;
+      transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    }
+    
+    body.dark-mode .input {
+      background: #4b5563;
+      color: #f9fafb;
+      border-color: #6b7280;
     }
     
     .btn {
@@ -171,10 +201,32 @@
   </div>
   
   <script>
-    // Get username from localStorage if available
+    // Listen for messages from extension popup
+    window.addEventListener('message', function(event) {
+      if (event.data.type === 'EXTENSION_INIT') {
+        const { url, username, darkMode } = event.data.data;
+        
+        // Apply dark mode if enabled
+        if (darkMode) {
+          document.body.classList.add('dark-mode');
+        }
+        
+        // Pre-fill URL if provided
+        if (url) {
+          document.getElementById('url').value = url;
+        }
+        
+        // Pre-fill username if provided
+        if (username) {
+          document.getElementById('username').value = username;
+        }
+      }
+    });
+    
+    // Get username from localStorage if available (fallback)
     document.addEventListener('DOMContentLoaded', function() {
       const savedUsername = localStorage.getItem('drag-n-stamp-username');
-      if (savedUsername) {
+      if (savedUsername && !document.getElementById('username').value) {
         document.getElementById('username').value = savedUsername;
       }
     });

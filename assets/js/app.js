@@ -56,37 +56,48 @@ Hooks.UsernameSetup = {
     }
 
     // Handle Set button click
+    const handleSetUsername = () => {
+      const username = submitterUsernameInput.value.trim();
+
+      if (!username) {
+        alert("Please enter a username");
+        return;
+      }
+
+      // Save username
+      localStorage.setItem("drag-n-stamp-username", username);
+
+      // Switch to display state
+      if (usernameInputState) usernameInputState.classList.add("hidden");
+      if (usernameDisplayState) {
+        usernameDisplayState.classList.remove("hidden");
+        if (currentUsernameDisplay)
+          currentUsernameDisplay.textContent = username;
+      }
+
+      // Update the form username field if it exists (for other pages)
+      const usernameField = document.getElementById("form-username");
+      if (usernameField) {
+        usernameField.value = username;
+      }
+
+      // Update bookmarklet
+      this.updateBookmarkletWithUsername(username);
+
+      // Clear input
+      submitterUsernameInput.value = "";
+    };
+
     if (setUsernameBtn) {
-      setUsernameBtn.addEventListener("click", () => {
-        const username = submitterUsernameInput.value.trim();
+      setUsernameBtn.addEventListener("click", handleSetUsername);
+    }
 
-        if (!username) {
-          alert("Please enter a username");
-          return;
+    // Handle Enter key press on username input
+    if (submitterUsernameInput) {
+      submitterUsernameInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          handleSetUsername();
         }
-
-        // Save username
-        localStorage.setItem("drag-n-stamp-username", username);
-
-        // Switch to display state
-        if (usernameInputState) usernameInputState.classList.add("hidden");
-        if (usernameDisplayState) {
-          usernameDisplayState.classList.remove("hidden");
-          if (currentUsernameDisplay)
-            currentUsernameDisplay.textContent = username;
-        }
-
-        // Update the form username field if it exists (for other pages)
-        const usernameField = document.getElementById("form-username");
-        if (usernameField) {
-          usernameField.value = username;
-        }
-
-        // Update bookmarklet
-        this.updateBookmarkletWithUsername(username);
-
-        // Clear input
-        submitterUsernameInput.value = "";
       });
     }
 
@@ -166,6 +177,63 @@ Hooks.UrlForm = {
       hiddenUsernameField.value = savedUsername || "";
     }
   },
+};
+
+Hooks.ClickableTimestamps = {
+  mounted() {
+    this.makeTimestampsClickable();
+  },
+
+  updated() {
+    this.makeTimestampsClickable();
+  },
+
+  makeTimestampsClickable() {
+    const videoUrl = this.el.dataset.videoUrl;
+    const timestampText = this.el.textContent;
+    
+    // Parse timestamps in format like "0:30", "1:25", "12:45", etc.
+    // Must be at start of line, after whitespace, or after common timestamp prefixes
+    // Avoid matching times with AM/PM or other text suffixes
+    const timestampRegex = /(^|\s)(\d{1,2}:\d{2})(?!\s*[AP]M|[a-zA-Z])/gm;
+    
+    let htmlContent = timestampText;
+    let match;
+    
+    while ((match = timestampRegex.exec(timestampText)) !== null) {
+      const fullMatch = match[0];  // Full match including whitespace
+      const prefix = match[1];     // Whitespace or start of line
+      const timestamp = match[2];  // The actual timestamp
+      const seconds = this.timestampToSeconds(timestamp);
+      
+      if (seconds !== null) {
+        const clickableTimestamp = this.createClickableTimestamp(videoUrl, timestamp, seconds);
+        const replacement = prefix + clickableTimestamp;
+        htmlContent = htmlContent.replace(fullMatch, replacement);
+      }
+    }
+    
+    // Only update if we found timestamps
+    if (htmlContent !== timestampText) {
+      this.el.innerHTML = htmlContent;
+    }
+  },
+
+  timestampToSeconds(timestamp) {
+    const parts = timestamp.split(':').map(Number);
+    if (parts.length === 2 && !parts.some(isNaN)) {
+      return parts[0] * 60 + parts[1];
+    }
+    return null;
+  },
+
+  createClickableTimestamp(videoUrl, timestamp, seconds) {
+    // Create URL with timestamp parameter
+    const url = new URL(videoUrl);
+    url.searchParams.set('t', `${seconds}s`);
+    
+    return `<a href="${url.href}" target="_blank" rel="noopener noreferrer" class="clickable-timestamp" title="Jump to ${timestamp}">${timestamp}</a>`;
+  }
 };
 
 Hooks.WebGLBackground = {

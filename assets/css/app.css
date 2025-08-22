@@ -319,6 +319,27 @@ body {
     color: var(--text-primary);
 }
 
+.clickable-timestamp {
+    color: #0066cc;
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.clickable-timestamp:hover {
+    color: #004499;
+    text-decoration: none;
+}
+
+[data-theme="dark"] .clickable-timestamp {
+    color: #66b3ff;
+}
+
+[data-theme="dark"] .clickable-timestamp:hover {
+    color: #99ccff;
+}
+
 /* Leaderboard page styles */
 .stats-overview {
     display: grid;
