@@ -25,14 +25,17 @@ chrome.runtime.onInstalled.addListener(() => {
   
   // Add context menu for right-click functionality
   try {
-    chrome.contextMenus.create({
-      id: 'generate-timestamps',
-      title: 'Generate Timestamps with Drag-n-Stamp',
-      contexts: ['page', 'video'],
-      documentUrlPatterns: [
-        'https://www.youtube.com/*',
-        'https://youtube.com/*'
-      ]
+    // Remove all existing context menus first to avoid duplicates
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'generate-timestamps',
+        title: 'Generate Timestamps with Drag-n-Stamp',
+        contexts: ['page', 'video'],
+        documentUrlPatterns: [
+          'https://www.youtube.com/*',
+          'https://youtube.com/*'
+        ]
+      });
     });
   } catch (error) {
     console.log('Context menu creation failed:', error);
