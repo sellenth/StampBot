@@ -13,8 +13,9 @@ defmodule DragNStampWeb.HomeLive do
        bookmarklet_code: bookmarklet_code,
        loading: false,
        extension_mode: is_extension_mode,
-       page_title: "StampBot - AI YouTube Timestamp Generator | Create Video Chapters Instantly",
-       page_description: "Generate precise YouTube video timestamps automatically using AI. Create chapter markers, find key moments, and improve video accessibility with StampBot's intelligent timestamp generation."
+       page_title: "StampBot - YouTube Timestamp Generator | Create Video Chapters Instantly",
+       page_description:
+         "Generate precise YouTube video timestamps automatically using AI. Create chapter markers, find key moments, and improve video accessibility with StampBot's intelligent timestamp generation."
      )}
   end
 
@@ -22,7 +23,8 @@ defmodule DragNStampWeb.HomeLive do
     case validate_youtube_url(url) do
       :ok ->
         # Set username to "anonymous" if empty
-        submitter_username = if username && String.trim(username) != "", do: String.trim(username), else: "anonymous"
+        submitter_username =
+          if username && String.trim(username) != "", do: String.trim(username), else: "anonymous"
 
         Task.start(fn ->
           generate_timestamps(url, submitter_username, socket)

@@ -84,8 +84,8 @@
 1. Use Canva, Figma, or similar tool
 2. Create 1200x630px canvas
 3. Place robot icon with "StampBot" text
-4. Add tagline: "AI YouTube Timestamp Generator"
-5. Use your blue color scheme
+4. Add tagline: "YouTube Timestamp Generator"
+5. Use your black color scheme
 
 ### Step 4: Alternative - AI Generation
 If you can't find suitable icons, use AI image generators:
