@@ -18,7 +18,9 @@ defmodule DragNStampWeb.LeaderboardLive do
 
     {:ok,
      assign(socket,
-       timestamps: timestamps
+       timestamps: timestamps,
+       page_title: "Timestamp Leaderboard | Top YouTube Content Creators & Contributors",
+       page_description: "Discover the most active YouTube timestamp contributors and popular channels. See who's creating the most AI-generated video chapters and top performing content."
      )}
   end
 

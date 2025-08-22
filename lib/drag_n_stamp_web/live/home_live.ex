@@ -12,7 +12,9 @@ defmodule DragNStampWeb.HomeLive do
      assign(socket,
        bookmarklet_code: bookmarklet_code,
        loading: false,
-       extension_mode: is_extension_mode
+       extension_mode: is_extension_mode,
+       page_title: "StampBot - AI YouTube Timestamp Generator | Create Video Chapters Instantly",
+       page_description: "Generate precise YouTube video timestamps automatically using AI. Create chapter markers, find key moments, and improve video accessibility with StampBot's intelligent timestamp generation."
      )}
   end
 

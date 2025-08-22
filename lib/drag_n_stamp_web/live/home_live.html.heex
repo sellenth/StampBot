@@ -1,41 +1,127 @@
+<!-- Structured Data for SEO -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "StampBot",
+  "applicationCategory": "VideoApplication",
+  "operatingSystem": "Web Browser",
+  "description": "AI-powered YouTube timestamp generator that creates precise video chapters and key moment markers automatically",
+  "url": "https://stamp-bot.com",
+  "author": {
+    "@type": "Organization",
+    "name": "StampBot"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "featureList": [
+    "AI-powered timestamp generation",
+    "YouTube video analysis",
+    "Automatic chapter creation",
+    "Key moment detection",
+    "Video accessibility enhancement"
+  ],
+  "screenshot": "https://stamp-bot.com/images/app-screenshot.jpg"
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "StampBot",
+  "url": "https://stamp-bot.com",
+  "description": "Generate precise YouTube video timestamps automatically using AI",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://stamp-bot.com/?url={search_term_string}",
+    "query-input": "required name=search_term_string"
+  },
+  "mainEntity": {
+    "@type": "SoftwareApplication",
+    "name": "StampBot YouTube Timestamp Generator"
+  }
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "StampBot",
+  "url": "https://stamp-bot.com",
+  "description": "AI-powered video analysis and timestamp generation platform",
+  "foundingDate": "2024",
+  "serviceType": "Video Analysis Tool",
+  "areaServed": "Worldwide",
+  "knowsAbout": [
+    "YouTube video analysis",
+    "Timestamp generation", 
+    "Video accessibility",
+    "Content creation tools",
+    "AI video processing"
+  ]
+}
+</script>
+
 <.navigation current_page="home" extension_mode={@extension_mode} />
 
 <div class={["page", @extension_mode && "page-extension"]}>
   <div class="container home-container">
-    <div class="hero-section">
-      <h1 class="hero-title">YouTube Timestamps</h1>
+    <header class="hero-section">
+      <h1 class="hero-title">AI YouTube Timestamp Generator</h1>
       <p class="hero-description">
-        Generate timestamps of the top moments of any YouTube video.
-        Simply paste a YouTube URL below and get detailed timestamps automatically.
+        Generate precise timestamps for YouTube videos using artificial intelligence. 
+        Create chapter markers, find key moments, and enhance video accessibility automatically.
       </p>
-    </div>
+    </header>
 
-    <div class="url-input-section">
-      <form id="url-form" phx-submit="generate_from_url" phx-hook="UrlForm">
-        <div class="input-group">
+    <main class="url-input-section" role="main">
+      <form id="url-form" phx-submit="generate_from_url" phx-hook="UrlForm" aria-label="Generate YouTube timestamps">
+        <fieldset class="input-group">
+          <legend class="sr-only">Video URL and User Information</legend>
+          <label for="url-input" class="sr-only">YouTube Video URL</label>
           <input
-            type="text"
+            id="url-input"
+            type="url"
             name="url"
             placeholder="Paste YouTube URL here..."
             class="url-input"
             disabled={@loading}
+            aria-describedby="url-help"
+            autocomplete="url"
+            required
           />
+          <label for="username-input" class="sr-only">Username (Optional)</label>
           <input
+            id="username-input"
             type="text"
             name="username"
             placeholder="Your username (optional)"
             class="username-input"
             disabled={@loading}
+            aria-describedby="username-help"
+            autocomplete="username"
+            maxlength="50"
           />
-          <button type="submit" class="generate-btn" disabled={@loading}>
+          <button type="submit" class="generate-btn" disabled={@loading} aria-describedby="generate-help">
             <%= if @loading, do: "Generating...", else: "Generate Timestamps" %>
           </button>
-        </div>
-        <p class="input-help">
-          Leave username blank to remain anonymous. Timestamps are publicly visible.
+        </fieldset>
+        <p id="url-help" class="input-help">
+          Enter any YouTube video URL to generate AI-powered timestamps and chapter markers.
+        </p>
+        <p id="username-help" class="input-help">
+          Leave username blank to remain anonymous. All generated timestamps are publicly visible.
+        </p>
+        <p id="generate-help" class="input-help sr-only">
+          Click to start the AI analysis process. This typically takes 2-5 minutes to complete.
         </p>
       </form>
-    </div>
+    </main>
 
 
   </div>
