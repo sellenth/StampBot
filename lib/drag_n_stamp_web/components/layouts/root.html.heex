@@ -113,7 +113,14 @@
       .hero-title { font-size: 3rem; font-weight: 800; line-height: 1.1; }
       .hero-description { font-size: 1.25rem; line-height: 1.6; }
       .url-input { width: 100%; padding: 1rem; border-radius: 0.5rem; }
-      .generate-btn { background: black; color: white; padding: 1rem 2rem; border-radius: 0.5rem; }
+      .generate-btn { 
+        background: var(--btn-primary-bg, #000); 
+        color: var(--btn-primary-color, #fff); 
+        padding: 1rem 2rem; 
+        border-radius: 0.5rem; 
+        border: none;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body data-turbo-permanent>
