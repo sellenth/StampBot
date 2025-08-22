@@ -461,3 +461,55 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // Make toggleTheme globally available
 window.toggleTheme = toggleTheme;
+
+// Copy to clipboard function
+function copyToClipboard(elementId) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  
+  const text = element.textContent || element.innerText;
+  
+  navigator.clipboard.writeText(text).then(() => {
+    // Show success feedback
+    const copyBtn = document.querySelector(`button[onclick*="${elementId}"]`);
+    if (copyBtn) {
+      const originalText = copyBtn.innerHTML;
+      copyBtn.innerHTML = '✓';
+      copyBtn.style.color = '#10b981';
+      
+      setTimeout(() => {
+        copyBtn.innerHTML = originalText;
+        copyBtn.style.color = '';
+      }, 1500);
+    }
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    // Fallback for older browsers
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      // Show success feedback
+      const copyBtn = document.querySelector(`button[onclick*="${elementId}"]`);
+      if (copyBtn) {
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '✓';
+        copyBtn.style.color = '#10b981';
+        
+        setTimeout(() => {
+          copyBtn.innerHTML = originalText;
+          copyBtn.style.color = '';
+        }, 1500);
+      }
+    } catch (err) {
+      alert('Failed to copy to clipboard');
+    }
+  });
+}
+
+// Make copyToClipboard globally available
+window.copyToClipboard = copyToClipboard;

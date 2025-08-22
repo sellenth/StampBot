@@ -307,6 +307,38 @@ body {
     font-size: 1rem;
 }
 
+.timestamps-container {
+    position: relative;
+}
+
+.copy-btn-inside {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    min-width: 2rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    z-index: 1;
+}
+
+.copy-btn-inside:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+    opacity: 1;
+}
+
 .timestamps-text {
     background: var(--bg-primary);
     padding: 1rem;

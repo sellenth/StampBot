@@ -69,11 +69,16 @@
             </div>
 
             <div class="timestamp-content">
-              <h4>Generated Timestamps:</h4>
-              <pre class="timestamps-text" 
-                   id={"timestamps-#{timestamp.id}"}
-                   phx-hook="ClickableTimestamps" 
-                   data-video-url={timestamp.url}><%= timestamp.distilled_content || timestamp.content %></pre>
+              <h4><%= if timestamp.distilled_content, do: "Generated Timestamps:", else: "Raw time data:" %></h4>
+              <div class="timestamps-container">
+                <pre class="timestamps-text" 
+                     id={"timestamps-#{timestamp.id}"}
+                     phx-hook="ClickableTimestamps" 
+                     data-video-url={timestamp.url}><%= timestamp.distilled_content || timestamp.content %></pre>
+                <button class="copy-btn-inside" onclick={"copyToClipboard('timestamps-#{timestamp.id}')"} title="Copy to clipboard">
+                  📋
+                </button>
+              </div>
             </div>
           </div>
         <% end %>
