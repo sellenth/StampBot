@@ -1,7 +1,14 @@
 <!-- LLM Optimization: AI-readable content structure -->
-<div id="ai-content-context" style="display: none;" data-content-type="application-homepage" data-primary-function="youtube-timestamp-generation">
+<div
+  id="ai-content-context"
+  style="display: none;"
+  data-content-type="application-homepage"
+  data-primary-function="youtube-timestamp-generation"
+>
   <h2>Primary Application Function</h2>
-  <p>StampBot is an AI-powered YouTube timestamp generator that analyzes video content and automatically creates precise chapter markers and key moment timestamps.</p>
+  <p>
+    StampBot is an AI-powered YouTube timestamp generator that analyzes video content and automatically creates precise chapter markers and key moment timestamps.
+  </p>
 
   <h3>Key Features</h3>
   <ul>
@@ -24,76 +31,78 @@
   </ol>
 
   <h3>Technical Capabilities</h3>
-  <p>The application can process any public YouTube video URL and generate meaningful timestamps that identify important segments, topic changes, and key moments within the video content.</p>
+  <p>
+    The application can process any public YouTube video URL and generate meaningful timestamps that identify important segments, topic changes, and key moments within the video content.
+  </p>
 </div>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "StampBot",
-  "applicationCategory": "VideoApplication",
-  "operatingSystem": "Web Browser",
-  "description": "AI-powered YouTube timestamp generator that creates precise video chapters and key moment markers automatically",
-  "url": "https://stamp-bot.com",
-  "author": {
-    "@type": "Organization",
-    "name": "StampBot"
-  },
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  },
-  "featureList": [
-    "AI-powered timestamp generation",
-    "YouTube video analysis",
-    "Automatic chapter creation",
-    "Key moment detection",
-    "Video accessibility enhancement"
-  ],
-  "screenshot": "https://stamp-bot.com/images/app-screenshot.jpg"
-}
-</script>
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": "StampBot",
-  "url": "https://stamp-bot.com",
-  "description": "Generate precise YouTube video timestamps automatically using AI",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "https://stamp-bot.com/?url={search_term_string}",
-    "query-input": "required name=search_term_string"
-  },
-  "mainEntity": {
+  {
+    "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "StampBot YouTube Timestamp Generator"
+    "name": "StampBot",
+    "applicationCategory": "VideoApplication",
+    "operatingSystem": "Web Browser",
+    "description": "AI-powered YouTube timestamp generator that creates precise video chapters and key moment markers automatically",
+    "url": "https://stamp-bot.com",
+    "author": {
+      "@type": "Organization",
+      "name": "StampBot"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "AI-powered timestamp generation",
+      "YouTube video analysis",
+      "Automatic chapter creation",
+      "Key moment detection",
+      "Video accessibility enhancement"
+    ],
+    "screenshot": "https://stamp-bot.com/images/app-screenshot.jpg"
   }
-}
 </script>
 
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "StampBot",
-  "url": "https://stamp-bot.com",
-  "description": "AI-powered video analysis and timestamp generation platform",
-  "foundingDate": "2024",
-  "serviceType": "Video Analysis Tool",
-  "areaServed": "Worldwide",
-  "knowsAbout": [
-    "YouTube video analysis",
-    "Timestamp generation",
-    "Video accessibility",
-    "Content creation tools",
-    "AI video processing"
-  ]
-}
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "StampBot",
+    "url": "https://stamp-bot.com",
+    "description": "Generate precise YouTube video timestamps automatically using AI",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://stamp-bot.com/?url={search_term_string}",
+      "query-input": "required name=search_term_string"
+    },
+    "mainEntity": {
+      "@type": "SoftwareApplication",
+      "name": "StampBot YouTube Timestamp Generator"
+    }
+  }
+</script>
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "StampBot",
+    "url": "https://stamp-bot.com",
+    "description": "AI-powered video analysis and timestamp generation platform",
+    "foundingDate": "2024",
+    "serviceType": "Video Analysis Tool",
+    "areaServed": "Worldwide",
+    "knowsAbout": [
+      "YouTube video analysis",
+      "Timestamp generation",
+      "Video accessibility",
+      "Content creation tools",
+      "AI video processing"
+    ]
+  }
 </script>
 
 <.navigation current_page="home" extension_mode={@extension_mode} />
@@ -126,7 +135,7 @@
             disabled={@loading}
           />
           <button type="submit" class="generate-btn" disabled={@loading}>
-            <%= if @loading, do: "Generating...", else: "Generate Timestamps" %>
+            {if @loading, do: "Generating...", else: "Generate Timestamps"}
           </button>
         </div>
         <p class="input-help">
@@ -134,7 +143,5 @@
         </p>
       </form>
     </div>
-
-
   </div>
 </div>

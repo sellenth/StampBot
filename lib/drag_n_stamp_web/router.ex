@@ -26,7 +26,7 @@ defmodule DragNStampWeb.Router do
 
     # Static extension endpoint (no LiveView/WebSockets)
     get "/extension", PageController, :extension
-    
+
     # SEO endpoints
     get "/sitemap.xml", PageController, :sitemap
   end

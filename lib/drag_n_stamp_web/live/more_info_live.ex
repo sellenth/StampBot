@@ -10,7 +10,8 @@ defmodule DragNStampWeb.MoreInfoLive do
      assign(socket,
        bookmarklet_code: bookmarklet_code,
        page_title: "How to Use StampBot | YouTube Timestamp Generator Guide & API",
-       page_description: "Learn how to use StampBot's AI-powered YouTube timestamp generator. Get the bookmarklet, API documentation, and tips for creating better video chapters."
+       page_description:
+         "Learn how to use StampBot's AI-powered YouTube timestamp generator. Get the bookmarklet, API documentation, and tips for creating better video chapters."
      )}
   end
 

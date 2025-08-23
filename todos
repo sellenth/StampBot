@@ -1,3 +1,8 @@
 - make stamp button on video hide when mouse isn't in video
 - dark mode on extension only affects the input boxes. want the background to change too. (might need me to debug)
 - if the video is passed to stamp-bot.com it should show a dynamic page with that timestamp
+- fix favicon
+- fix firefox extension
+
+- add SSO
+- pricing page

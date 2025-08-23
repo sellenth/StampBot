@@ -30,10 +30,10 @@ defmodule DragNStampWeb.CoreComponents do
 
   def navigation(assigns) do
     ~H"""
-    <nav class={["navigation", @extension_mode && "navigation-compact"]} :if={!@extension_mode}>
+    <nav :if={!@extension_mode} class={["navigation", @extension_mode && "navigation-compact"]}>
       <div class="nav-brand">
         <.link navigate={~p"/"} class="nav-brand-link">
-        StampBot
+          StampBot
         </.link>
       </div>
       <div class="nav-links">
@@ -164,7 +164,8 @@ defmodule DragNStampWeb.CoreComponents do
       class={[
         "fixed top-2 right-2 mr-2 w-80 sm:w-96 z-50 rounded-lg p-3 ring-1",
         @kind == :info && "bg-emerald-50 text-emerald-800 ring-emerald-500 fill-cyan-900 flash-info",
-        @kind == :error && "bg-rose-50 text-rose-900 shadow-md ring-rose-500 fill-rose-900 flash-error"
+        @kind == :error &&
+          "bg-rose-50 text-rose-900 shadow-md ring-rose-500 fill-rose-900 flash-error"
       ]}
       {@rest}
     >

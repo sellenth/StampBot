@@ -5,7 +5,7 @@ defmodule DragNStampWeb.PageController do
   def sitemap(conn, _params) do
     base_url = "https://stamp-bot.com"
     current_date = DateTime.utc_now() |> DateTime.to_iso8601()
-    
+
     sitemap_xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
@@ -48,7 +48,7 @@ defmodule DragNStampWeb.PageController do
       </url>
     </urlset>
     """
-    
+
     conn
     |> put_resp_content_type("application/xml")
     |> put_resp_header("cache-control", "public, max-age=86400")
@@ -59,10 +59,11 @@ defmodule DragNStampWeb.PageController do
     # Render a static page for the extension without LiveView/WebSockets
     base_url = DragNStampWeb.Endpoint.url()
     api_endpoint = "#{base_url}/api/gemini"
-    
-    render(conn, :extension, 
+
+    render(conn, :extension,
       api_endpoint: api_endpoint,
-      layout: false  # Don't use the default layout with LiveView stuff
+      # Don't use the default layout with LiveView stuff
+      layout: false
     )
   end
 

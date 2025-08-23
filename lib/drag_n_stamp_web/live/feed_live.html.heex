@@ -10,7 +10,7 @@
     <div class="filters-section">
       <div class="filters-header">
         <p class="record-count">
-          <span id="record-count"><%= length(filtered_timestamps(assigns)) %></span> timestamps
+          <span id="record-count">{length(filtered_timestamps(assigns))}</span> timestamps
         </p>
       </div>
 
@@ -19,7 +19,7 @@
           <option value="">All Submitters</option>
           <%= for submitter <- unique_submitters(@timestamps) do %>
             <option value={submitter} selected={@filter_submitter == submitter}>
-              <%= submitter %>
+              {submitter}
             </option>
           <% end %>
         </select>
@@ -28,7 +28,7 @@
           <option value="">All Channels</option>
           <%= for channel <- unique_channels(@timestamps) do %>
             <option value={channel} selected={@filter_channel == channel}>
-              <%= channel %>
+              {channel}
             </option>
           <% end %>
         </select>
@@ -53,27 +53,37 @@
         <%= for timestamp <- filtered_timestamps(assigns) do %>
           <div class="timestamp-card">
             <div class="timestamp-meta">
-              <span class="tag user-tag"><%= timestamp.submitter_username %></span>
-              <span class="tag channel-tag"><%= timestamp.channel_name %></span>
+              <span class="tag user-tag">{timestamp.submitter_username}</span>
+              <span class="tag channel-tag">{timestamp.channel_name}</span>
               <span class="tag date-tag">
-                <%= Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p") %>
+                {Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p")}
               </span>
             </div>
 
             <div class="timestamp-url">
               <a href={timestamp.url} target="_blank" rel="noopener noreferrer" class="video-link">
-                <%= timestamp.url %>
+                {timestamp.url}
               </a>
             </div>
 
             <div class="timestamp-content">
-              <h4><%= if timestamp.distilled_content, do: "Generated Timestamps:", else: "Raw time data:" %></h4>
+              <h4>
+                {if timestamp.distilled_content,
+                  do: "Generated Timestamps:",
+                  else: "Raw time data:"}
+              </h4>
               <div class="timestamps-container">
-                <pre class="timestamps-text"
-                     id={"timestamps-#{timestamp.id}"}
-                     phx-hook="ClickableTimestamps"
-                     data-video-url={timestamp.url}><%= timestamp.distilled_content || timestamp.content %></pre>
-                <button class="copy-btn-inside" onclick={"copyToClipboard('timestamps-#{timestamp.id}')"} title="Copy to clipboard">
+                <pre
+                  class="timestamps-text"
+                  id={"timestamps-#{timestamp.id}"}
+                  phx-hook="ClickableTimestamps"
+                  data-video-url={timestamp.url}
+                ><%= timestamp.distilled_content || timestamp.content %></pre>
+                <button
+                  class="copy-btn-inside"
+                  onclick={"copyToClipboard('timestamps-#{timestamp.id}')"}
+                  title="Copy to clipboard"
+                >
                   📋
                 </button>
               </div>
