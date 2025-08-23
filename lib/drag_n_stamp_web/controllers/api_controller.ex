@@ -269,7 +269,7 @@ defmodule DragNStampWeb.ApiController do
                 {:error, "No valid timestamps in response"}
 
               cleaned_text ->
-                final_text = cleaned_text <> "\n\nTimestamps by McCoder Douglas"
+                final_text = cleaned_text <> "\n\nTimestamps by StampBot 🤖"
                 Logger.info("Gemini API final processed text: #{inspect(final_text)}")
                 {:ok, final_text}
             end
@@ -389,7 +389,7 @@ defmodule DragNStampWeb.ApiController do
             {:error, "No valid timestamps in distillation response"}
 
           cleaned_response ->
-            final_response = cleaned_response <> "\n\nTimestamps by McCoder Douglas"
+            final_response = cleaned_response <> "\n\nTimestamps by StampBot 🤖"
             Logger.info("Gemini distillation final processed text: #{inspect(final_response)}")
             {:ok, final_response}
         end
