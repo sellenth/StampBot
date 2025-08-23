@@ -61,7 +61,7 @@ defmodule DragNStampWeb.SEOHelpers do
   end
 
   def page_title(:feed, _opts) do
-    "YouTube Timestamp Feed | Latest AI-Generated Video Chapters"
+    "YouTube Timestamp Feed | Recently Created Video Chapters"
   end
 
   def page_title(:leaderboard, _opts) do
