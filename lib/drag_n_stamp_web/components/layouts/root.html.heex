@@ -2,9 +2,12 @@
 <html lang="en" class="[scrollbar-gutter:stable]" data-theme="light">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
     <meta name="csrf-token" content={get_csrf_token()} />
-    
+
 <!-- Primary Meta Tags -->
     <.live_title default="StampBot - Timestamp Generator | Create Timestamps Instantly" suffix="">
       {assigns[:page_title]}
@@ -36,10 +39,10 @@
       name="googlebot"
       content="index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1"
     />
-    
+
 <!-- Canonical URL -->
     <link rel="canonical" href={"https://stamp-bot.com#{@conn.request_path}"} />
-    
+
 <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content={"https://stamp-bot.com#{@conn.request_path}"} />
@@ -60,7 +63,7 @@
     <meta property="og:image:alt" content="StampBot YouTube Timestamp Generator" />
     <meta property="og:site_name" content="StampBot" />
     <meta property="og:locale" content="en_US" />
-    
+
 <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content={"https://stamp-bot.com#{@conn.request_path}"} />
@@ -79,7 +82,7 @@
     <meta property="twitter:image:alt" content="StampBot YouTube Timestamp Generator" />
     <meta name="twitter:creator" content="@stampbot" />
     <meta name="twitter:site" content="@stampbot" />
-    
+
 <!-- Additional SEO Meta Tags -->
     <meta name="theme-color" content="#ffffff" />
     <meta name="msapplication-TileColor" content="#ffffff" />
@@ -88,7 +91,7 @@
     <meta name="apple-mobile-web-app-title" content="StampBot" />
     <meta name="application-name" content="StampBot" />
     <meta name="mobile-web-app-capable" content="yes" />
-    
+
 <!-- Search Console Verification (Add your verification codes here) -->
     <!-- <meta name="google-site-verification" content="YOUR_GOOGLE_VERIFICATION_CODE" /> -->
     <!-- <meta name="msvalidate.01" content="YOUR_BING_VERIFICATION_CODE" /> -->
@@ -116,7 +119,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://www.youtube.com" />
     <link rel="preconnect" href="https://i.ytimg.com" />
-    
+
 <!-- Favicons -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png" />
@@ -124,48 +127,45 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/images/android-chrome-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/images/android-chrome-512x512.png" />
-    
+
 <!-- Web Manifest -->
     <link rel="manifest" href="/site.webmanifest" />
-    
+
 <!-- Structured Data will be added per-page -->
 
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
-    
+
 <!-- Performance optimizations -->
     <link rel="dns-prefetch" href="//www.youtube.com" />
     <link rel="dns-prefetch" href="//i.ytimg.com" />
     <link rel="dns-prefetch" href="//fonts.googleapis.com" />
-    
+
 <!-- Critical resource preloading for LCP -->
     <link rel="preload" href={~p"/assets/app.css"} as="style" />
     <link rel="preload" href={~p"/assets/app.js"} as="script" />
-    
+
 <!-- Early preconnect for API calls -->
     <link rel="preconnect" href="https://generativelanguage.googleapis.com" />
-    
+
 <!-- Critical CSS inlining hint -->
     <style>
       /* Critical above-the-fold styles for LCP optimization */
       .hero-title { font-size: 3rem; font-weight: 800; line-height: 1.1; }
       .hero-description { font-size: 1.25rem; line-height: 1.6; }
       .url-input { width: 100%; padding: 1rem; border-radius: 0.5rem; }
-      .generate-btn { 
-        background: var(--btn-primary-bg, #000); 
-        color: var(--btn-primary-color, #fff); 
-        padding: 1rem 2rem; 
-        border-radius: 0.5rem; 
+      .generate-btn {
+        background: var(--btn-primary-bg, #000);
+        color: var(--btn-primary-color, #fff);
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
         border: none;
         font-weight: 600;
       }
     </style>
   </head>
   <body data-turbo-permanent>
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
-      <span id="theme-icon" style="display: block; line-height: 1;">🌙</span>
-    </button>
     {@inner_content}
   </body>
 </html>

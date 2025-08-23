@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
     <meta name="csrf-token" content={get_csrf_token()} />
     <title>YouTube Timestamp Generator</title>
     <style>
@@ -95,6 +98,15 @@
         background: #4b5563;
         color: #f9fafb;
         border-color: #6b7280;
+      }
+
+      /* Prevent iOS zoom on theme toggle button */
+      .theme-toggle {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
       }
 
       .btn {
