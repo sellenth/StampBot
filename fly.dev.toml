@@ -27,7 +27,7 @@ kill_timeout = 5
   PORT = "4000"
 
 [[statics]]
-  guest_path = "/app/priv/static"
+  guest_path = "/app/lib/drag_n_stamp/priv/static"
   url_prefix = "/"
 
 [[services]]
