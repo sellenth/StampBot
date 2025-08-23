@@ -3,6 +3,7 @@
 - if the video is passed to stamp-bot.com it should show a dynamic page with that timestamp
 - fix favicon
 - fix firefox extension
+- force ssl
 
 - add SSO
 - pricing page
