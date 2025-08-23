@@ -7,7 +7,7 @@ import Config
 # before starting your production server.
 config :drag_n_stamp, DragNStampWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json",
-  force_ssl: [hsts: true]
+  force_ssl: [rewrite_on: [:x_forwarded_proto], hsts: true]
 
 # Configures Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Finch, finch_name: DragNStamp.Finch
