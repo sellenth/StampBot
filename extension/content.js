@@ -50,47 +50,61 @@ function getVideoData() {
   return data;
 }
 
-function createStampBotButton() {
-  if (document.getElementById('stamp-bot-button')) {
-    return; // Button already exists
+function createVideoOverlay(videoElement) {
+  if (document.getElementById('stamp-bot-overlay')) {
+    return; // Overlay already exists
   }
 
+  // Create overlay container
+  const overlay = document.createElement('div');
+  overlay.id = 'stamp-bot-overlay';
+  overlay.style.cssText = `
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2147483647;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: white;
+    backdrop-filter: blur(4px);
+    pointer-events: auto;
+    transition: opacity 0.3s ease;
+    opacity: 0.9;
+  `;
+
+  // Create the stamp button
   const button = document.createElement('button');
-  button.id = 'stamp-bot-button';
   button.innerHTML = `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z" fill="currentColor"/>
     </svg>
-    Generate Timestamps
+    Stamp
   `;
   
-  // Style the button to match YouTube's design
   button.style.cssText = `
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 36px;
-    padding: 0 16px;
-    background: transparent;
-    border: 1px solid var(--yt-spec-outline);
-    border-radius: 18px;
-    color: var(--yt-spec-text-primary);
-    font: inherit;
-    font-size: 14px;
-    font-weight: 500;
+    gap: 6px;
+    background: #ff4444;
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
     cursor: pointer;
-    transition: all 0.1s ease;
-    white-space: nowrap;
-    margin-left: 8px;
+    font-weight: bold;
+    font-size: 12px;
+    transition: background 0.2s ease;
   `;
-  
+
   // Add hover effect
   button.addEventListener('mouseenter', () => {
-    button.style.backgroundColor = 'var(--yt-spec-badge-chip-background)';
+    button.style.background = '#cc3333';
   });
   
   button.addEventListener('mouseleave', () => {
-    button.style.backgroundColor = 'transparent';
+    button.style.background = '#ff4444';
   });
   
   // Add click handler
@@ -134,43 +148,30 @@ function createStampBotButton() {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z" fill="currentColor"/>
         </svg>
-        Generate Timestamps
+        Stamp
       `;
     }
   });
+
+  overlay.appendChild(button);
   
-  return button;
+  // Position relative to video
+  const videoContainer = videoElement.closest('ytd-player') || 
+                        videoElement.closest('#movie_player') || 
+                        videoElement.parentElement;
+  
+  if (videoContainer) {
+    videoContainer.style.position = 'relative';
+    videoContainer.appendChild(overlay);
+  }
+  
+  return overlay;
 }
 
-function injectStampBotButton() {
-  // Wait for the subscribe button area to load
-  const subscribeSelectors = [
-    '#subscribe-button-shape',
-    'ytd-subscribe-button-renderer',
-    '#subscribe-button',
-    '.ytd-subscribe-button-renderer'
-  ];
-  
-  for (const selector of subscribeSelectors) {
-    const subscribeElement = document.querySelector(selector);
-    if (subscribeElement) {
-      const container = subscribeElement.closest('#top-row') || 
-                      subscribeElement.closest('.ytd-video-owner-renderer') ||
-                      subscribeElement.parentElement;
-      
-      if (container && !document.getElementById('stamp-bot-button')) {
-        const stampButton = createStampBotButton();
-        
-        // Find the best insertion point
-        const actionsContainer = container.querySelector('#actions') || container;
-        if (actionsContainer) {
-          actionsContainer.appendChild(stampButton);
-        } else {
-          container.appendChild(stampButton);
-        }
-        break;
-      }
-    }
+function injectVideoOverlay() {
+  const video = document.querySelector('video');
+  if (video && !document.getElementById('stamp-bot-overlay')) {
+    createVideoOverlay(video);
   }
 }
 
@@ -183,14 +184,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
-// Initialize button injection
+// Initialize overlay injection
 function initializeExtension() {
-  // Try to inject button immediately
-  injectStampBotButton();
+  // Try to inject overlay immediately
+  injectVideoOverlay();
   
-  // Set up observer to inject button when page changes
+  // Set up observer to inject overlay when page changes
   const observer = new MutationObserver(() => {
-    injectStampBotButton();
+    injectVideoOverlay();
   });
   
   observer.observe(document.body, { 
@@ -199,8 +200,8 @@ function initializeExtension() {
   });
   
   // Also try after a short delay for slow-loading elements
-  setTimeout(injectStampBotButton, 1000);
-  setTimeout(injectStampBotButton, 3000);
+  setTimeout(injectVideoOverlay, 1000);
+  setTimeout(injectVideoOverlay, 3000);
 }
 
 // Auto-detect when video changes (for single-page navigation)
@@ -216,8 +217,8 @@ new MutationObserver(() => {
       data: getVideoData()
     });
     
-    // Re-inject button on page change
-    setTimeout(injectStampBotButton, 500);
+    // Re-inject overlay on page change
+    setTimeout(injectVideoOverlay, 500);
   }
 }).observe(document, { subtree: true, childList: true });
 

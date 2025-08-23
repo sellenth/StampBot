@@ -7,6 +7,7 @@
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://youtube.com/*",
+    "https://stamp-bot.com/*",
     "https://drag-n-stamp-prod.fly.dev/*",
     "https://drag-n-stamp-dev.fly.dev/*"
   ],

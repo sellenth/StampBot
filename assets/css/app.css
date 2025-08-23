@@ -55,6 +55,21 @@ body {
         color 0.3s ease;
 }
 
+/* iOS Safari specific background fix */
+@supports (-webkit-touch-callout: none) {
+    body {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+        body {
+            background: #000000 !important;
+            background-color: #000000 !important;
+        }
+    }
+}
+
 /* Navigation styles */
 .navigation {
     display: flex;
@@ -1035,6 +1050,48 @@ textarea:focus {
 .page-extension .input-help {
     font-size: 0.75rem !important;
     margin-top: 8px !important;
+}
+
+/* iOS and Mobile Safari specific styles */
+@supports (-webkit-touch-callout: none) {
+    /* Force white background on all major containers */
+    .page,
+    .container,
+    .navigation,
+    .home-container,
+    .hero-section {
+        background: #ffffff !important;
+    }
+    
+    /* Override any card backgrounds that might show blue */
+    .feature-card,
+    .info-card,
+    .setup-card,
+    .timestamp-card,
+    .stat-card,
+    .leaderboard-section {
+        background: #f8f9fa !important;
+    }
+    
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        .page,
+        .container,
+        .navigation,
+        .home-container,
+        .hero-section {
+            background: #000000 !important;
+        }
+        
+        .feature-card,
+        .info-card,
+        .setup-card,
+        .timestamp-card,
+        .stat-card,
+        .leaderboard-section {
+            background: #1c1c1e !important;
+        }
+    }
 }
 
 /* Responsive */
