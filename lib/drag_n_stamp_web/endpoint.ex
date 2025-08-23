@@ -22,7 +22,7 @@ defmodule DragNStampWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :drag_n_stamp,
-    gzip: false,
+    gzip: true,
     only: DragNStampWeb.static_paths()
 
   if Code.ensure_loaded?(Tidewave) do
