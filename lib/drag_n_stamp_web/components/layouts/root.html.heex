@@ -163,8 +163,8 @@
     </style>
   </head>
   <body data-turbo-permanent>
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
-      <span id="theme-icon">🌙</span>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <span id="theme-icon" style="display: block; line-height: 1;">🌙</span>
     </button>
     {@inner_content}
   </body>

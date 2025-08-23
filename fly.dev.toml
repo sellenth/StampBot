@@ -26,6 +26,10 @@ kill_timeout = 5
   PHX_HOST = "drag-n-stamp-dev.fly.dev"
   PORT = "4000"
 
+[[statics]]
+  guest_path = "/app/priv/static"
+  url_prefix = "/"
+
 [[services]]
   # The port your Phoenix app listens on inside the container.  Do
   # not change this without updating the Dockerfile `EXPOSE` as well.

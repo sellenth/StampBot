@@ -890,10 +890,39 @@ textarea:focus {
     font-size: 1.125rem;
     transition: all 0.3s ease;
     z-index: 1000;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
 }
 
 .theme-toggle:hover {
     background: var(--bg-secondary);
+}
+
+/* iOS Safari specific styling for theme toggle */
+@supports (-webkit-touch-callout: none) {
+    .theme-toggle {
+        background-color: rgba(240, 240, 240, 0.95);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    [data-theme="dark"] .theme-toggle {
+        background-color: rgba(64, 64, 64, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .theme-toggle:active {
+        transform: scale(0.95);
+    }
 }
 
 /* Modal styles */
