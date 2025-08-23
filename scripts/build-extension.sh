@@ -25,11 +25,12 @@ ZIP_PATH="$BUILD_DIR/$ZIP_NAME"
 echo "Creating $ZIP_NAME..."
 
 # Zip the extension directory, excluding development files
-cd "$PROJECT_ROOT"
-zip -r "$ZIP_PATH" extension/ \
-  -x "extension/icons/generate-icons.html" \
-  -x "extension/.DS_Store" \
-  -x "extension/*/.DS_Store"
+# Use flat structure for Firefox compatibility
+cd "$EXTENSION_DIR"
+zip -r "$ZIP_PATH" . \
+  -x "icons/generate-icons.html" \
+  -x ".DS_Store" \
+  -x "*/.DS_Store"
 
 # Create a copy as latest (instead of symlink for better compatibility)
 cd "$BUILD_DIR"
