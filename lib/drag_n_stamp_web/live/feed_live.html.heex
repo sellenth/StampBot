@@ -40,8 +40,35 @@
       </form>
     </div>
 
+    <%= if total_pages(assigns) > 1 do %>
+      <div class="pagination-container flex flex-col items-center mb-4">
+        <div class="pagination">
+          <div class="page-numbers">
+            <%= for page <- 1..total_pages(assigns) do %>
+              <%= cond do %>
+                <% page == @page -> %>
+                  <span class="page-number current">{page}</span>
+                <% page == 1 or page == total_pages(assigns) or (page >= @page - 2 and page <= @page + 2) -> %>
+                  <button phx-click="change_page" phx-value-page={page} class="page-number">
+                    {page}
+                  </button>
+                <% page == 2 and @page > 4 -> %>
+                  <span class="page-ellipsis">...</span>
+                <% page == total_pages(assigns) - 1 and @page < total_pages(assigns) - 3 -> %>
+                  <span class="page-ellipsis">...</span>
+                <% true -> %>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+        <div class="pagination-info">
+          Page {@page} of {total_pages(assigns)}
+        </div>
+      </div>
+    <% end %>
+
     <div class="timestamps-grid">
-      <%= if filtered_timestamps(assigns) == [] do %>
+      <%= if paginated_timestamps(assigns) == [] do %>
         <div class="empty-state">
           <h3>No timestamps found</h3>
           <p>No timestamps match your current filters, or none have been generated yet.</p>
@@ -50,7 +77,7 @@
           </.link>
         </div>
       <% else %>
-        <%= for timestamp <- filtered_timestamps(assigns) do %>
+        <%= for timestamp <- paginated_timestamps(assigns) do %>
           <div class="timestamp-card">
             <div class="timestamp-meta">
               <span class="tag user-tag">{timestamp.submitter_username}</span>

@@ -62,18 +62,13 @@ defmodule DragNStampWeb.CoreComponents do
         >
           Info
         </.link>
-        
-        <div class="nav-auth">
+
+        <div class="nav-auth nav-link">
           <%= if @current_user do %>
             <div class="nav-user">
-              <img 
-                src={@current_user.picture || "https://ui-avatars.com/api/?name=#{@current_user.name}"} 
-                alt={@current_user.name}
-                class="nav-user-avatar"
-              />
-              <span class="nav-user-name"><%= @current_user.name %></span>
-              <.link 
-                href="/auth/logout" 
+              <span class="nav-user-name">{@current_user.name}</span>
+              <.link
+                href="/auth/logout"
                 method="delete"
                 class="nav-link nav-logout"
               >
