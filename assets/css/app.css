@@ -123,6 +123,61 @@ body {
     background: var(--bg-tertiary);
 }
 
+/* Authentication UI styles */
+.nav-auth {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-left: auto;
+}
+
+.nav-user {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.nav-user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.nav-user-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.nav-login {
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-color);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.nav-login:hover {
+    background: var(--btn-primary-hover);
+    color: var(--btn-primary-color);
+}
+
+.nav-logout {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.nav-logout:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
 /* Home page specific styles */
 .home-container {
     max-width: 800px;

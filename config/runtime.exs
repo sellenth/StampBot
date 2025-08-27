@@ -20,6 +20,13 @@ if System.get_env("PHX_SERVER") do
   config :drag_n_stamp, DragNStampWeb.Endpoint, server: true
 end
 
+# Configure Google OAuth
+if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
+  config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+    client_id: google_client_id,
+    client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

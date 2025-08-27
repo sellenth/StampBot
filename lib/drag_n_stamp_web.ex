@@ -55,6 +55,8 @@ defmodule DragNStampWeb do
       use Phoenix.LiveView,
         layout: {DragNStampWeb.Layouts, :app}
 
+      on_mount DragNStampWeb.LiveHelpers
+
       unquote(html_helpers())
     end
   end

@@ -27,6 +27,7 @@ defmodule DragNStampWeb.CoreComponents do
   """
   attr :current_page, :string, default: ""
   attr :extension_mode, :boolean, default: false
+  attr :current_user, :any, default: nil
 
   def navigation(assigns) do
     ~H"""
@@ -61,6 +62,30 @@ defmodule DragNStampWeb.CoreComponents do
         >
           Info
         </.link>
+        
+        <div class="nav-auth">
+          <%= if @current_user do %>
+            <div class="nav-user">
+              <img 
+                src={@current_user.picture || "https://ui-avatars.com/api/?name=#{@current_user.name}"} 
+                alt={@current_user.name}
+                class="nav-user-avatar"
+              />
+              <span class="nav-user-name"><%= @current_user.name %></span>
+              <.link 
+                href="/auth/logout" 
+                method="delete"
+                class="nav-link nav-logout"
+              >
+                Logout
+              </.link>
+            </div>
+          <% else %>
+            <.link href="/auth/google" class="nav-link nav-login">
+              Sign in with Google
+            </.link>
+          <% end %>
+        </div>
       </div>
     </nav>
     """

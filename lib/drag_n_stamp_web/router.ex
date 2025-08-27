@@ -9,6 +9,7 @@ defmodule DragNStampWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug DragNStampWeb.Plugs.ExtensionHeaders
+    plug DragNStampWeb.Plugs.Auth
   end
 
   pipeline :api do
@@ -29,6 +30,15 @@ defmodule DragNStampWeb.Router do
 
     # SEO endpoints
     get "/sitemap.xml", PageController, :sitemap
+  end
+
+  # Authentication routes
+  scope "/auth", DragNStampWeb do
+    pipe_through :browser
+
+    get "/:provider", AuthController, :request
+    get "/:provider/callback", AuthController, :callback
+    delete "/logout", AuthController, :delete
   end
 
   # API routes

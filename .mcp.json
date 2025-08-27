@@ -3,15 +3,6 @@
     "tidewave": {
       "type": "http",
       "url": "http://localhost:4000/tidewave/mcp"
-    },
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "@playwright/mcp@latest",
-        "--extension",
-        "--browser",
-        "/Applications/Dia.app/Contents/MacOS/Dia"
-      ]
     }
   }
 }
