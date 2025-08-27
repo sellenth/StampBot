@@ -26,3 +26,6 @@ Environment: Create `.env` with `GEMINI_API_KEY=your_key`
 ```
 
 Apps: `drag-n-stamp-dev.fly.dev`, `drag-n-stamp-prod.fly.dev`
+
+## Note to agent
+ASSUME THE PHOENIX SERVER IS ALREADY RUNNING, IT USUALLY IS. DON'T KILL IT TO START YOUR OWN

@@ -37,7 +37,24 @@ defmodule DragNStampWeb.CoreComponents do
           StampBot
         </.link>
       </div>
-      <div class="nav-links">
+      
+    <!-- Hamburger button for mobile -->
+      <button
+        class="hamburger-menu"
+        phx-click={
+          JS.toggle(to: "#mobile-menu-overlay")
+          |> JS.toggle_class("is-active", to: ".hamburger-menu")
+        }
+        aria-label="Toggle menu"
+        type="button"
+      >
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+      </button>
+      
+    <!-- Desktop nav links -->
+      <div class="nav-links nav-links-desktop">
         <.link
           navigate={~p"/"}
           class={["nav-link", @current_page == "home" && "nav-link-active"]}
@@ -63,20 +80,88 @@ defmodule DragNStampWeb.CoreComponents do
           Info
         </.link>
 
-        <div class="nav-auth nav-link">
+        <%= if @current_user do %>
+          <.link
+            href="/auth/logout"
+            method="delete"
+            class="nav-link"
+          >
+            Logout
+          </.link>
+        <% else %>
+          <.link href="/auth/google" class="nav-link nav-login">
+            Sign in with Google
+          </.link>
+        <% end %>
+      </div>
+      
+    <!-- Mobile menu overlay -->
+      <div id="mobile-menu-overlay" class="mobile-menu-overlay hidden">
+        <div class="mobile-menu">
+          <.link
+            navigate={~p"/"}
+            class={["mobile-menu-link", @current_page == "home" && "mobile-menu-link-active"]}
+            phx-click={
+              JS.hide(to: "#mobile-menu-overlay")
+              |> JS.toggle_class("is-active", to: ".hamburger-menu")
+            }
+          >
+            Home
+          </.link>
+          <.link
+            navigate={~p"/feed"}
+            class={["mobile-menu-link", @current_page == "feed" && "mobile-menu-link-active"]}
+            phx-click={
+              JS.hide(to: "#mobile-menu-overlay")
+              |> JS.toggle_class("is-active", to: ".hamburger-menu")
+            }
+          >
+            Feed
+          </.link>
+          <.link
+            navigate={~p"/leaderboard"}
+            class={["mobile-menu-link", @current_page == "leaderboard" && "mobile-menu-link-active"]}
+            phx-click={
+              JS.hide(to: "#mobile-menu-overlay")
+              |> JS.toggle_class("is-active", to: ".hamburger-menu")
+            }
+          >
+            Leaderboard
+          </.link>
+          <.link
+            navigate={~p"/more-info"}
+            class={["mobile-menu-link", @current_page == "more-info" && "mobile-menu-link-active"]}
+            phx-click={
+              JS.hide(to: "#mobile-menu-overlay")
+              |> JS.toggle_class("is-active", to: ".hamburger-menu")
+            }
+          >
+            Info
+          </.link>
+
+          <div class="mobile-menu-divider"></div>
+
           <%= if @current_user do %>
-            <div class="nav-user">
-              <span class="nav-user-name">{@current_user.name}</span>
-              <.link
-                href="/auth/logout"
-                method="delete"
-                class="nav-link nav-logout"
-              >
-                Logout
-              </.link>
-            </div>
+            <.link
+              href="/auth/logout"
+              method="delete"
+              class="mobile-menu-link"
+              phx-click={
+                JS.hide(to: "#mobile-menu-overlay")
+                |> JS.toggle_class("is-active", to: ".hamburger-menu")
+              }
+            >
+              Logout
+            </.link>
           <% else %>
-            <.link href="/auth/google" class="nav-link nav-login">
+            <.link
+              href="/auth/google"
+              class="mobile-menu-link"
+              phx-click={
+                JS.hide(to: "#mobile-menu-overlay")
+                |> JS.toggle_class("is-active", to: ".hamburger-menu")
+              }
+            >
               Sign in with Google
             </.link>
           <% end %>

@@ -19,11 +19,18 @@ defmodule DragNStampWeb.Endpoint do
   #
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
-  plug Plug.Static,
-    at: "/",
-    from: :drag_n_stamp,
-    gzip: true,
-    only: DragNStampWeb.static_paths()
+  if Mix.env() == :dev do
+    plug Plug.Static,
+      at: "/",
+      from: :drag_n_stamp,
+      gzip: false
+  else
+    plug Plug.Static,
+      at: "/",
+      from: :drag_n_stamp,
+      gzip: true,
+      only: DragNStampWeb.static_paths()
+  end
 
   if Code.ensure_loaded?(Tidewave) do
     plug Tidewave
