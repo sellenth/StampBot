@@ -1,7 +1,7 @@
 defmodule DragNStampWeb.ApiController do
   use DragNStampWeb, :controller
   require Logger
-  alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.{Repo, Timestamp, YouTubeAPI}
 
   def receive_url(conn, %{"url" => url} = params) do
     username =
@@ -81,6 +81,7 @@ defmodule DragNStampWeb.ApiController do
   def gemini(conn, params) do
     api_key = System.get_env("GEMINI_API_KEY")
     channel_name = Map.get(params, "channel_name", "anonymous")
+    auto_comment = Map.get(params, "auto_comment", false)
 
     submitter_username =
       case Map.get(params, "submitter_username") do
@@ -103,7 +104,7 @@ defmodule DragNStampWeb.ApiController do
     url = Map.get(params, "url") |> normalize_youtube_url()
 
     Logger.info(
-      "Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}"
+      "Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}, Auto-comment: #{auto_comment}"
     )
 
     # Check if we already have timestamps for this URL
@@ -111,26 +112,40 @@ defmodule DragNStampWeb.ApiController do
       %Timestamp{distilled_content: distilled_content} when not is_nil(distilled_content) ->
         Logger.info("Found existing distilled timestamps for URL: #{url}")
 
-        json(conn, %{
+        response = %{
           status: "success",
           response: distilled_content,
           cached: true
-        })
+        }
+
+        # If auto_comment is enabled, try to post to YouTube
+        response = if auto_comment do
+          case post_to_youtube(url, distilled_content) do
+            {:ok, _} -> 
+              Map.put(response, :youtube_comment, "posted")
+            {:error, reason} -> 
+              Map.put(response, :youtube_comment, "failed: #{reason}")
+          end
+        else
+          response
+        end
+
+        json(conn, response)
 
       %Timestamp{content: content} = timestamp ->
         Logger.info(
           "Found existing timestamps but no distilled version for URL: #{url}, distilling..."
         )
 
-        distill_existing_timestamps(conn, api_key, timestamp, content)
+        distill_existing_timestamps(conn, api_key, timestamp, content, auto_comment, url)
 
       nil ->
         Logger.info("No existing timestamps found for URL: #{url}, calling Gemini API")
-        generate_new_timestamps(conn, api_key, channel_name, submitter_username, url)
+        generate_new_timestamps(conn, api_key, channel_name, submitter_username, url, auto_comment)
     end
   end
 
-  defp generate_new_timestamps(conn, api_key, channel_name, submitter_username, url) do
+  defp generate_new_timestamps(conn, api_key, channel_name, submitter_username, url, auto_comment) do
     # Create the formatted prompt for timestamps
     formatted_prompt =
       "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. here's the link, be slightly humorous but not too much ;) channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
@@ -176,7 +191,7 @@ defmodule DragNStampWeb.ApiController do
               )
 
               # Now distill the timestamps
-              distill_timestamps(conn, api_key, timestamp, response)
+              distill_timestamps(conn, api_key, timestamp, response, auto_comment, url)
 
             {:error, changeset} ->
               Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
@@ -289,7 +304,7 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  defp distill_existing_timestamps(conn, api_key, timestamp, content) do
+  defp distill_existing_timestamps(conn, api_key, timestamp, content, auto_comment, url) do
     case distill_timestamps_content(content, api_key) do
       {:ok, distilled_content} ->
         # Update the existing timestamp record
@@ -301,11 +316,25 @@ defmodule DragNStampWeb.ApiController do
             Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
         end
 
-        json(conn, %{
+        response = %{
           status: "success",
           response: distilled_content,
           cached: true
-        })
+        }
+
+        # If auto_comment is enabled, try to post to YouTube
+        response = if auto_comment do
+          case post_to_youtube(url, distilled_content) do
+            {:ok, _} -> 
+              Map.put(response, :youtube_comment, "posted")
+            {:error, reason} -> 
+              Map.put(response, :youtube_comment, "failed: #{reason}")
+          end
+        else
+          response
+        end
+
+        json(conn, response)
 
       {:error, reason} ->
         Logger.error("Failed to distill existing timestamps: #{reason}")
@@ -318,7 +347,7 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  defp distill_timestamps(conn, api_key, timestamp, content) do
+  defp distill_timestamps(conn, api_key, timestamp, content, auto_comment, url) do
     case distill_timestamps_content(content, api_key) do
       {:ok, distilled_content} ->
         # Update the timestamp record with distilled content
@@ -330,11 +359,25 @@ defmodule DragNStampWeb.ApiController do
             Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
         end
 
-        json(conn, %{
+        response = %{
           status: "success",
           response: distilled_content,
           cached: false
-        })
+        }
+
+        # If auto_comment is enabled, try to post to YouTube
+        response = if auto_comment do
+          case post_to_youtube(url, distilled_content) do
+            {:ok, _} -> 
+              Map.put(response, :youtube_comment, "posted")
+            {:error, reason} -> 
+              Map.put(response, :youtube_comment, "failed: #{reason}")
+          end
+        else
+          response
+        end
+
+        json(conn, response)
 
       {:error, reason} ->
         Logger.error("Failed to distill timestamps: #{reason}")
@@ -437,6 +480,18 @@ defmodule DragNStampWeb.ApiController do
 
       {:ok, %Finch.Response{status: status}} ->
         {:error, "HTTP request failed with status: #{status}"}
+    end
+  end
+
+  defp post_to_youtube(url, content) do
+    case YouTubeAPI.post_comment(url, content) do
+      {:ok, response} ->
+        Logger.info("Successfully posted comment to YouTube for URL: #{url}")
+        {:ok, response}
+      
+      {:error, reason} ->
+        Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{reason}")
+        {:error, reason}
     end
   end
 end
