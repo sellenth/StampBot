@@ -5,7 +5,6 @@ defmodule DragNStamp.YouTubeAPI do
   """
 
   require Logger
-  alias DragNStamp.Finch
 
   @youtube_api_base "https://www.googleapis.com/youtube/v3"
   @oauth_token_url "https://oauth2.googleapis.com/token"
