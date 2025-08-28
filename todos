@@ -6,6 +6,8 @@
 - fix firefox extension
 - fix dark mode on ios
 - dark mode on extension only affects the input boxes. want the background to change too. (might need me to debug)
+- https://fly.io/docs/networking/custom-domain/#i-use-cloudflare-and-there-seems-to-be-a-problem-issuing-or-validating-my-fly-io-tls-certificatettps://stamp-bot.com/?url=
+
 
 - add SSO
 - pricing page

@@ -78,6 +78,9 @@ ENV ECTO_IPV6=true
 # releases.
 COPY --from=build /app/_build/prod/rel/drag_n_stamp ./
 
+# Copy static assets built in the previous stage
+COPY --from=build /app/priv/static ./priv/static
+
 # The Phoenix release expects PHX_SERVER to be set in order to
 # start the web server automatically.  Without this environment
 # variable the app will compile but not start accepting requests.
