@@ -1,0 +1,78 @@
+{
+  "name": "StampBot - AI YouTube Timestamp Generator",
+  "short_name": "StampBot",
+  "description": "Generate precise YouTube video timestamps automatically using AI. Create chapter markers and find key moments instantly.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["productivity", "video", "tools", "ai"],
+  "icons": [
+    {
+      "src": "/images/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/images/app-screenshot-desktop.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "StampBot desktop interface showing timestamp generation"
+    },
+    {
+      "src": "/images/app-screenshot-mobile.jpg",
+      "sizes": "375x812",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "StampBot mobile interface for on-the-go timestamp creation"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Generate Timestamps",
+      "short_name": "Generate",
+      "description": "Generate timestamps for a YouTube video",
+      "url": "/?action=generate",
+      "icons": [
+        {
+          "src": "/images/shortcut-generate.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Browse Feed",
+      "short_name": "Feed",
+      "description": "Browse recent timestamp generations",
+      "url": "/feed",
+      "icons": [
+        {
+          "src": "/images/shortcut-feed.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
