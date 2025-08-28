@@ -29,6 +29,12 @@ defmodule YouTubeAuth do
     else
       {:error, reason} ->
         IO.puts("\n❌ Authentication failed: #{reason}")
+        IO.puts("\n💡 Common solutions:")
+        IO.puts("   • Authorization codes expire quickly - get a fresh code")
+        IO.puts("   • Make sure you copied the entire code (no spaces/newlines)")
+        IO.puts("   • Verify your YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are correct")
+        IO.puts("   • Check that your Google Cloud project has YouTube Data API enabled")
+        IO.puts("   • Ensure the OAuth consent screen is properly configured")
         System.halt(1)
     end
   end
@@ -96,6 +102,12 @@ defmodule YouTubeAuth do
   defp exchange_code_for_tokens(code, credentials) do
     IO.puts("\n🔄 Step 2: Exchanging authorization code for tokens...")
     
+    # Debug: Show what we're sending
+    IO.puts("🔍 Debug info:")
+    IO.puts("  Client ID: #{String.slice(credentials.client_id, 0..20)}...")
+    IO.puts("  Code length: #{String.length(code)} characters")
+    IO.puts("  Code preview: #{String.slice(code, 0..20)}...")
+    
     headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
     
     body = URI.encode_query(%{
@@ -105,6 +117,8 @@ defmodule YouTubeAuth do
       "grant_type" => "authorization_code",
       "redirect_uri" => "urn:ietf:wg:oauth:2.0:oob"
     })
+    
+    IO.puts("  Request body: #{body}")
 
     request = Finch.build(:post, @token_url, headers, body)
     
@@ -120,7 +134,18 @@ defmodule YouTubeAuth do
         end
       
       {:ok, %Finch.Response{status: status, body: body}} ->
-        {:error, "Token exchange failed with status #{status}: #{body}"}
+        IO.puts("🔍 Full error response:")
+        IO.puts("  Status: #{status}")
+        IO.puts("  Body: #{body}")
+        
+        case Jason.decode(body) do
+          {:ok, %{"error" => error, "error_description" => description}} ->
+            {:error, "#{error}: #{description}"}
+          {:ok, parsed} ->
+            {:error, "Token exchange failed: #{inspect(parsed)}"}
+          {:error, _} ->
+            {:error, "Token exchange failed with status #{status}: #{body}"}
+        end
       
       {:error, reason} ->
         {:error, "HTTP request failed: #{inspect(reason)}"}
