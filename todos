@@ -1,6 +1,5 @@
 - make stamp button on video hide when mouse isn't in video
 - if the video is passed to stamp-bot.com it should show a dynamic page with that timestamp
-- fix favicon
 - extension favicon ?
 - redirect to /feed on extension generation process
 - fix firefox extension
@@ -9,9 +8,7 @@
 - https://fly.io/docs/networking/custom-domain/#i-use-cloudflare-and-there-seems-to-be-a-problem-issuing-or-validating-my-fly-io-tls-certificatettps://stamp-bot.com/?url=
 
 
-- add SSO
 - pricing page
-
 
 ## Test-Driven Development (TDD) Process
 
