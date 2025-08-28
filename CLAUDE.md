@@ -13,6 +13,7 @@ mix phx.server
 ```
 
 Environment: Create `.env` with `GEMINI_API_KEY=your_key`
+Change database_url to perform mix ecto.migrate
 
 ## API Endpoints
 
