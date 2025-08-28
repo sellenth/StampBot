@@ -1,7 +1,6 @@
 defmodule DragNStampWeb.HomeLive do
   use DragNStampWeb, :live_view
   require Logger
-  alias DragNStamp.YouTubeAPI
 
   def mount(params, _session, socket) do
     base_url = DragNStampWeb.Endpoint.url()
@@ -39,22 +38,6 @@ defmodule DragNStampWeb.HomeLive do
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
     end
-  end
-
-  def handle_event("test_youtube_comment", _params, socket) do
-    video_url = "https://www.youtube.com/watch?v=LURGbFnWfy0"
-    comment_text = "tester123"
-    
-    Task.start(fn ->
-      case YouTubeAPI.post_comment(video_url, comment_text) do
-        {:ok, _response} ->
-          Logger.info("Successfully posted test comment to YouTube")
-        {:error, reason} ->
-          Logger.error("Failed to post test comment: #{reason}")
-      end
-    end)
-    
-    {:noreply, put_flash(socket, :info, "Test comment posted to YouTube! Check the logs for results.")}
   end
 
   defp validate_youtube_url(url) do
