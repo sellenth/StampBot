@@ -1,4 +1,8 @@
 - make stamp button on video hide when mouse isn't in video
+- immediately create timestamp record in db, fill it out as it's generated but show immediate user feedback
+- let admins delete or clear out or regenerate timestamps
+- show some sort of indicator that a comment has been left
+- let users comment or update vid description of their own
 - if the video is passed to stamp-bot.com it should show a dynamic page with that timestamp
 - extension favicon ?
 - redirect to /feed on extension generation process

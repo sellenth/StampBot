@@ -53,7 +53,8 @@ defmodule DragNStamp.YouTubeAPI do
     
     case access_token do
       nil ->
-        {:error, "YOUTUBE_ACCESS_TOKEN not configured"}
+        Logger.info("No YouTube access token found, attempting to refresh from refresh token")
+        refresh_access_token()
       
       token ->
         # Try using the token first, refresh if needed
