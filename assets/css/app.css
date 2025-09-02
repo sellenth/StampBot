@@ -979,6 +979,7 @@ textarea {
     border: 1px solid var(--border-color);
     background: var(--bg-primary);
     color: var(--text-primary);
+    caret-color: var(--text-primary);
     font-size: 1rem;
     font-family: inherit;
     transition:
@@ -992,6 +993,12 @@ select:focus,
 textarea:focus {
     outline: none;
     border-color: var(--text-primary);
+}
+
+/* Improve caret visibility in dark mode */
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] textarea {
+    caret-color: var(--accent-color);
 }
 
 /* Buttons */
@@ -1416,6 +1423,12 @@ textarea:focus {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Clear focus ring for keyboard users */
+.pagination .page-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
 .pagination .page-number {
     padding: 0.5rem 0.75rem;
     background: var(--bg-primary);
@@ -1437,9 +1450,10 @@ textarea:focus {
 }
 
 .pagination .page-number.current {
-    color: black;
+    color: var(--accent-color);
+    background: var(--bg-secondary);
     border-color: var(--accent-color);
-    font-weight: 600;
+    font-weight: 700;
     transform: scale(1.1);
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
@@ -1455,6 +1469,16 @@ textarea:focus {
     color: var(--text-secondary);
     text-align: center;
     margin-top: 0.5rem;
+}
+
+/* Reduce iOS Safari tap highlight on pagination */
+.pagination .page-number,
+.pagination .page-btn {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pagination .page-number:focus {
+    outline: none;
 }
 
 /* Responsive */
