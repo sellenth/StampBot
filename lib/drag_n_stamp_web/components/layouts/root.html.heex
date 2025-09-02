@@ -85,6 +85,19 @@
 
 <!-- Additional SEO Meta Tags -->
     <meta name="theme-color" content="#ffffff" />
+    <script>
+      // Set theme ASAP to avoid light flash, and sync status bar color
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = saved || (prefersDark ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0f14' : '#ffffff');
+        } catch (_) { /* no-op */ }
+      })();
+    </script>
     <meta name="msapplication-TileColor" content="#ffffff" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

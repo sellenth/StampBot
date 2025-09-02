@@ -4,39 +4,54 @@
 
 /* CSS Variables for theming */
 :root {
-    --bg-primary: #fff;
+    /* Enable native form/scrollbar theming in browsers that support it */
+    color-scheme: light dark;
+
+    --bg-primary: #ffffff;
     --bg-secondary: #f8f8f8;
     --bg-tertiary: #f0f0f0;
-    --text-primary: #000;
-    --text-secondary: #555;
-    --text-muted: #777;
-    --border-color: #ddd;
-    --btn-primary-bg: #000;
-    --btn-primary-color: #fff;
-    --btn-primary-hover: #333;
-    --btn-secondary-bg: #fff;
-    --btn-secondary-color: #000;
-    --btn-secondary-border: #000;
+    --text-primary: #0b0b0b;
+    --text-secondary: #4b5563;
+    --text-muted: #6b7280;
+    --placeholder-color: #9ca3af;
+    --border-color: #e5e7eb;
+
+    /* Brand accent */
     --accent-color: #3b82f6;
+
+    /* Buttons */
+    --btn-primary-bg: var(--accent-color);
+    --btn-primary-color: #ffffff;
+    --btn-primary-hover: #2563eb;
+    --btn-secondary-bg: #ffffff;
+    --btn-secondary-color: #0b0b0b;
+    --btn-secondary-border: #0b0b0b;
+
     --bg-hover: #f3f4f6;
 }
 
 [data-theme="dark"] {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2d2d2d;
-    --bg-tertiary: #404040;
-    --text-primary: #fff;
-    --text-secondary: #ccc;
-    --text-muted: #999;
-    --border-color: #404040;
-    --btn-primary-bg: #1a1a1a;
-    --btn-primary-color: #fff;
-    --btn-primary-hover: #333;
-    --btn-secondary-bg: #1a1a1a;
-    --btn-secondary-color: #fff;
-    --btn-secondary-border: #fff;
+    /* Subtle blue-tinted dark palette for better depth on OLED */
+    --bg-primary: #0b0f14;   /* page background */
+    --bg-secondary: #12161c; /* cards/nav */
+    --bg-tertiary: #1b222c;  /* hovers / controls */
+
+    --text-primary: #e5e7eb;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --placeholder-color: #8b9db2;
+    --border-color: #2a3340;
+
+    /* Make primary actions pop in dark */
     --accent-color: #60a5fa;
-    --bg-hover: #374151;
+    --btn-primary-bg: var(--accent-color);
+    --btn-primary-color: #0b0f14;
+    --btn-primary-hover: #3b82f6;
+    --btn-secondary-bg: transparent;
+    --btn-secondary-color: #e5e7eb;
+    --btn-secondary-border: #2a3340;
+
+    --bg-hover: #1b222c;
 }
 
 /* Reset */
@@ -64,20 +79,13 @@ body {
 /* iOS Safari specific background fix */
 @supports (-webkit-touch-callout: none) {
     body {
-        background: #ffffff !important;
-        background-color: #ffffff !important;
+        background: var(--bg-primary) !important;
+        background-color: var(--bg-primary) !important;
         /* Prevent zoom on double-tap */
         touch-action: manipulation;
         -webkit-text-size-adjust: 100%;
         -webkit-user-select: none;
         -webkit-touch-callout: none;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        body {
-            background: #000000 !important;
-            background-color: #000000 !important;
-        }
     }
 }
 
@@ -405,16 +413,18 @@ body {
 .username-input {
     padding: 1rem;
     font-size: 1.1rem;
-    border: 2px solid var(--border-color);
-    border-radius: 0.5rem;
-    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    background: var(--bg-secondary);
     color: var(--text-primary);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .url-input:focus,
 .username-input:focus {
     outline: none;
-    border-color: var(--btn-primary-bg);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
 .generate-btn {
@@ -423,7 +433,7 @@ body {
     font-weight: 600;
     background: var(--btn-primary-bg);
     color: var(--btn-primary-color);
-    border: none;
+    border: 1px solid var(--btn-primary-bg);
     border-radius: 0.5rem;
     cursor: pointer;
     transition: background-color 0.2s ease;
@@ -441,6 +451,12 @@ body {
 .input-help {
     color: var(--text-muted);
     font-size: 0.9rem;
+}
+
+/* Placeholder color consistency */
+input::placeholder,
+textarea::placeholder {
+    color: var(--placeholder-color);
 }
 
 .feature-section {
@@ -1017,27 +1033,10 @@ textarea:focus {
     font-size: 0.875rem;
 }
 
-/* Dark mode button styling */
-[data-theme="dark"] .btn {
-    border: 2px solid #fff;
-    background: #1a1a1a;
-    color: #fff;
-}
-
-[data-theme="dark"] .btn:hover {
-    background: #333;
-    border-color: #fff;
-}
-
+/* Dark mode buttons use variables above; keep border widths subtle */
+[data-theme="dark"] .btn,
 [data-theme="dark"] .btn-secondary {
-    border: 2px solid #fff;
-    background: #1a1a1a;
-    color: #fff;
-}
-
-[data-theme="dark"] .btn-secondary:hover {
-    background: #333;
-    border-color: #fff;
+    border-width: 1px;
 }
 
 /* Cards */
@@ -1345,43 +1344,22 @@ textarea:focus {
 
 /* iOS and Mobile Safari specific styles */
 @supports (-webkit-touch-callout: none) {
-    /* Force white background on all major containers */
+    /* Keep container backgrounds in sync with theme variables */
     .page,
     .container,
     .navigation,
     .home-container,
     .hero-section {
-        background: #ffffff !important;
+        background: var(--bg-primary) !important;
     }
 
-    /* Override any card backgrounds that might show blue */
     .feature-card,
     .info-card,
     .setup-card,
     .timestamp-card,
     .stat-card,
     .leaderboard-section {
-        background: #f8f9fa !important;
-    }
-
-    /* Dark mode overrides */
-    @media (prefers-color-scheme: dark) {
-        .page,
-        .container,
-        .navigation,
-        .home-container,
-        .hero-section {
-            background: #000000 !important;
-        }
-
-        .feature-card,
-        .info-card,
-        .setup-card,
-        .timestamp-card,
-        .stat-card,
-        .leaderboard-section {
-            background: #1c1c1e !important;
-        }
+        background: var(--bg-secondary) !important;
     }
 }
 

@@ -435,6 +435,10 @@ function toggleTheme() {
   document.documentElement.setAttribute("data-theme", newTheme);
   localStorage.setItem("theme", newTheme);
 
+  // Match browser UI (status bar) color
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', newTheme === 'dark' ? '#0b0f14' : '#ffffff');
+
   // Update icon
   const icon = document.getElementById("theme-icon");
   if (icon) {
@@ -451,6 +455,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const theme = savedTheme || (prefersDark ? "dark" : "light");
 
   document.documentElement.setAttribute("data-theme", theme);
+
+  // Ensure theme-color stays in sync on initial load (for Safari/iOS)
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.setAttribute('content', theme === 'dark' ? '#0b0f14' : '#ffffff');
 
   // Update icon
   const icon = document.getElementById("theme-icon");

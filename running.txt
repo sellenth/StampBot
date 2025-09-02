@@ -1,0 +1,10 @@
+fly mpg proxy
+fly mpg connect
+
+DELETE FROM your_table
+WHERE id IN (
+    SELECT id
+    FROM timestampts
+    ORDER BY updated_at desc
+    LIMIT 2
+);
