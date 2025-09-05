@@ -83,7 +83,17 @@
               <span class="tag user-tag">{timestamp.submitter_username}</span>
               <span class="tag channel-tag">{timestamp.channel_name}</span>
               <span class="tag date-tag">
-                {Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p")}
+                <time
+                  id={"time-#{timestamp.id}"}
+                  phx-hook="LocalTime"
+                  data-iso={
+                    case timestamp.inserted_at do
+                      %NaiveDateTime{} = ndt -> NaiveDateTime.to_iso8601(ndt) <> "Z"
+                      %DateTime{} = dt -> DateTime.to_iso8601(dt)
+                      other -> to_string(other)
+                    end
+                  }
+                >Loading…</time>
               </span>
               <%= case timestamp.youtube_comment_status do %>
                 <% :succeeded -> %>

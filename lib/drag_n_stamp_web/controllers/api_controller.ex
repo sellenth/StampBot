@@ -1,7 +1,7 @@
 defmodule DragNStampWeb.ApiController do
   use DragNStampWeb, :controller
   require Logger
-  alias DragNStamp.{Repo, Timestamp, YouTubeAPI}
+  alias DragNStamp.{Repo, Timestamp}
 
   def receive_url(conn, %{"url" => url} = params) do
     username =
@@ -505,15 +505,5 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  defp post_to_youtube(url, content) do
-    case YouTubeAPI.post_comment(url, content) do
-      {:ok, response} ->
-        Logger.info("Successfully posted comment to YouTube for URL: #{url}")
-        {:ok, response}
-      
-      {:error, reason} ->
-        Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{reason}")
-        {:error, reason}
-    end
-  end
+  # Note: direct posting helper removed in favor of DragNStamp.Commenter
 end

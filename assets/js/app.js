@@ -24,6 +24,27 @@ import topbar from "../vendor/topbar";
 
 let Hooks = {};
 
+Hooks.LocalTime = {
+  mounted() {
+    this.render();
+  },
+  updated() {
+    this.render();
+  },
+  render() {
+    const iso = this.el.dataset.iso;
+    if (!iso) return;
+    const dt = new Date(iso);
+    if (isNaN(dt.getTime())) return;
+    const opts = {
+      year: 'numeric', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    };
+    this.el.textContent = dt.toLocaleString(undefined, opts);
+    this.el.title = `UTC: ${iso}`;
+  }
+};
+
 Hooks.UsernameSetup = {
   mounted() {
     const savedUsername = localStorage.getItem("drag-n-stamp-username");
