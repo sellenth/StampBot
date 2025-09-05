@@ -23,7 +23,16 @@ defmodule DragNStamp.YouTubeAPI do
   def post_comment(video_url, comment_text) do
     with {:ok, video_id} <- extract_video_id(video_url),
          {:ok, access_token} <- get_valid_access_token() do
-      create_comment_thread(video_id, comment_text, access_token)
+      case create_comment_thread(video_id, comment_text, access_token) do
+        {:ok, _} = ok -> ok
+        {:error, :unauthorized} ->
+          # Try a one-time refresh + retry
+          case refresh_access_token() do
+            {:ok, refreshed} -> create_comment_thread(video_id, comment_text, refreshed)
+            {:error, _} -> {:error, :auth_required}
+          end
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -185,35 +194,43 @@ defmodule DragNStamp.YouTubeAPI do
             {:error, "Failed to parse response"}
         end
       
+      {:ok, %Finch.Response{status: 401, body: body}} ->
+        Logger.error("YouTube API unauthorized: #{body}")
+        {:error, :unauthorized}
+
       {:ok, %Finch.Response{status: 403, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"error" => %{"message" => message}}} ->
             Logger.error("YouTube API quota/permission error: #{message}")
-            {:error, "Quota exceeded or insufficient permissions: #{message}"}
+            cond do
+              String.contains?(String.downcase(message), "quota") -> {:error, :quota}
+              String.contains?(String.downcase(message), "permission") -> {:error, :unauthorized}
+              true -> {:error, :forbidden}
+            end
           
           _ ->
             Logger.error("YouTube API 403 error: #{body}")
-            {:error, "Permission denied or quota exceeded"}
+            {:error, :forbidden}
         end
       
       {:ok, %Finch.Response{status: 400, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"error" => %{"message" => message}}} ->
             Logger.error("YouTube API bad request: #{message}")
-            {:error, "Bad request: #{message}"}
+            {:error, :bad_request}
           
           _ ->
             Logger.error("YouTube API 400 error: #{body}")
-            {:error, "Bad request"}
+            {:error, :bad_request}
         end
       
       {:ok, %Finch.Response{status: status, body: body}} ->
         Logger.error("YouTube API error #{status}: #{body}")
-        {:error, "API request failed with status #{status}"}
+        {:error, :api_error}
       
       {:error, reason} ->
         Logger.error("YouTube API request failed: #{inspect(reason)}")
-        {:error, "Request failed: #{inspect(reason)}"}
+        {:error, :request_failed}
     end
   end
 end

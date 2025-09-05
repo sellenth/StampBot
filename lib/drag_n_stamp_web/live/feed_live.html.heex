@@ -85,6 +85,29 @@
               <span class="tag date-tag">
                 {Calendar.strftime(timestamp.inserted_at, "%b %d, %Y %I:%M %p")}
               </span>
+              <%= case timestamp.youtube_comment_status do %>
+                <% :succeeded -> %>
+                  <span class="tag" title="StampBot commented">✅ Commented</span>
+                <% :pending -> %>
+                  <span class="tag" title="Posting to YouTube…">⏳ Posting…</span>
+                <% :failed -> %>
+                  <span class="tag" title={timestamp.youtube_comment_error || "Comment failed"}>⚠️ Failed</span>
+                <% :auth_required -> %>
+                  <span class="tag" title="Auth needed to post">🔒 Auth required</span>
+                <% _ -> %>
+                  <span class="tag" title="Not commented yet">💬 Not commented</span>
+              <% end %>
+              <%= if timestamp.youtube_comment_status in [:failed, :not_attempted, :auth_required] do %>
+                <button
+                  class="retry-btn"
+                  phx-click="retry_comment"
+                  phx-value-id={timestamp.id}
+                  phx-disable-with="Retrying…"
+                  title="Retry posting the comment"
+                >
+                  ↻ Retry Comment
+                </button>
+              <% end %>
             </div>
 
             <div class="timestamp-url">

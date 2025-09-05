@@ -58,6 +58,29 @@ defmodule DragNStampWeb.FeedLive do
     {:noreply, assign(socket, page: String.to_integer(page))}
   end
 
+  def handle_event("retry_comment", %{"id" => id}, socket) do
+    case Repo.get(Timestamp, id) do
+      nil ->
+        {:noreply, socket}
+
+      ts ->
+        result = DragNStamp.Commenter.post_for_timestamp(ts)
+
+        updated_ts =
+          case result do
+            {:ok, updated, _info} -> updated
+            _ -> ts
+          end
+
+        updated_list =
+          Enum.map(socket.assigns.timestamps, fn t ->
+            if t.id == updated_ts.id, do: updated_ts, else: t
+          end)
+
+        {:noreply, assign(socket, :timestamps, updated_list)}
+    end
+  end
+
   defp sort_timestamps(timestamps, sort_by) do
     case sort_by do
       "newest" -> Enum.sort_by(timestamps, & &1.inserted_at, {:desc, NaiveDateTime})

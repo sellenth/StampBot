@@ -292,30 +292,38 @@ defmodule DragNStampWeb.ApiController do
   defp distill_existing_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
       {:ok, distilled_content} ->
-        # Update the existing timestamp record and auto-post comment
+        # Update the existing timestamp record with distilled content
         updated_attrs = %{distilled_content: distilled_content}
-        
-        # Check if we should post a comment (only if not posted yet)
-        {updated_attrs, comment_posted} = if not timestamp.youtube_comment_posted do
-          case post_to_youtube(url, distilled_content) do
-            {:ok, _} -> 
-              Logger.info("Successfully posted comment to YouTube for URL: #{url}")
-              {Map.put(updated_attrs, :youtube_comment_posted, true), true}
-            {:error, reason} ->
-              Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{reason}")
-              {updated_attrs, false}
-          end
-        else
-          Logger.info("Comment already posted for URL: #{url}, skipping")
-          {updated_attrs, false}
-        end
-        
-        case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
-          {:ok, _updated_timestamp} ->
-            Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
 
-          {:error, changeset} ->
-            Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
+        updated_timestamp =
+          case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
+            {:ok, updated} ->
+              updated
+            {:error, changeset} ->
+              Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
+              timestamp
+          end
+
+        # Try posting a comment idempotently using the Commenter
+        {comment_posted, _comment_status} =
+          case DragNStamp.Commenter.post_for_timestamp(updated_timestamp) do
+            {:ok, _ts, :ok} ->
+              Logger.info("Successfully posted comment to YouTube for URL: #{url}")
+              {true, :ok}
+            {:ok, _ts, {:skipped, _}} ->
+              {false, :skipped}
+            {:ok, _ts, {:error, reason}} ->
+              Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{inspect(reason)}")
+              {false, :error}
+            other ->
+              Logger.error("Unexpected commenter response: #{inspect(other)}")
+              {false, :error}
+          end
+
+        case updated_timestamp do
+          %Timestamp{} ->
+            Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
+          _ -> :ok
         end
 
         response = %{
@@ -346,25 +354,37 @@ defmodule DragNStampWeb.ApiController do
   defp distill_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
       {:ok, distilled_content} ->
-        # Update the timestamp record with distilled content and auto-post comment
+        # Update the timestamp record with distilled content
         updated_attrs = %{distilled_content: distilled_content}
-        
-        # Always post a comment for new distilled timestamps (this is the first distillation)
-        {updated_attrs, comment_posted} = case post_to_youtube(url, distilled_content) do
-          {:ok, _} -> 
-            Logger.info("Successfully posted comment to YouTube for URL: #{url}")
-            {Map.put(updated_attrs, :youtube_comment_posted, true), true}
-          {:error, reason} ->
-            Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{reason}")
-            {updated_attrs, false}
-        end
-        
-        case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
-          {:ok, _updated_timestamp} ->
-            Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
 
-          {:error, changeset} ->
-            Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
+        updated_timestamp =
+          case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
+            {:ok, updated} -> updated
+            {:error, changeset} ->
+              Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
+              timestamp
+          end
+
+        # Attempt to post comment via Commenter (first time; idempotent)
+        {comment_posted, _comment_status} =
+          case DragNStamp.Commenter.post_for_timestamp(updated_timestamp) do
+            {:ok, _ts, :ok} ->
+              Logger.info("Successfully posted comment to YouTube for URL: #{url}")
+              {true, :ok}
+            {:ok, _ts, {:skipped, _}} ->
+              {false, :skipped}
+            {:ok, _ts, {:error, reason}} ->
+              Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{inspect(reason)}")
+              {false, :error}
+            other ->
+              Logger.error("Unexpected commenter response: #{inspect(other)}")
+              {false, :error}
+          end
+
+        case updated_timestamp do
+          %Timestamp{} ->
+            Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
+          _ -> :ok
         end
 
         response = %{

@@ -1,0 +1,3 @@
+mix assets.build (dev)
+mix assets.deploy (prod)
+mix ecto.migrate
