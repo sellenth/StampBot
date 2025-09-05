@@ -35,9 +35,9 @@ mkdir -p logs
 echo "🔄 Starting parallel deployments..."
 
 # Deploy to dev in background
-echo "🟡 Starting dev deployment..."
-./scripts/deploy.sh dev > logs/deploy-dev.log 2>&1 &
-DEV_PID=$!
+# echo "🟡 Starting dev deployment..."
+# ./scripts/deploy.sh dev > logs/deploy-dev.log 2>&1 &
+# DEV_PID=$!
 
 # Deploy to prod in background  
 echo "🔴 Starting prod deployment..."
