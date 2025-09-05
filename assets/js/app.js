@@ -33,14 +33,18 @@ Hooks.LocalTime = {
   },
   render() {
     const iso = this.el.dataset.iso;
+    const variant = this.el.dataset.variant || 'datetime';
     if (!iso) return;
     const dt = new Date(iso);
     if (isNaN(dt.getTime())) return;
-    const opts = {
-      year: 'numeric', month: 'short', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: true
-    };
-    this.el.textContent = dt.toLocaleString(undefined, opts);
+    const dateOpts = { year: 'numeric', month: 'short', day: '2-digit' };
+    const timeOpts = { hour: '2-digit', minute: '2-digit', hour12: true };
+    if (variant === 'date') {
+      this.el.textContent = dt.toLocaleDateString(undefined, dateOpts);
+    } else {
+      // default: datetime
+      this.el.textContent = `${dt.toLocaleDateString(undefined, dateOpts)} ${dt.toLocaleTimeString(undefined, timeOpts)}`;
+    }
     this.el.title = `UTC: ${iso}`;
   }
 };

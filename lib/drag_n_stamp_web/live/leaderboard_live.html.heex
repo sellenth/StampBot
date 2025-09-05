@@ -55,7 +55,19 @@
                 <div class="contributor-info">
                   <div class="contributor-name">{submitter}</div>
                   <div class="contributor-meta">
-                    Last active: {Calendar.strftime(last_activity, "%b %d, %Y")}
+                    Last active:
+                    <time
+                      id={"last-activity-#{index}"}
+                      phx-hook="LocalTime"
+                      data-iso={
+                        case last_activity do
+                          %NaiveDateTime{} = ndt -> NaiveDateTime.to_iso8601(ndt) <> "Z"
+                          %DateTime{} = dt -> DateTime.to_iso8601(dt)
+                          other -> to_string(other)
+                        end
+                      }
+                      data-variant="date"
+                    >Loading…</time>
                   </div>
                 </div>
                 <div class="contribution-count">
@@ -114,7 +126,17 @@
                 <span class="activity-channel">{timestamp.channel_name}</span>
               </div>
               <div class="activity-time">
-                {Calendar.strftime(timestamp.inserted_at, "%b %d, %I:%M %p")}
+                <time
+                  id={"activity-#{timestamp.id}"}
+                  phx-hook="LocalTime"
+                  data-iso={
+                    case timestamp.inserted_at do
+                      %NaiveDateTime{} = ndt -> NaiveDateTime.to_iso8601(ndt) <> "Z"
+                      %DateTime{} = dt -> DateTime.to_iso8601(dt)
+                      other -> to_string(other)
+                    end
+                  }
+                >Loading…</time>
               </div>
             </div>
           <% end %>
