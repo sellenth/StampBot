@@ -107,8 +107,13 @@ function createVideoOverlay(videoElement) {
     button.style.background = '#ff4444';
   });
   
+  // Prevent accidental double-submits
+  let submitting = false;
+
   // Add click handler
   button.addEventListener('click', async () => {
+    if (submitting) return;
+    submitting = true;
     const videoData = getVideoData();
     if (!videoData.videoId) {
       alert('Could not detect video. Please make sure you are on a YouTube video page.');
@@ -150,6 +155,8 @@ function createVideoOverlay(videoElement) {
         </svg>
         Stamp
       `;
+      // allow another submit after cleanup
+      submitting = false;
     }
   });
 

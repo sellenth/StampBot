@@ -41,5 +41,6 @@ defmodule DragNStamp.Timestamp do
     |> validate_format(:url, ~r/^https?:\/\/(.*youtube.*\/watch\?v=.*|youtu\.be\/.*)/,
       message: "must be a valid YouTube URL"
     )
+    |> unique_constraint(:url)
   end
 end

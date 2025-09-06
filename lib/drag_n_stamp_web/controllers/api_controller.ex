@@ -125,9 +125,45 @@ defmodule DragNStampWeb.ApiController do
         distill_existing_timestamps(conn, api_key, timestamp, content, url)
 
       nil ->
-        Logger.info("No existing timestamps found for URL: #{url}, calling Gemini API")
-        generate_new_timestamps(conn, api_key, channel_name, submitter_username, url)
+        Logger.info(
+          "No existing timestamps found for URL: #{url}, attempting to acquire lock and call Gemini API"
+        )
+
+        case acquire_url_lock(url) do
+          :acquired ->
+            try do
+              generate_new_timestamps(conn, api_key, channel_name, submitter_username, url)
+            after
+              release_url_lock(url)
+            end
+
+          :in_flight ->
+            Logger.info("Duplicate request in-flight for URL: #{url}, returning 202 Accepted")
+
+            conn
+            |> put_status(:accepted)
+            |> json(%{
+              status: "processing",
+              message: "A request for this URL is already in progress"
+            })
+        end
     end
+  end
+
+  # Lightweight distributed lock to prevent concurrent processing of the same URL
+  defp acquire_url_lock(url) when is_binary(url) do
+    key = {:gemini_url_lock, url}
+
+    case :global.set_lock(key, [node()], 0) do
+      true -> :acquired
+      false -> :in_flight
+    end
+  end
+
+  defp release_url_lock(url) when is_binary(url) do
+    key = {:gemini_url_lock, url}
+    :global.del_lock(key)
+    :ok
   end
 
   defp generate_new_timestamps(conn, api_key, channel_name, submitter_username, url) do
@@ -165,6 +201,7 @@ defmodule DragNStampWeb.ApiController do
             content: response
           }
 
+          # Ensure idempotency at DB level as well: unique index on :url
           case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
             {:ok, timestamp} ->
               Logger.info("Timestamp saved to database for URL: #{url}")
@@ -179,13 +216,24 @@ defmodule DragNStampWeb.ApiController do
               distill_timestamps(conn, api_key, timestamp, response, url)
 
             {:error, changeset} ->
-              Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
+              # If the error is due to unique constraint on URL, fetch existing and return
+              if url_conflict?(changeset) do
+                Logger.info(
+                  "Another process saved timestamps for URL: #{url} while processing. Returning existing record."
+                )
 
-              json(conn, %{
-                status: "success",
-                response: response,
-                cached: false
-              })
+                case Repo.get_by(Timestamp, url: url) do
+                  %Timestamp{distilled_content: dist} when not is_nil(dist) ->
+                    json(conn, %{status: "success", response: dist, cached: true})
+
+                  _ ->
+                    # Fallback: return what we have
+                    json(conn, %{status: "success", response: response, cached: false})
+                end
+              else
+                Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
+                json(conn, %{status: "success", response: response, cached: false})
+              end
           end
 
         {:error, reason} ->
@@ -204,6 +252,13 @@ defmodule DragNStampWeb.ApiController do
         message: "GEMINI_API_KEY environment variable not set"
       })
     end
+  end
+
+  defp url_conflict?(%Ecto.Changeset{errors: errors}) do
+    Enum.any?(errors, fn
+      {:url, {_, [constraint: :unique, constraint_name: _]}} -> true
+      _ -> false
+    end)
   end
 
   defp call_gemini_api_with_retry(prompt, api_key, video_url, attempt \\ 1) do
@@ -299,6 +354,7 @@ defmodule DragNStampWeb.ApiController do
           case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
             {:ok, updated} ->
               updated
+
             {:error, changeset} ->
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
               timestamp
@@ -310,11 +366,17 @@ defmodule DragNStampWeb.ApiController do
             {:ok, _ts, :ok} ->
               Logger.info("Successfully posted comment to YouTube for URL: #{url}")
               {true, :ok}
+
             {:ok, _ts, {:skipped, _}} ->
               {false, :skipped}
+
             {:ok, _ts, {:error, reason}} ->
-              Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{inspect(reason)}")
+              Logger.error(
+                "Failed to post comment to YouTube for URL: #{url}, reason: #{inspect(reason)}"
+              )
+
               {false, :error}
+
             other ->
               Logger.error("Unexpected commenter response: #{inspect(other)}")
               {false, :error}
@@ -323,7 +385,9 @@ defmodule DragNStampWeb.ApiController do
         case updated_timestamp do
           %Timestamp{} ->
             Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
-          _ -> :ok
+
+          _ ->
+            :ok
         end
 
         response = %{
@@ -331,12 +395,13 @@ defmodule DragNStampWeb.ApiController do
           response: distilled_content,
           cached: true
         }
-        
-        response = if comment_posted do
-          Map.put(response, :youtube_comment, "posted")
-        else
-          response
-        end
+
+        response =
+          if comment_posted do
+            Map.put(response, :youtube_comment, "posted")
+          else
+            response
+          end
 
         json(conn, response)
 
@@ -359,7 +424,9 @@ defmodule DragNStampWeb.ApiController do
 
         updated_timestamp =
           case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
-            {:ok, updated} -> updated
+            {:ok, updated} ->
+              updated
+
             {:error, changeset} ->
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
               timestamp
@@ -371,11 +438,17 @@ defmodule DragNStampWeb.ApiController do
             {:ok, _ts, :ok} ->
               Logger.info("Successfully posted comment to YouTube for URL: #{url}")
               {true, :ok}
+
             {:ok, _ts, {:skipped, _}} ->
               {false, :skipped}
+
             {:ok, _ts, {:error, reason}} ->
-              Logger.error("Failed to post comment to YouTube for URL: #{url}, reason: #{inspect(reason)}")
+              Logger.error(
+                "Failed to post comment to YouTube for URL: #{url}, reason: #{inspect(reason)}"
+              )
+
               {false, :error}
+
             other ->
               Logger.error("Unexpected commenter response: #{inspect(other)}")
               {false, :error}
@@ -384,7 +457,9 @@ defmodule DragNStampWeb.ApiController do
         case updated_timestamp do
           %Timestamp{} ->
             Logger.info("Distilled timestamps saved to database for URL: #{timestamp.url}")
-          _ -> :ok
+
+          _ ->
+            :ok
         end
 
         response = %{
@@ -393,11 +468,12 @@ defmodule DragNStampWeb.ApiController do
           cached: false
         }
 
-        response = if comment_posted do
-          Map.put(response, :youtube_comment, "posted")
-        else
-          response
-        end
+        response =
+          if comment_posted do
+            Map.put(response, :youtube_comment, "posted")
+          else
+            response
+          end
 
         json(conn, response)
 
