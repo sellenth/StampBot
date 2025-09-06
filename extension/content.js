@@ -141,7 +141,7 @@ function createVideoOverlay(videoElement) {
       });
       
       if (response.ok) {
-        window.open('https://stamp-bot.com', '_blank');
+        window.open('https://stamp-bot.com/feed', '_blank');
       } else {
         throw new Error('Failed to generate timestamps');
       }

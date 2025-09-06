@@ -7,6 +7,7 @@
 - extension favicon ?
 - redirect to /feed on extension generation process
 - fix firefox extension
+- Firefox/Zen: 'appears to be corrupt' — sign XPI via AMO (or allow unsigned in dev), ensure manifest at archive root and include browser_specific_settings.gecko.id
 - fix dark mode on ios
 - dark mode on extension only affects the input boxes. want the background to change too. (might need me to debug)
 - https://fly.io/docs/networking/custom-domain/#i-use-cloudflare-and-there-seems-to-be-a-problem-issuing-or-validating-my-fly-io-tls-certificatettps://stamp-bot.com/?url=
