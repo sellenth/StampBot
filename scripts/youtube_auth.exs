@@ -2,6 +2,7 @@
 
 # YouTube OAuth 2.0 Authentication Script for StampBot
 # Usage: mix run scripts/youtube_auth.exs
+# fly secrets set -a drag-n-stamp-prod 
 
 defmodule YouTubeAuth do
   @moduledoc """
