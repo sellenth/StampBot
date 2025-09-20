@@ -11,7 +11,7 @@ defmodule Mix.Tasks.Stampbot.GenerateSeoPages do
   import Ecto.Query
 
   alias DragNStamp.{Repo, Timestamp}
-  alias DragNStamp.SEO.{ChapterParser, StaticPageRenderer, VideoMetadata}
+  alias DragNStamp.SEO.{ChapterParser, PagePath, StaticPageRenderer, VideoMetadata}
 
   @shortdoc "Generate static SEO pages for timestamps"
 
@@ -48,10 +48,9 @@ defmodule Mix.Tasks.Stampbot.GenerateSeoPages do
   end
 
   defp do_persist_page(%Timestamp{} = timestamp, output_dir, extra_opts) do
-    slug = slugify(timestamp)
-    filename = "#{timestamp.id}-#{slug}.html"
+    filename = PagePath.filename(timestamp)
     file_path = Path.join(output_dir, filename)
-    page_path = "/seo/#{filename}"
+    page_path = PagePath.page_path(timestamp)
 
     chapters = ChapterParser.from_timestamp(timestamp)
     video_id = timestamp.video_id || extract_video_id(timestamp.url)
@@ -112,35 +111,6 @@ defmodule Mix.Tasks.Stampbot.GenerateSeoPages do
       nil -> query
       limit when is_integer(limit) and limit > 0 -> limit(query, ^limit)
       _ -> query
-    end
-  end
-
-  defp slugify(%Timestamp{} = timestamp) do
-    source =
-      cond do
-        is_binary(timestamp.video_title) and timestamp.video_title != "" ->
-          timestamp.video_title
-
-        is_binary(timestamp.channel_name) and timestamp.channel_name != "" ->
-          timestamp.channel_name
-
-        is_binary(timestamp.distilled_content) and timestamp.distilled_content != "" ->
-          timestamp.distilled_content
-
-        is_binary(timestamp.content) ->
-          timestamp.content
-
-        true ->
-          "timestamp"
-      end
-
-    source
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/u, "-")
-    |> String.trim("-")
-    |> case do
-      "" -> "timestamp"
-      slug -> String.slice(slug, 0, 60)
     end
   end
 

@@ -41,6 +41,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     duration = Map.get(opts, :video_duration) || timestamp.video_duration_seconds
     channel_meta = build_channel_meta(timestamp)
     channel_name = Map.get(opts, :channel_name) || timestamp.channel_name
+    feed_url = Map.get(opts, :feed_url, base_url <> "/feed")
 
     structured_data =
       build_json_ld(%{
@@ -79,6 +80,9 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
         header { text-align: center; margin-bottom: 2.5rem; }
         header h1 { margin: 0 0 0.75rem; font-size: 2.5rem; line-height: 1.1; }
         header p { margin: 0 auto; max-width: 720px; color: #94a3b8; font-size: 1.05rem; }
+        .page-nav { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+        .page-nav a { color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; }
+        .page-nav a:hover { text-decoration: underline; }
         .hero { display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 2rem; }
         .hero img { border-radius: 18px; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45); width: 100%; max-width: 720px; height: auto; }
         .hero a { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 999px; background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; text-decoration: none; font-weight: 600; }
@@ -100,6 +104,9 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     <body>
       <main>
         <header>
+          <nav class="page-nav">
+            <a href="#{html_escape(feed_url)}">← Back to Timestamp Feed</a>
+          </nav>
           <h1>#{html_escape(video_title)}</h1>
           <p>#{html_escape(summary)}</p>
           #{channel_meta}

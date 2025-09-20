@@ -1,6 +1,7 @@
 defmodule DragNStampWeb.FeedLive do
   use DragNStampWeb, :live_view
   alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.SEO.PagePath
   import Ecto.Query
   require Logger
 
@@ -123,5 +124,11 @@ defmodule DragNStampWeb.FeedLive do
   defp total_pages(assigns) do
     total = length(filtered_timestamps(assigns))
     div(total + assigns.per_page - 1, assigns.per_page)
+  end
+
+  defp seo_page_path(%Timestamp{id: nil}), do: nil
+
+  defp seo_page_path(%Timestamp{} = timestamp) do
+    PagePath.page_path(timestamp)
   end
 end

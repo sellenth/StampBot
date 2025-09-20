@@ -93,7 +93,9 @@
                       other -> to_string(other)
                     end
                   }
-                >Loading…</time>
+                >
+                  Loading…
+                </time>
               </span>
               <%= case timestamp.youtube_comment_status do %>
                 <% :succeeded -> %>
@@ -101,7 +103,9 @@
                 <% :pending -> %>
                   <span class="tag" title="Posting to YouTube…">⏳ Posting…</span>
                 <% :failed -> %>
-                  <span class="tag" title={timestamp.youtube_comment_error || "Comment failed"}>⚠️ Failed</span>
+                  <span class="tag" title={timestamp.youtube_comment_error || "Comment failed"}>
+                    ⚠️ Failed
+                  </span>
                 <% :auth_required -> %>
                   <span class="tag" title="Auth needed to post">🔒 Auth required</span>
                 <% _ -> %>
@@ -117,6 +121,16 @@
                 >
                   ↻ Retry Comment
                 </button>
+              <% end %>
+              <%= if path = seo_page_path(timestamp) do %>
+                <.link
+                  href={path}
+                  class="seo-page-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View Timestamp Details
+                </.link>
               <% end %>
             </div>
 
