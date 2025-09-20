@@ -8,6 +8,12 @@ defmodule DragNStamp.Timestamp do
     field :submitter_username, :string
     field :content, :string
     field :distilled_content, :string
+    field :video_id, :string
+    field :video_title, :string
+    field :video_description, :string
+    field :video_thumbnail_url, :string
+    field :video_duration_seconds, :integer
+    field :video_published_at, :utc_datetime
 
     field :youtube_comment_status, Ecto.Enum,
       values: [:not_attempted, :pending, :succeeded, :failed, :auth_required],
@@ -30,6 +36,12 @@ defmodule DragNStamp.Timestamp do
       :submitter_username,
       :content,
       :distilled_content,
+      :video_id,
+      :video_title,
+      :video_description,
+      :video_thumbnail_url,
+      :video_duration_seconds,
+      :video_published_at,
       :youtube_comment_status,
       :youtube_comment_error,
       :youtube_comment_last_attempt_at,

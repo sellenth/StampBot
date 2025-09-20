@@ -2,6 +2,7 @@ defmodule DragNStampWeb.ApiController do
   use DragNStampWeb, :controller
   require Logger
   alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.SEO.VideoMetadata
 
   def receive_url(conn, %{"url" => url} = params) do
     username =
@@ -204,16 +205,18 @@ defmodule DragNStampWeb.ApiController do
           # Ensure idempotency at DB level as well: unique index on :url
           case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
             {:ok, timestamp} ->
+              enriched_timestamp = ensure_video_metadata(timestamp)
+
               Logger.info("Timestamp saved to database for URL: #{url}")
               # Broadcast the new timestamp for LiveView updates
               Phoenix.PubSub.broadcast(
                 DragNStamp.PubSub,
                 "timestamps",
-                {:timestamp_created, timestamp}
+                {:timestamp_created, enriched_timestamp}
               )
 
               # Now distill the timestamps
-              distill_timestamps(conn, api_key, timestamp, response, url)
+              distill_timestamps(conn, api_key, enriched_timestamp, response, url)
 
             {:error, changeset} ->
               # If the error is due to unique constraint on URL, fetch existing and return
@@ -222,7 +225,7 @@ defmodule DragNStampWeb.ApiController do
                   "Another process saved timestamps for URL: #{url} while processing. Returning existing record."
                 )
 
-                case Repo.get_by(Timestamp, url: url) do
+                case Repo.get_by(Timestamp, url: url) |> ensure_video_metadata() do
                   %Timestamp{distilled_content: dist} when not is_nil(dist) ->
                     json(conn, %{status: "success", response: dist, cached: true})
 
@@ -259,6 +262,27 @@ defmodule DragNStampWeb.ApiController do
       {:url, {_, [constraint: :unique, constraint_name: _]}} -> true
       _ -> false
     end)
+  end
+
+  defp ensure_video_metadata(nil), do: nil
+
+  defp ensure_video_metadata(%Timestamp{} = timestamp) do
+    if metadata_ingest_enabled?() do
+      case VideoMetadata.ensure_metadata(timestamp) do
+        {:ok, updated} ->
+          updated
+
+        {:error, reason} ->
+          Logger.debug("Metadata enrichment skipped for #{timestamp.url}: #{inspect(reason)}")
+          timestamp
+      end
+    else
+      timestamp
+    end
+  end
+
+  defp metadata_ingest_enabled? do
+    Application.get_env(:drag_n_stamp, :fetch_video_metadata_on_ingest, true)
   end
 
   defp call_gemini_api_with_retry(prompt, api_key, video_url, attempt \\ 1) do
