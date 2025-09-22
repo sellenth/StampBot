@@ -37,3 +37,4 @@ config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
 config :drag_n_stamp, :fetch_video_metadata_on_ingest, false
+config :drag_n_stamp, :seo_fetch_metadata, false
