@@ -493,12 +493,12 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     end
   end
 
-  defp format_published_at(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %e, %Y")
+  defp format_published_at(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
 
   defp format_published_at(%NaiveDateTime{} = ndt) do
     case DateTime.from_naive(ndt, "Etc/UTC") do
       {:ok, dt} -> format_published_at(dt)
-      _ -> Calendar.strftime(NaiveDateTime.to_date(ndt), "%b %e, %Y")
+      _ -> Calendar.strftime(NaiveDateTime.to_date(ndt), "%b %d, %Y")
     end
   end
 

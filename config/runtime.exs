@@ -45,8 +45,15 @@ if config_env() == :prod do
   config :drag_n_stamp, DragNStamp.Repo,
     ssl: [verify: :verify_none],
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    socket_options: maybe_ipv6
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "15"),
+    socket_options: maybe_ipv6,
+    # Optimize for production connection handling
+    checkout_timeout: 10_000,
+    ownership_timeout: 15_000,
+    queue_target: 2_000,
+    queue_interval: 1_000,
+    # Ensure connections are cleaned up properly
+    after_connect: {Postgrex, :query!, ["SET application_name = 'drag_n_stamp'", []]}
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
