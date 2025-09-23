@@ -99,17 +99,17 @@
               </span>
               <%= case timestamp.youtube_comment_status do %>
                 <% :succeeded -> %>
-                  <span class="tag" title="StampBot commented">✅ Commented</span>
+                  <span class="tag" title="StampBot commented">Commented</span>
                 <% :pending -> %>
-                  <span class="tag" title="Posting to YouTube…">⏳ Posting…</span>
+                  <span class="tag" title="Posting to YouTube…">Posting…</span>
                 <% :failed -> %>
                   <span class="tag" title={timestamp.youtube_comment_error || "Comment failed"}>
-                    ⚠️ Failed
+                    Failed
                   </span>
                 <% :auth_required -> %>
-                  <span class="tag" title="Auth needed to post">🔒 Auth required</span>
+                  <span class="tag" title="Auth needed to post">Auth required</span>
                 <% _ -> %>
-                  <span class="tag" title="Not commented yet">💬 Not commented</span>
+                  <span class="tag" title="Not commented yet">Not commented</span>
               <% end %>
               <%= if timestamp.youtube_comment_status in [:failed, :not_attempted, :auth_required] do %>
                 <button
@@ -122,16 +122,6 @@
                   ↻ Retry Comment
                 </button>
               <% end %>
-              <%= if path = seo_page_path(timestamp) do %>
-                <.link
-                  href={path}
-                  class="seo-page-link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View Timestamp Details
-                </.link>
-              <% end %>
             </div>
 
             <div class="timestamp-url">
@@ -141,11 +131,23 @@
             </div>
 
             <div class="timestamp-content">
-              <h4>
-                {if timestamp.distilled_content,
-                  do: "Generated Timestamps:",
-                  else: "Raw time data:"}
-              </h4>
+              <div class="timestamp-content-header">
+                <h4>
+                  {if timestamp.distilled_content,
+                    do: "Generated Timestamps:",
+                    else: "Raw time data:"}
+                </h4>
+                <%= if path = seo_page_path(timestamp) do %>
+                  <.link
+                    href={path}
+                    class="seo-page-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View Timestamp Page
+                  </.link>
+                <% end %>
+              </div>
               <div class="timestamps-container">
                 <pre
                   class="timestamps-text"
@@ -158,7 +160,7 @@
                   onclick={"copyToClipboard('timestamps-#{timestamp.id}')"}
                   title="Copy to clipboard"
                 >
-                  📋
+                  Copy
                 </button>
               </div>
             </div>

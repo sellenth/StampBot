@@ -75,29 +75,193 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
       #{meta_tags(video_title, summary, canonical_url, thumbnail_url, site_name)}
       <script type=\"application/ld+json\">#{structured_data}</script>
       <style>
-        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #0f172a; color: #e2e8f0; }
+        :root {
+          --bg-primary: #ffffff;
+          --bg-secondary: #f8f8f8;
+          --bg-tertiary: #f0f0f0;
+          --text-primary: #0b0b0b;
+          --text-secondary: #4b5563;
+          --text-muted: #6b7280;
+          --border-color: #e5e7eb;
+          --accent-color: #3b82f6;
+          --btn-primary-bg: #3b82f6;
+          --btn-primary-color: #ffffff;
+          --btn-primary-hover: #2563eb;
+          --shadow-light: rgba(0, 0, 0, 0.1);
+        }
+        @media (prefers-color-scheme: dark) {
+          :root {
+            --bg-primary: #0b0f14;
+            --bg-secondary: #12161c;
+            --bg-tertiary: #1b222c;
+            --text-primary: #e5e7eb;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: #2a3340;
+            --accent-color: #60a5fa;
+            --btn-primary-bg: #60a5fa;
+            --btn-primary-color: #0b0f14;
+            --btn-primary-hover: #3b82f6;
+            --shadow-light: rgba(0, 0, 0, 0.3);
+          }
+        }
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; 
+          margin: 0; 
+          padding: 0; 
+          background: var(--bg-primary); 
+          color: var(--text-primary);
+          line-height: 1.6;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
         main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
         header { text-align: center; margin-bottom: 2.5rem; }
-        header h1 { margin: 0 0 0.75rem; font-size: 2.5rem; line-height: 1.1; }
-        header p { margin: 0 auto; max-width: 720px; color: #94a3b8; font-size: 1.05rem; }
-        .page-nav { display: flex; justify-content: center; margin-bottom: 1.5rem; }
-        .page-nav a { color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; }
-        .page-nav a:hover { text-decoration: underline; }
-        .hero { display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 2rem; }
-        .hero img { border-radius: 18px; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45); width: 100%; max-width: 720px; height: auto; }
-        .hero a { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 999px; background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; text-decoration: none; font-weight: 600; }
-        section { background: rgba(15, 23, 42, 0.75); border-radius: 20px; padding: 1.75rem; margin-bottom: 2rem; box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.1), 0 20px 45px rgba(15, 23, 42, 0.35); }
-        section h2 { margin-top: 0; font-size: 1.5rem; }
-        ol { padding-left: 1.25rem; }
-        li { margin-bottom: 0.75rem; }
-        li a { color: #38bdf8; font-weight: 600; text-decoration: none; }
-        pre { background: rgba(15, 23, 42, 0.65); border-radius: 16px; padding: 1rem; overflow-x: auto; color: #cbd5f5; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
-        .channel-meta { display: flex; gap: 1rem; flex-wrap: wrap; color: #94a3b8; margin-top: 1rem; font-size: 0.95rem; align-items: center; }
-        .channel-meta .separator { color: #475569; }
-        footer { text-align: center; color: #64748b; font-size: 0.85rem; margin-top: 3rem; }
+        header h1 { 
+          margin: 0 0 0.75rem; 
+          font-size: 2.5rem; 
+          line-height: 1.1;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+        header p { 
+          margin: 0 auto; 
+          max-width: 720px; 
+          color: var(--text-secondary); 
+          font-size: 1.05rem;
+        }
+        .page-nav { 
+          display: flex; 
+          justify-content: center; 
+          margin-bottom: 1.5rem;
+        }
+        .page-nav a { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 0.35rem;
+          padding: 0.5rem 1rem;
+          background: var(--btn-primary-bg);
+          color: var(--btn-primary-color);
+          text-decoration: none;
+          font-weight: 600;
+          border-radius: 0.5rem;
+          border: 1px solid var(--btn-primary-bg);
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 3px var(--shadow-light);
+        }
+        .page-nav a:hover { 
+          background: var(--btn-primary-hover);
+          border-color: var(--btn-primary-hover);
+          transform: translateY(-1px);
+          box-shadow: 0 2px 6px var(--shadow-light);
+        }
+        .hero { 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          gap: 1rem; 
+          margin-bottom: 2rem;
+        }
+        .hero img { 
+          border-radius: 0.75rem; 
+          box-shadow: 0 10px 25px var(--shadow-light); 
+          width: 100%; 
+          max-width: 720px; 
+          height: auto;
+          border: 1px solid var(--border-color);
+        }
+        .hero a { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 0.5rem; 
+          padding: 0.75rem 1.5rem;
+          border-radius: 0.5rem;
+          background: var(--btn-primary-bg);
+          color: var(--btn-primary-color);
+          text-decoration: none;
+          font-weight: 600;
+          border: 1px solid var(--btn-primary-bg);
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 8px var(--shadow-light);
+        }
+        .hero a:hover {
+          background: var(--btn-primary-hover);
+          border-color: var(--btn-primary-hover);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px var(--shadow-light);
+        }
+        section { 
+          background: var(--bg-secondary); 
+          border-radius: 0.75rem; 
+          padding: 1.75rem; 
+          margin-bottom: 2rem; 
+          border: 1px solid var(--border-color);
+          box-shadow: 0 2px 8px var(--shadow-light);
+        }
+        section h2 { 
+          margin-top: 0; 
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        ul { padding-left: 1.25rem; list-style-type: none; }
+        li { 
+          margin-bottom: 0.75rem;
+          color: var(--text-secondary);
+        }
+        li a { 
+          color: var(--accent-color); 
+          font-weight: 600; 
+          text-decoration: none;
+          transition: color 0.2s ease;
+        }
+        li a:hover {
+          color: var(--btn-primary-hover);
+          text-decoration: underline;
+        }
+        pre { 
+          background: var(--bg-primary); 
+          border: 1px solid var(--border-color);
+          border-radius: 0.5rem; 
+          padding: 1rem; 
+          overflow-x: auto; 
+          color: var(--text-primary);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+          font-size: 0.9rem;
+          line-height: 1.4;
+        }
+        .channel-meta { 
+          display: flex; 
+          gap: 1rem; 
+          flex-wrap: wrap; 
+          color: var(--text-muted); 
+          margin-top: 1rem; 
+          font-size: 0.95rem; 
+          align-items: center;
+        }
+        .channel-meta .separator { 
+          color: var(--text-muted);
+          opacity: 0.6;
+        }
+        footer { 
+          text-align: center; 
+          color: var(--text-muted); 
+          font-size: 0.85rem; 
+          margin-top: 3rem;
+          padding-top: 2rem;
+          border-top: 1px solid var(--border-color);
+        }
+        footer a {
+          color: var(--accent-color);
+          text-decoration: none;
+        }
+        footer a:hover {
+          text-decoration: underline;
+        }
         @media (max-width: 640px) {
+          main { padding: 1.5rem 1rem 2rem; }
           header h1 { font-size: 1.9rem; }
           section { padding: 1.25rem; }
+          .hero img { border-radius: 0.5rem; }
         }
       </style>
     </head>
@@ -187,9 +351,9 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     """
     <section>
       <h2>Video Chapters</h2>
-      <ol>
+      <ul>
       #{items}
-      </ol>
+      </ul>
     </section>
     """
   end
