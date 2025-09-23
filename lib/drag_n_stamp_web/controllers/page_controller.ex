@@ -1,16 +1,19 @@
 defmodule DragNStampWeb.PageController do
   use DragNStampWeb, :controller
   require Logger
+  
+  import Ecto.Query
+  alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.SEO.PagePath
 
   def sitemap(conn, _params) do
     base_url = "https://stamp-bot.com"
     current_date = DateTime.utc_now() |> DateTime.to_iso8601()
 
-    sitemap_xml = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-            xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
-            xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+    # Get all timestamps for SEO pages
+    seo_entries = get_seo_sitemap_entries(base_url)
+    
+    static_entries = """
       <url>
         <loc>#{base_url}/</loc>
         <lastmod>#{current_date}</lastmod>
@@ -46,12 +49,20 @@ defmodule DragNStampWeb.PageController do
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
       </url>
+    """
+
+    sitemap_xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+            xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+            xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+#{static_entries}#{seo_entries}
     </urlset>
     """
 
     conn
     |> put_resp_content_type("application/xml")
-    |> put_resp_header("cache-control", "public, max-age=86400")
+    |> put_resp_header("cache-control", "public, max-age=3600")
     |> send_resp(200, sitemap_xml)
   end
 
@@ -146,4 +157,57 @@ defmodule DragNStampWeb.PageController do
         nil
     end
   end
+
+  defp get_seo_sitemap_entries(base_url) do
+    Timestamp
+    |> order_by(desc: :inserted_at)
+    |> limit(1000)  # Limit to prevent sitemap from getting too large
+    |> Repo.all()
+    |> Enum.map(&build_seo_entry(&1, base_url))
+    |> Enum.join("")
+  end
+
+  defp build_seo_entry(%Timestamp{} = timestamp, base_url) do
+    page_url = PagePath.page_url(timestamp, base_url)
+    lastmod = format_timestamp_date(timestamp.inserted_at)
+    
+    # Include video thumbnail if available
+    thumbnail_entry = build_thumbnail_entry(timestamp)
+    
+    """
+      <url>
+        <loc>#{page_url}</loc>
+        <lastmod>#{lastmod}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.4</priority>#{thumbnail_entry}
+      </url>
+    """
+  end
+
+  defp build_thumbnail_entry(%Timestamp{video_thumbnail_url: url}) when is_binary(url) do
+    title = "StampBot Timestamp"
+    caption = "AI-generated YouTube timestamp"
+    
+    """
+        <image:image>
+          <image:loc>#{url}</image:loc>
+          <image:title>#{title}</image:title>
+          <image:caption>#{caption}</image:caption>
+        </image:image>
+    """
+  end
+  
+  defp build_thumbnail_entry(_), do: ""
+  
+  defp format_timestamp_date(%DateTime{} = datetime) do
+    DateTime.to_iso8601(datetime)
+  end
+  
+  defp format_timestamp_date(%NaiveDateTime{} = naive_datetime) do
+    naive_datetime
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_iso8601()
+  end
+  
+  defp format_timestamp_date(_), do: DateTime.utc_now() |> DateTime.to_iso8601()
 end
