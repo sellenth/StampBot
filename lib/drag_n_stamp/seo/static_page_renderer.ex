@@ -239,7 +239,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
           margin-top: 1rem;
           font-size: 0.95rem;
           align-items: center;
-          justify-contnet: center;
+          justify-content: center;
         }
         .channel-meta .separator {
           color: var(--text-muted);
