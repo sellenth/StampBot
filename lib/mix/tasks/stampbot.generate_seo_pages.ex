@@ -1,6 +1,6 @@
 defmodule Mix.Tasks.Stampbot.GenerateSeoPages do
   @moduledoc """
-  Generates per-timestamp static pages under `priv/static/seo/`.
+  Generates per-timestamp static pages under `priv/static/submissions/`.
 
   The task pulls the latest timestamp rows, derives chapter data, injects
   metadata, and writes enriched static HTML files ready for deployment.
@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Stampbot.GenerateSeoPages do
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.{ChapterParser, PagePath, StaticPageRenderer, VideoMetadata}
 
-  @shortdoc "Generate static SEO pages for timestamps"
+  @shortdoc "Generate static submission pages for timestamps"
 
   @switches [limit: :integer, output: :string, base_url: :string, site_name: :string]
   @aliases [l: :limit, o: :output, b: :base_url, s: :site_name]
@@ -92,7 +92,7 @@ defmodule Mix.Tasks.Stampbot.GenerateSeoPages do
 
   defp build_output_dir(opts) do
     root = File.cwd!()
-    default = Path.join(root, "priv/static/seo")
+    default = Path.join(root, "priv/static/submissions")
 
     case Keyword.get(opts, :output) do
       nil -> default

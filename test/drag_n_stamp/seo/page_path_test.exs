@@ -17,7 +17,7 @@ defmodule DragNStamp.SEO.PagePathTest do
   test "provides filename and page path" do
     ts = struct(Timestamp, %{id: 42, video_title: "Sample"})
     assert PagePath.filename(ts) == "42-sample.html"
-    assert PagePath.page_path(ts) == "/seo/42-sample.html"
+    assert PagePath.page_path(ts) == "/submissions/42-sample.html"
   end
 
   test "handles missing id" do
@@ -29,6 +29,6 @@ defmodule DragNStamp.SEO.PagePathTest do
     ts = struct(Timestamp, %{id: 99, video_title: "Sample"})
 
     assert PagePath.page_url(ts, "https://stamp-bot.com") ==
-             "https://stamp-bot.com/seo/99-sample.html"
+             "https://stamp-bot.com/submissions/99-sample.html"
   end
 end

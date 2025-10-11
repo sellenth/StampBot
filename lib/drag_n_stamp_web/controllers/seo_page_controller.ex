@@ -63,7 +63,7 @@ defmodule DragNStampWeb.SeoPageController do
   defp send_not_found(conn) do
     conn
     |> put_resp_content_type("text/html")
-    |> send_resp(:not_found, "SEO page not found")
+    |> send_resp(:not_found, "Submission page not found")
   end
 
   defp maybe_enrich(timestamp) do

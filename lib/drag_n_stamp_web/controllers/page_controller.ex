@@ -78,6 +78,10 @@ defmodule DragNStampWeb.PageController do
     )
   end
 
+  def legacy_submission_redirect(conn, %{"filename" => filename}) do
+    redirect(conn, to: ~p"/submissions/#{filename}")
+  end
+
   def process_youtube_url(conn, %{"path" => path}) do
     # Reconstruct the original YouTube URL
     query_string = conn.query_string

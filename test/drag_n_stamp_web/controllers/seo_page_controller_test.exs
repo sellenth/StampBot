@@ -4,8 +4,8 @@ defmodule DragNStampWeb.SeoPageControllerTest do
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.PagePath
 
-  describe "GET /seo/:filename" do
-    test "renders SEO page when timestamp exists", %{conn: conn} do
+  describe "GET /submissions/:filename" do
+    test "renders submission page when timestamp exists", %{conn: conn} do
       timestamp = insert_timestamp(%{
         url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         channel_name: "Test Channel",
@@ -16,16 +16,25 @@ defmodule DragNStampWeb.SeoPageControllerTest do
 
       filename = PagePath.filename(timestamp)
 
-      conn = get(conn, "/seo/#{filename}")
+      conn = get(conn, "/submissions/#{filename}")
 
       assert html_response(conn, 200) =~ "Example Video"
       assert get_resp_header(conn, "cache-control") == ["public, max-age=300"]
     end
 
     test "returns 404 for unknown timestamp", %{conn: conn} do
-      conn = get(conn, "/seo/99999-missing.html")
+      conn = get(conn, "/submissions/99999-missing.html")
 
-      assert response(conn, 404) =~ "SEO page not found"
+      assert response(conn, 404) =~ "Submission page not found"
+    end
+  end
+
+  describe "GET /seo/:filename" do
+    test "temporarily redirects to submissions", %{conn: conn} do
+      filename = "123-example.html"
+      conn = get(conn, "/seo/#{filename}")
+
+      assert redirected_to(conn, 302) == "/submissions/#{filename}"
     end
   end
 

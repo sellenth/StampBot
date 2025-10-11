@@ -29,8 +29,11 @@ defmodule DragNStampWeb.Router do
     # Static extension endpoint (no LiveView/WebSockets)
     get "/extension", PageController, :extension
 
-    # Dynamic SEO fallback to render timestamp details when static files are missing
-    get "/seo/:filename", SeoPageController, :show
+    # Temporary redirect from legacy /seo paths
+    get "/seo/:filename", PageController, :legacy_submission_redirect
+
+    # Dynamic submission fallback to render timestamp details when static files are missing
+    get "/submissions/:filename", SeoPageController, :show
 
     # SEO endpoints
     get "/sitemap.xml", PageController, :sitemap

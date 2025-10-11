@@ -1,6 +1,6 @@
 defmodule DragNStamp.SEO.PagePath do
   @moduledoc """
-  Helpers for computing the static SEO page slug and paths for timestamps.
+  Helpers for computing the static submission page slug and paths for timestamps.
   """
 
   alias DragNStamp.Timestamp
@@ -37,7 +37,7 @@ defmodule DragNStamp.SEO.PagePath do
 
   @spec page_path(Timestamp.t()) :: String.t()
   def page_path(%Timestamp{} = timestamp) do
-    "/seo/" <> filename(timestamp)
+    "/submissions/" <> filename(timestamp)
   end
 
   @spec page_url(Timestamp.t(), String.t()) :: String.t()

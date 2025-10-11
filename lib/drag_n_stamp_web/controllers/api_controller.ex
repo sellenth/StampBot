@@ -2,7 +2,7 @@ defmodule DragNStampWeb.ApiController do
   use DragNStampWeb, :controller
   require Logger
   alias DragNStamp.{Repo, Timestamp}
-  alias DragNStamp.SEO.VideoMetadata
+  alias DragNStamp.SEO.{PagePath, VideoMetadata}
 
   def receive_url(conn, %{"url" => url} = params) do
     username =
@@ -170,7 +170,7 @@ defmodule DragNStampWeb.ApiController do
   defp generate_new_timestamps(conn, api_key, channel_name, submitter_username, url) do
     # Create the formatted prompt for timestamps
     formatted_prompt =
-      "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. here's the link, be slightly humorous but not too much ;) channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
+      "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. feel free to be slightly humorous but not cheesy. channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
 
       construct a timestamp in a way that doesn't create a valid link in a youtube comment.
       For example, the period is creating a link which may flag us as spam.
@@ -193,30 +193,33 @@ defmodule DragNStampWeb.ApiController do
 
     if api_key do
       case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
-        {:ok, response} ->
+        {:ok, generated_content} ->
           # Save timestamp to database
           timestamp_attrs = %{
             url: url,
             channel_name: channel_name,
             submitter_username: submitter_username,
-            content: response
+            content: generated_content
           }
 
           # Ensure idempotency at DB level as well: unique index on :url
           case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
             {:ok, timestamp} ->
-              enriched_timestamp = ensure_video_metadata(timestamp)
+              timestamp_with_metadata = ensure_video_metadata(timestamp)
+
+              {timestamp_with_signature, signed_content} =
+                persist_timestamp_signature(timestamp_with_metadata, generated_content)
 
               Logger.info("Timestamp saved to database for URL: #{url}")
               # Broadcast the new timestamp for LiveView updates
               Phoenix.PubSub.broadcast(
                 DragNStamp.PubSub,
                 "timestamps",
-                {:timestamp_created, enriched_timestamp}
+                {:timestamp_created, timestamp_with_signature}
               )
 
               # Now distill the timestamps
-              distill_timestamps(conn, api_key, enriched_timestamp, response, url)
+              distill_timestamps(conn, api_key, timestamp_with_signature, signed_content, url)
 
             {:error, changeset} ->
               # If the error is due to unique constraint on URL, fetch existing and return
@@ -229,13 +232,17 @@ defmodule DragNStampWeb.ApiController do
                   %Timestamp{distilled_content: dist} when not is_nil(dist) ->
                     json(conn, %{status: "success", response: dist, cached: true})
 
+                  %Timestamp{content: existing_content} when is_binary(existing_content) ->
+                    json(conn, %{status: "success", response: existing_content, cached: true})
+
                   _ ->
-                    # Fallback: return what we have
-                    json(conn, %{status: "success", response: response, cached: false})
+                    fallback_content = append_signature(generated_content, nil)
+                    json(conn, %{status: "success", response: fallback_content, cached: false})
                 end
               else
                 Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
-                json(conn, %{status: "success", response: response, cached: false})
+                fallback_content = append_signature(generated_content, nil)
+                json(conn, %{status: "success", response: fallback_content, cached: false})
               end
           end
 
@@ -285,6 +292,48 @@ defmodule DragNStampWeb.ApiController do
     Application.get_env(:drag_n_stamp, :fetch_video_metadata_on_ingest, true)
   end
 
+  defp persist_timestamp_signature(%Timestamp{} = timestamp, content) when is_binary(content) do
+    signed_content = append_signature(content, submission_slug(timestamp))
+
+    case Repo.update(Timestamp.changeset(timestamp, %{content: signed_content})) do
+      {:ok, updated} ->
+        {updated, signed_content}
+
+      {:error, changeset} ->
+        Logger.error(
+          "Failed to persist signature on timestamp #{timestamp.id || "new"}: #{inspect(changeset.errors)}"
+        )
+
+        {%{timestamp | content: signed_content}, signed_content}
+    end
+  end
+
+  defp persist_timestamp_signature(%Timestamp{} = timestamp, _content) do
+    {timestamp, timestamp.content}
+  end
+
+  defp submission_slug(%Timestamp{id: id} = timestamp) when not is_nil(id) do
+    timestamp
+    |> PagePath.filename()
+    |> Path.rootname()
+  end
+
+  defp submission_slug(_), do: nil
+
+  defp append_signature(content, slug) when is_binary(content) do
+    trimmed = String.trim_trailing(content)
+
+    signature =
+      case slug do
+        nil -> "Timestamps by StampBot 🤖"
+        slug_value -> "Timestamps by StampBot 🤖\n(#{slug_value})"
+      end
+
+    trimmed <> "\n\n" <> signature
+  end
+
+  defp append_signature(content, _slug), do: content
+
   defp call_gemini_api_with_retry(prompt, api_key, video_url, attempt \\ 1) do
     case call_gemini_api(prompt, api_key, video_url) do
       {:ok, response} ->
@@ -306,6 +355,8 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
+  @default_video_fps 0.5
+
   defp call_gemini_api(prompt, api_key, video_url) do
     api_url =
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=#{api_key}"
@@ -319,10 +370,9 @@ defmodule DragNStampWeb.ApiController do
 
     # Add file_data if video_url is provided
     parts =
-      if video_url do
-        parts ++ [%{file_data: %{file_uri: video_url}}]
-      else
-        parts
+      case build_video_part(video_url) do
+        nil -> parts
+        video_part -> parts ++ [video_part]
       end
 
     body = %{
@@ -348,9 +398,8 @@ defmodule DragNStampWeb.ApiController do
                 {:error, "No valid timestamps in response"}
 
               cleaned_text ->
-                final_text = cleaned_text <> "\n\nTimestamps by StampBot 🤖"
-                Logger.info("Gemini API final processed text: #{inspect(final_text)}")
-                {:ok, final_text}
+                Logger.info("Gemini API cleaned timestamps: #{inspect(cleaned_text)}")
+                {:ok, cleaned_text}
             end
 
           {:ok, %{"error" => error}} ->
@@ -368,11 +417,19 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
+  defp build_video_part(nil), do: nil
+
+  defp build_video_part(video_url) when is_binary(video_url) do
+    %{file_data: %{file_uri: video_url}}
+    #|> Map.put(:videoMetadata, %{"fps" => @default_video_fps})
+  end
+
   defp distill_existing_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
-      {:ok, distilled_content} ->
+      {:ok, distilled_body} ->
         # Update the existing timestamp record with distilled content
-        updated_attrs = %{distilled_content: distilled_content}
+        final_content = append_signature(distilled_body, submission_slug(timestamp))
+        updated_attrs = %{distilled_content: final_content}
 
         updated_timestamp =
           case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
@@ -381,7 +438,7 @@ defmodule DragNStampWeb.ApiController do
 
             {:error, changeset} ->
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
-              timestamp
+              %{timestamp | distilled_content: final_content}
           end
 
         # Try posting a comment idempotently using the Commenter
@@ -416,7 +473,7 @@ defmodule DragNStampWeb.ApiController do
 
         response = %{
           status: "success",
-          response: distilled_content,
+          response: final_content,
           cached: true
         }
 
@@ -442,9 +499,10 @@ defmodule DragNStampWeb.ApiController do
 
   defp distill_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
-      {:ok, distilled_content} ->
+      {:ok, distilled_body} ->
         # Update the timestamp record with distilled content
-        updated_attrs = %{distilled_content: distilled_content}
+        final_content = append_signature(distilled_body, submission_slug(timestamp))
+        updated_attrs = %{distilled_content: final_content}
 
         updated_timestamp =
           case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
@@ -453,7 +511,7 @@ defmodule DragNStampWeb.ApiController do
 
             {:error, changeset} ->
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
-              timestamp
+              %{timestamp | distilled_content: final_content}
           end
 
         # Attempt to post comment via Commenter (first time; idempotent)
@@ -488,7 +546,7 @@ defmodule DragNStampWeb.ApiController do
 
         response = %{
           status: "success",
-          response: distilled_content,
+          response: final_content,
           cached: false
         }
 
@@ -514,7 +572,13 @@ defmodule DragNStampWeb.ApiController do
 
   defp distill_timestamps_content(content, api_key) do
     distillation_prompt = """
-    You are given a list of timestamps for a YouTube video. Your task is to select only the 10 MOST IMPORTANT timestamps. If there are fewer than 10, list them all. Secondary goal: try to get timestamps from throughout the whole video.
+    You are given a list of timestamps for a YouTube video. Your task is to select only the MOST IMPORTANT timestamps. Secondary goal: try to get timestamps from throughout the whole video.
+
+    1 minute video - 1 timestamp
+    [2, 5] minute video - [2, 3] timestamps
+    [6, 10] minute video - [6, 8] timestmaps
+    [10, 20] minute video - [8, 12] timestamps
+    20+ minute video - about (duration / 4) timestamps
 
     Rules:
     1. Keep only the most significant moments or topics
@@ -554,9 +618,8 @@ defmodule DragNStampWeb.ApiController do
             {:error, "No valid timestamps in distillation response"}
 
           cleaned_response ->
-            final_response = cleaned_response <> "\n\nTimestamps by StampBot 🤖"
-            Logger.info("Gemini distillation final processed text: #{inspect(final_response)}")
-            {:ok, final_response}
+            Logger.info("Gemini distillation cleaned timestamps: #{inspect(cleaned_response)}")
+            {:ok, cleaned_response}
         end
 
       {:error, reason} ->
