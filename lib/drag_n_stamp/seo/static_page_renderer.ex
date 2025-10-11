@@ -28,6 +28,8 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
         timestamp.video_description ||
         default_summary(timestamp, chapters)
 
+    seo_summary = truncate_summary(summary, 150)
+
     site_name = Map.get(opts, :site_name, @default_site_name)
     video_id = Map.get(opts, :video_id) || extract_video_id(video_url)
 
@@ -60,7 +62,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
 
     chapter_section = build_content_body(chapters, timestamp, video_url)
     hero_section = build_hero(thumbnail_url, video_url, video_title)
-    canonical_tag = canonical_link_tag(canonical_url)
+      canonical_tag = canonical_link_tag(canonical_url)
 
     """
     <!DOCTYPE html>
@@ -69,10 +71,10 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
       <meta charset=\"utf-8\" />
       <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
       <title>#{html_escape(video_title)} | #{html_escape(site_name)}</title>
-      <meta name=\"description\" content=\"#{html_escape(summary)}\" />
+      <meta name=\"description\" content=\"#{html_escape(seo_summary)}\" />
       <meta name=\"robots\" content=\"index,follow\" />
       #{canonical_tag}
-      #{meta_tags(video_title, summary, canonical_url, thumbnail_url, site_name)}
+      #{meta_tags(video_title, seo_summary, canonical_url, thumbnail_url, site_name)}
       <script type=\"application/ld+json\">#{structured_data}</script>
       <style>
         :root {
@@ -105,38 +107,38 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
             --shadow-light: rgba(0, 0, 0, 0.3);
           }
         }
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; 
-          margin: 0; 
-          padding: 0; 
-          background: var(--bg-primary); 
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+          margin: 0;
+          padding: 0;
+          background: var(--bg-primary);
           color: var(--text-primary);
           line-height: 1.6;
           transition: background-color 0.3s ease, color 0.3s ease;
         }
         main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
         header { text-align: center; margin-bottom: 2.5rem; }
-        header h1 { 
-          margin: 0 0 0.75rem; 
-          font-size: 2.5rem; 
+        header h1 {
+          margin: 0 0 0.75rem;
+          font-size: 2.5rem;
           line-height: 1.1;
           font-weight: 700;
           color: var(--text-primary);
         }
-        header p { 
-          margin: 0 auto; 
-          max-width: 720px; 
-          color: var(--text-secondary); 
+        header p {
+          margin: 0 auto;
+          max-width: 720px;
+          color: var(--text-secondary);
           font-size: 1.05rem;
         }
-        .page-nav { 
-          display: flex; 
-          justify-content: center; 
+        .page-nav {
+          display: flex;
+          justify-content: center;
           margin-bottom: 1.5rem;
         }
-        .page-nav a { 
-          display: inline-flex; 
-          align-items: center; 
+        .page-nav a {
+          display: inline-flex;
+          align-items: center;
           gap: 0.35rem;
           padding: 0.5rem 1rem;
           background: var(--btn-primary-bg);
@@ -148,31 +150,31 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
           transition: all 0.2s ease;
           box-shadow: 0 1px 3px var(--shadow-light);
         }
-        .page-nav a:hover { 
+        .page-nav a:hover {
           background: var(--btn-primary-hover);
           border-color: var(--btn-primary-hover);
           transform: translateY(-1px);
           box-shadow: 0 2px 6px var(--shadow-light);
         }
-        .hero { 
-          display: flex; 
-          flex-direction: column; 
-          align-items: center; 
-          gap: 1rem; 
+        .hero {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
           margin-bottom: 2rem;
         }
-        .hero img { 
-          border-radius: 0.75rem; 
-          box-shadow: 0 10px 25px var(--shadow-light); 
-          width: 100%; 
-          max-width: 720px; 
+        .hero img {
+          border-radius: 0.75rem;
+          box-shadow: 0 10px 25px var(--shadow-light);
+          width: 100%;
+          max-width: 720px;
           height: auto;
           border: 1px solid var(--border-color);
         }
-        .hero a { 
-          display: inline-flex; 
-          align-items: center; 
-          gap: 0.5rem; 
+        .hero a {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
           padding: 0.75rem 1.5rem;
           border-radius: 0.5rem;
           background: var(--btn-primary-bg);
@@ -189,28 +191,28 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
           transform: translateY(-1px);
           box-shadow: 0 4px 12px var(--shadow-light);
         }
-        section { 
-          background: var(--bg-secondary); 
-          border-radius: 0.75rem; 
-          padding: 1.75rem; 
-          margin-bottom: 2rem; 
+        section {
+          background: var(--bg-secondary);
+          border-radius: 0.75rem;
+          padding: 1.75rem;
+          margin-bottom: 2rem;
           border: 1px solid var(--border-color);
           box-shadow: 0 2px 8px var(--shadow-light);
         }
-        section h2 { 
-          margin-top: 0; 
+        section h2 {
+          margin-top: 0;
           font-size: 1.5rem;
           font-weight: 600;
           color: var(--text-primary);
         }
         ul { padding-left: 1.25rem; list-style-type: none; }
-        li { 
+        li {
           margin-bottom: 0.75rem;
           color: var(--text-secondary);
         }
-        li a { 
-          color: var(--accent-color); 
-          font-weight: 600; 
+        li a {
+          color: var(--accent-color);
+          font-weight: 600;
           text-decoration: none;
           transition: color 0.2s ease;
         }
@@ -218,34 +220,35 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
           color: var(--btn-primary-hover);
           text-decoration: underline;
         }
-        pre { 
-          background: var(--bg-primary); 
+        pre {
+          background: var(--bg-primary);
           border: 1px solid var(--border-color);
-          border-radius: 0.5rem; 
-          padding: 1rem; 
-          overflow-x: auto; 
+          border-radius: 0.5rem;
+          padding: 1rem;
+          overflow-x: auto;
           color: var(--text-primary);
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
           font-size: 0.9rem;
           line-height: 1.4;
         }
-        .channel-meta { 
-          display: flex; 
-          gap: 1rem; 
-          flex-wrap: wrap; 
-          color: var(--text-muted); 
-          margin-top: 1rem; 
-          font-size: 0.95rem; 
+        .channel-meta {
+          display: flex;
+          gap: 1rem;
+          flex-wrap: wrap;
+          color: var(--text-muted);
+          margin-top: 1rem;
+          font-size: 0.95rem;
           align-items: center;
+          justify-contnet: center;
         }
-        .channel-meta .separator { 
+        .channel-meta .separator {
           color: var(--text-muted);
           opacity: 0.6;
         }
-        footer { 
-          text-align: center; 
-          color: var(--text-muted); 
-          font-size: 0.85rem; 
+        footer {
+          text-align: center;
+          color: var(--text-muted);
+          font-size: 0.85rem;
           margin-top: 3rem;
           padding-top: 2rem;
           border-top: 1px solid var(--border-color);
@@ -320,6 +323,37 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")
   end
+
+  defp truncate_summary(nil, _limit), do: ""
+
+  defp truncate_summary(summary, limit) when is_binary(summary) and is_integer(limit) and limit > 0 do
+    trimmed =
+      summary
+      |> String.trim()
+      |> String.replace(~r/\s+/, " ")
+
+    cond do
+      trimmed == "" ->
+        ""
+
+      String.length(trimmed) <= limit ->
+        trimmed
+
+      true ->
+        truncated =
+          trimmed
+          |> String.slice(0, limit)
+          |> String.trim_trailing()
+
+        (if truncated == "", do: String.slice(trimmed, 0, limit), else: truncated) <> "…"
+    end
+  end
+
+  defp truncate_summary(summary, _limit) when is_binary(summary) do
+    summary |> String.trim()
+  end
+
+  defp truncate_summary(_, _limit), do: ""
 
   defp build_content_body([], timestamp, _video_url) do
     """

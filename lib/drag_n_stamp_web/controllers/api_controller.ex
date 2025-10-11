@@ -355,8 +355,6 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  @default_video_fps 0.5
-
   defp call_gemini_api(prompt, api_key, video_url) do
     api_url =
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=#{api_key}"
@@ -421,7 +419,7 @@ defmodule DragNStampWeb.ApiController do
 
   defp build_video_part(video_url) when is_binary(video_url) do
     %{file_data: %{file_uri: video_url}}
-    #|> Map.put(:videoMetadata, %{"fps" => @default_video_fps})
+    #|> Map.put(:videoMetadata, %{"fps" => 0.5})
   end
 
   defp distill_existing_timestamps(conn, api_key, timestamp, content, url) do
