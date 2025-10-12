@@ -7,6 +7,45 @@
       <p class="page-description">Browse all generated timestamps</p>
     </div>
 
+    <div class="status-banner-wrapper">
+      <%= case overall_status(assigns) do %>
+        <% {:issue, failure} -> %>
+          <div class="status-banner status-banner--issue" role="status">
+            <span class="status-indicator status-indicator--issue" aria-hidden="true"></span>
+            <div class="status-banner__content">
+              <strong>Service issue.</strong>
+              We couldn't generate timestamps at
+              <time
+                id={"status-failure-time-#{failure.id || 'new'}"}
+                phx-hook="LocalTime"
+                data-iso={iso_string(status_reference_time(failure))}
+              >
+                {format_datetime(status_reference_time(failure))}
+              </time>.
+              <%= if failure.processing_error do %>
+                <span class="status-banner__details">
+                  {failure.processing_error}
+                </span>
+              <% end %>
+            </div>
+          </div>
+        <% {:processing, count} -> %>
+          <div class="status-banner status-banner--processing" role="status">
+            <span class="status-indicator status-indicator--processing" aria-hidden="true"></span>
+            <div class="status-banner__content">
+              Working on {count} new {pluralize(count, "timestamp", "timestamps")} right now.
+            </div>
+          </div>
+        <% :healthy -> %>
+          <div class="status-banner status-banner--healthy" role="status">
+            <span class="status-indicator status-indicator--healthy" aria-hidden="true"></span>
+            <div class="status-banner__content">
+              All systems operational.
+            </div>
+          </div>
+      <% end %>
+    </div>
+
     <div class="filters-section">
       <div class="filters-header">
         <p class="record-count">
@@ -86,41 +125,48 @@
                 <time
                   id={"time-#{timestamp.id}"}
                   phx-hook="LocalTime"
-                  data-iso={
-                    case timestamp.inserted_at do
-                      %NaiveDateTime{} = ndt -> NaiveDateTime.to_iso8601(ndt) <> "Z"
-                      %DateTime{} = dt -> DateTime.to_iso8601(dt)
-                      other -> to_string(other)
-                    end
-                  }
+                  data-iso={iso_string(timestamp.inserted_at)}
                 >
-                  Loading…
+                  {format_inserted_at(timestamp)}
                 </time>
               </span>
-              <%= case timestamp.youtube_comment_status do %>
-                <% :succeeded -> %>
-                  <span class="tag" title="StampBot commented">Commented</span>
-                <% :pending -> %>
-                  <span class="tag" title="Posting to YouTube…">Posting…</span>
-                <% :failed -> %>
-                  <span class="tag" title={timestamp.youtube_comment_error || "Comment failed"}>
-                    Failed
+              <%= case timestamp.processing_status do %>
+                <% :processing -> %>
+                  <span class="tag status-tag status-tag--processing" title="Timestamps are being generated">
+                    Processing
                   </span>
-                <% :auth_required -> %>
-                  <span class="tag" title="Auth needed to post">Auth required</span>
+                <% :failed -> %>
+                  <span class="tag status-tag status-tag--failed" title="Failed to generate timestamps">
+                    Generation failed
+                  </span>
                 <% _ -> %>
-                  <span class="tag" title="Not commented yet">Not commented</span>
               <% end %>
-              <%= if timestamp.youtube_comment_status in [:failed, :not_attempted, :auth_required] do %>
-                <button
-                  class="retry-btn"
-                  phx-click="retry_comment"
-                  phx-value-id={timestamp.id}
-                  phx-disable-with="Retrying…"
-                  title="Retry posting the comment"
-                >
-                  ↻ Retry Comment
-                </button>
+              <%= if has_distilled_content?(timestamp) do %>
+                <%= case timestamp.youtube_comment_status do %>
+                  <% :succeeded -> %>
+                    <span class="tag" title="StampBot commented">Commented</span>
+                  <% :pending -> %>
+                    <span class="tag" title="Posting to YouTube…">Posting…</span>
+                  <% :failed -> %>
+                    <span class="tag" title={timestamp.youtube_comment_error || "Comment failed"}>
+                      Failed
+                    </span>
+                  <% :auth_required -> %>
+                    <span class="tag" title="Auth needed to post">Auth required</span>
+                  <% _ -> %>
+                    <span class="tag" title="Not commented yet">Not commented</span>
+                <% end %>
+                <%= if timestamp.youtube_comment_status in [:failed, :not_attempted, :auth_required] do %>
+                  <button
+                    class="retry-btn"
+                    phx-click="retry_comment"
+                    phx-value-id={timestamp.id}
+                    phx-disable-with="Retrying…"
+                    title="Retry posting the comment"
+                  >
+                    ↻ Retry Comment
+                  </button>
+                <% end %>
               <% end %>
             </div>
 
@@ -133,9 +179,18 @@
             <div class="timestamp-content">
               <div class="timestamp-content-header">
                 <h4>
-                  {if timestamp.distilled_content,
-                    do: "Generated Timestamps:",
-                    else: "Raw time data:"}
+                  {case timestamp.processing_status do
+                    :processing ->
+                      "Generating Timestamps"
+
+                    :failed ->
+                      "Generation Failed"
+
+                    _ ->
+                      if timestamp.distilled_content,
+                        do: "Generated Timestamps:",
+                        else: "Raw time data:"
+                  end}
                 </h4>
                 <%= if path = seo_page_path(timestamp) do %>
                   <.link
@@ -148,21 +203,39 @@
                   </.link>
                 <% end %>
               </div>
-              <div class="timestamps-container">
-                <pre
-                  class="timestamps-text"
-                  id={"timestamps-#{timestamp.id}"}
-                  phx-hook="ClickableTimestamps"
-                  data-video-url={timestamp.url}
-                ><%= timestamp.distilled_content || timestamp.content %></pre>
-                <button
-                  class="copy-btn-inside"
-                  onclick={"copyToClipboard('timestamps-#{timestamp.id}')"}
-                  title="Copy to clipboard"
-                >
-                  Copy
-                </button>
-              </div>
+              <%= cond do %>
+                <% timestamp.processing_status == :failed -> %>
+                  <div class="timestamp-error">
+                    <p>We hit a server error while generating these timestamps.</p>
+                    <%= if timestamp.processing_error do %>
+                      <p class="timestamp-error-details">
+                        {timestamp.processing_error}
+                      </p>
+                    <% end %>
+                    <p class="timestamp-error-hint">We automatically retry failed requests.</p>
+                  </div>
+                <% timestamp.processing_status == :processing -> %>
+                  <div class="timestamp-placeholder">
+                    <span class="status-indicator status-indicator--processing" aria-hidden="true"></span>
+                    <p>Generating timestamps… this usually takes a few minutes.</p>
+                  </div>
+                <% true -> %>
+                  <div class="timestamps-container">
+                    <pre
+                      class="timestamps-text"
+                      id={"timestamps-#{timestamp.id}"}
+                      phx-hook="ClickableTimestamps"
+                      data-video-url={timestamp.url}
+                    ><%= timestamp.distilled_content || timestamp.content %></pre>
+                    <button
+                      class="copy-btn-inside"
+                      onclick={"copyToClipboard('timestamps-#{timestamp.id}')"}
+                      title="Copy to clipboard"
+                    >
+                      Copy
+                    </button>
+                  </div>
+              <% end %>
             </div>
           </div>
         <% end %>

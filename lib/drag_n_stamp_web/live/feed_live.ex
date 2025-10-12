@@ -7,6 +7,8 @@ defmodule DragNStampWeb.FeedLive do
 
   @topic "timestamps"
   @per_page 10
+  @status_failure_window_minutes 240
+  @status_processing_window_minutes 90
 
   def mount(params, _session, socket) do
     if connected?(socket) do
@@ -43,6 +45,20 @@ defmodule DragNStampWeb.FeedLive do
      socket
      |> assign(:timestamps, sort_timestamps(updated_timestamps, socket.assigns.sort_by))
      |> put_flash(:info, "New timestamp received from #{timestamp.submitter_username}!")}
+  end
+
+  def handle_info({:timestamp_updated, timestamp}, socket) do
+    timestamps = socket.assigns.timestamps
+
+    updated_list =
+      if Enum.any?(timestamps, &(&1.id == timestamp.id)) do
+        Enum.map(timestamps, fn t -> if t.id == timestamp.id, do: timestamp, else: t end)
+      else
+        [timestamp | timestamps]
+      end
+
+    {:noreply,
+     assign(socket, :timestamps, sort_timestamps(updated_list, socket.assigns.sort_by))}
   end
 
   def handle_event("filter_changed", params, socket) do
@@ -131,4 +147,91 @@ defmodule DragNStampWeb.FeedLive do
   defp seo_page_path(%Timestamp{} = timestamp) do
     PagePath.page_path(timestamp)
   end
+
+  defp overall_status(assigns) do
+    timestamps = assigns.timestamps
+
+    case latest_recent_failure(timestamps) do
+      nil ->
+        case recent_processing_count(timestamps) do
+          0 -> :healthy
+          count -> {:processing, count}
+        end
+
+      failure ->
+        {:issue, failure}
+    end
+  end
+
+  defp latest_recent_failure(timestamps) do
+    timestamps
+    |> Enum.filter(&recent_failure?/1)
+    |> Enum.sort_by(&reference_time/1, {:desc, NaiveDateTime})
+    |> List.first()
+  end
+
+  defp recent_failure?(%Timestamp{} = timestamp) do
+    timestamp.processing_status == :failed and
+      recent?(reference_time(timestamp), @status_failure_window_minutes)
+  end
+
+  defp recent_processing_count(timestamps) do
+    timestamps
+    |> Enum.filter(fn t ->
+      t.processing_status == :processing and
+        recent?(reference_time(t), @status_processing_window_minutes)
+    end)
+    |> length()
+  end
+
+  defp reference_time(%Timestamp{} = timestamp) do
+    timestamp.updated_at || timestamp.inserted_at
+  end
+
+  defp has_distilled_content?(%Timestamp{distilled_content: content}) when is_binary(content) do
+    String.trim(content) != ""
+  end
+
+  defp has_distilled_content?(_), do: false
+
+  defp recent?(nil, _window_minutes), do: false
+
+  defp recent?(%NaiveDateTime{} = dt, window_minutes) when is_integer(window_minutes) do
+    NaiveDateTime.diff(NaiveDateTime.utc_now(), dt, :minute) <= window_minutes
+  end
+
+  defp recent?(%DateTime{} = dt, window_minutes) when is_integer(window_minutes) do
+    recent?(DateTime.to_naive(dt), window_minutes)
+  end
+
+  defp recent?(_, _), do: false
+
+  defp format_inserted_at(%Timestamp{} = timestamp) do
+    format_datetime(timestamp.inserted_at)
+  end
+
+  defp format_datetime(nil), do: "—"
+
+  defp format_datetime(%DateTime{} = dt), do: format_datetime(DateTime.to_naive(dt))
+
+  defp format_datetime(%NaiveDateTime{} = ndt) do
+    Calendar.strftime(ndt, "%b %d, %Y %I:%M %p UTC")
+  rescue
+    _ -> NaiveDateTime.to_string(ndt)
+  end
+
+  defp format_datetime(other), do: to_string(other)
+
+  defp iso_string(nil), do: nil
+
+  defp iso_string(%NaiveDateTime{} = ndt), do: NaiveDateTime.to_iso8601(ndt) <> "Z"
+
+  defp iso_string(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
+
+  defp iso_string(other), do: to_string(other)
+
+  defp status_reference_time(%Timestamp{} = timestamp), do: reference_time(timestamp)
+
+  defp pluralize(1, singular, _plural), do: singular
+  defp pluralize(_, _singular, plural), do: plural
 end

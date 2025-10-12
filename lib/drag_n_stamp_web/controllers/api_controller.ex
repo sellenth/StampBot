@@ -107,9 +107,9 @@ defmodule DragNStampWeb.ApiController do
       "Gemini request - Channel: #{channel_name}, Submitter: #{submitter_username}, URL: #{url}"
     )
 
-    # Check if we already have timestamps for this URL
     case Repo.get_by(Timestamp, url: url) do
-      %Timestamp{distilled_content: distilled_content} when not is_nil(distilled_content) ->
+      %Timestamp{processing_status: :ready, distilled_content: distilled_content}
+      when not is_nil(distilled_content) ->
         Logger.info("Found existing distilled timestamps for URL: #{url}")
 
         json(conn, %{
@@ -118,12 +118,55 @@ defmodule DragNStampWeb.ApiController do
           cached: true
         })
 
-      %Timestamp{content: content} = timestamp ->
+      %Timestamp{processing_status: :ready, content: content} = timestamp
+      when not is_nil(content) ->
         Logger.info(
           "Found existing timestamps but no distilled version for URL: #{url}, distilling..."
         )
 
         distill_existing_timestamps(conn, api_key, timestamp, content, url)
+
+      %Timestamp{processing_status: :processing} = timestamp ->
+        Logger.info("Timestamp generation already in progress for URL: #{url}, returning 202")
+
+        conn
+        |> put_status(:accepted)
+        |> json(%{
+          status: "processing",
+          message: "Timestamp generation is already in progress",
+          timestamp_id: timestamp.id
+        })
+
+      %Timestamp{} = timestamp ->
+        Logger.info(
+          "Timestamp record present for URL: #{url} with status #{timestamp.processing_status}, attempting regeneration"
+        )
+
+        case acquire_url_lock(url) do
+          :acquired ->
+            try do
+              generate_new_timestamps(
+                conn,
+                api_key,
+                channel_name,
+                submitter_username,
+                url,
+                timestamp
+              )
+            after
+              release_url_lock(url)
+            end
+
+          :in_flight ->
+            Logger.info("Duplicate request in-flight for URL: #{url}, returning 202 Accepted")
+
+            conn
+            |> put_status(:accepted)
+            |> json(%{
+              status: "processing",
+              message: "A request for this URL is already in progress"
+            })
+        end
 
       nil ->
         Logger.info(
@@ -133,7 +176,14 @@ defmodule DragNStampWeb.ApiController do
         case acquire_url_lock(url) do
           :acquired ->
             try do
-              generate_new_timestamps(conn, api_key, channel_name, submitter_username, url)
+              generate_new_timestamps(
+                conn,
+                api_key,
+                channel_name,
+                submitter_username,
+                url,
+                nil
+              )
             after
               release_url_lock(url)
             end
@@ -167,7 +217,113 @@ defmodule DragNStampWeb.ApiController do
     :ok
   end
 
-  defp generate_new_timestamps(conn, api_key, channel_name, submitter_username, url) do
+  defp ensure_processing_timestamp(
+         nil,
+         channel_name,
+         submitter_username,
+         url
+       ) do
+    attrs = %{
+      url: url,
+      channel_name: channel_name,
+      submitter_username: submitter_username,
+      processing_status: :processing,
+      processing_error: nil
+    }
+
+    case Repo.insert(Timestamp.changeset(%Timestamp{}, attrs)) do
+      {:ok, timestamp} ->
+        {:ok, timestamp, true}
+
+      {:error, %Ecto.Changeset{} = changeset} = error ->
+        if url_conflict?(changeset) do
+          case Repo.get_by(Timestamp, url: url) do
+            %Timestamp{} = existing ->
+              ensure_processing_timestamp(existing, channel_name, submitter_username, url)
+
+            _ ->
+              error
+          end
+        else
+          error
+        end
+    end
+  end
+
+  defp ensure_processing_timestamp(
+         %Timestamp{} = timestamp,
+         channel_name,
+         submitter_username,
+         _url
+       ) do
+    attrs = %{
+      channel_name: channel_name,
+      submitter_username: submitter_username,
+      processing_status: :processing,
+      processing_error: nil
+    }
+
+    case Repo.update(Timestamp.changeset(timestamp, attrs)) do
+      {:ok, updated} -> {:ok, updated, false}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
+    end
+  end
+
+  defp broadcast_timestamp_created(%Timestamp{} = timestamp) do
+    Phoenix.PubSub.broadcast(
+      DragNStamp.PubSub,
+      "timestamps",
+      {:timestamp_created, timestamp}
+    )
+  end
+
+  defp broadcast_timestamp_updated(%Timestamp{} = timestamp) do
+    Phoenix.PubSub.broadcast(
+      DragNStamp.PubSub,
+      "timestamps",
+      {:timestamp_updated, timestamp}
+    )
+  end
+
+  defp mark_timestamp_failed(%Timestamp{} = timestamp, reason) do
+    message =
+      reason
+      |> error_to_string()
+      |> String.slice(0, 500)
+
+    attrs = %{
+      processing_status: :failed,
+      processing_error: message
+    }
+
+    result =
+      case Repo.update(Timestamp.changeset(timestamp, attrs)) do
+        {:ok, updated} ->
+          updated
+
+        {:error, changeset} ->
+          Logger.error(
+            "Failed to mark timestamp #{timestamp.id} as failed: #{inspect(changeset.errors)}"
+          )
+
+          %{timestamp | processing_status: :failed, processing_error: message}
+      end
+
+    broadcast_timestamp_updated(result)
+    result
+  end
+
+  defp error_to_string(reason) when is_binary(reason), do: reason
+  defp error_to_string(reason), do: inspect(reason)
+
+  defp generate_new_timestamps(
+         conn,
+         api_key,
+         channel_name,
+         submitter_username,
+         url,
+         existing_timestamp
+       ) do
     # Create the formatted prompt for timestamps
     formatted_prompt =
       "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. feel free to be slightly humorous but not cheesy. channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
@@ -191,76 +347,65 @@ defmodule DragNStampWeb.ApiController do
       </good>
       "
 
-    if api_key do
-      case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
-        {:ok, generated_content} ->
-          # Save timestamp to database
-          timestamp_attrs = %{
-            url: url,
-            channel_name: channel_name,
-            submitter_username: submitter_username,
-            content: generated_content
-          }
+    with {:ok, timestamp, created?} <-
+           ensure_processing_timestamp(
+             existing_timestamp,
+             channel_name,
+             submitter_username,
+             url
+           ) do
+      if created? do
+        Logger.info("Created placeholder timestamp record for URL: #{url}")
+        broadcast_timestamp_created(timestamp)
+      else
+        broadcast_timestamp_updated(timestamp)
+      end
 
-          # Ensure idempotency at DB level as well: unique index on :url
-          case Repo.insert(Timestamp.changeset(%Timestamp{}, timestamp_attrs)) do
-            {:ok, timestamp} ->
-              timestamp_with_metadata = ensure_video_metadata(timestamp)
+      if api_key do
+        case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
+          {:ok, generated_content} ->
+            timestamp_with_metadata = ensure_video_metadata(timestamp)
 
-              {timestamp_with_signature, signed_content} =
-                persist_timestamp_signature(timestamp_with_metadata, generated_content)
+            {timestamp_with_signature, signed_content} =
+              persist_timestamp_signature(timestamp_with_metadata, generated_content)
 
-              Logger.info("Timestamp saved to database for URL: #{url}")
-              # Broadcast the new timestamp for LiveView updates
-              Phoenix.PubSub.broadcast(
-                DragNStamp.PubSub,
-                "timestamps",
-                {:timestamp_created, timestamp_with_signature}
-              )
+            broadcast_timestamp_updated(timestamp_with_signature)
 
-              # Now distill the timestamps
-              distill_timestamps(conn, api_key, timestamp_with_signature, signed_content, url)
+            Logger.info("Timestamp saved to database for URL: #{url}")
 
-            {:error, changeset} ->
-              # If the error is due to unique constraint on URL, fetch existing and return
-              if url_conflict?(changeset) do
-                Logger.info(
-                  "Another process saved timestamps for URL: #{url} while processing. Returning existing record."
-                )
+            distill_timestamps(conn, api_key, timestamp_with_signature, signed_content, url)
 
-                case Repo.get_by(Timestamp, url: url) |> ensure_video_metadata() do
-                  %Timestamp{distilled_content: dist} when not is_nil(dist) ->
-                    json(conn, %{status: "success", response: dist, cached: true})
+          {:error, reason} ->
+            mark_timestamp_failed(timestamp, reason)
 
-                  %Timestamp{content: existing_content} when is_binary(existing_content) ->
-                    json(conn, %{status: "success", response: existing_content, cached: true})
+            conn
+            |> put_status(:internal_server_error)
+            |> json(%{
+              status: "error",
+              message: "Failed to get response from Gemini API after retries: #{reason}"
+            })
+        end
+      else
+        Logger.error("GEMINI_API_KEY environment variable not set")
+        mark_timestamp_failed(timestamp, "GEMINI_API_KEY environment variable not set")
 
-                  _ ->
-                    fallback_content = append_signature(generated_content, nil)
-                    json(conn, %{status: "success", response: fallback_content, cached: false})
-                end
-              else
-                Logger.error("Failed to save timestamp: #{inspect(changeset.errors)}")
-                fallback_content = append_signature(generated_content, nil)
-                json(conn, %{status: "success", response: fallback_content, cached: false})
-              end
-          end
-
-        {:error, reason} ->
-          conn
-          |> put_status(:internal_server_error)
-          |> json(%{
-            status: "error",
-            message: "Failed to get response from Gemini API after retries: #{reason}"
-          })
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{
+          status: "error",
+          message: "GEMINI_API_KEY environment variable not set"
+        })
       end
     else
-      conn
-      |> put_status(:internal_server_error)
-      |> json(%{
-        status: "error",
-        message: "GEMINI_API_KEY environment variable not set"
-      })
+      {:error, changeset} ->
+        Logger.error("Failed to prepare timestamp record: #{inspect(changeset.errors)}")
+
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{
+          status: "error",
+          message: "Failed to prepare timestamp record"
+        })
     end
   end
 
@@ -295,7 +440,13 @@ defmodule DragNStampWeb.ApiController do
   defp persist_timestamp_signature(%Timestamp{} = timestamp, content) when is_binary(content) do
     signed_content = append_signature(content, submission_slug(timestamp))
 
-    case Repo.update(Timestamp.changeset(timestamp, %{content: signed_content})) do
+    attrs = %{
+      content: signed_content,
+      processing_status: :ready,
+      processing_error: nil
+    }
+
+    case Repo.update(Timestamp.changeset(timestamp, attrs)) do
       {:ok, updated} ->
         {updated, signed_content}
 
@@ -304,7 +455,8 @@ defmodule DragNStampWeb.ApiController do
           "Failed to persist signature on timestamp #{timestamp.id || "new"}: #{inspect(changeset.errors)}"
         )
 
-        {%{timestamp | content: signed_content}, signed_content}
+        {%{timestamp | content: signed_content, processing_status: :ready, processing_error: nil},
+         signed_content}
     end
   end
 
@@ -439,6 +591,8 @@ defmodule DragNStampWeb.ApiController do
               %{timestamp | distilled_content: final_content}
           end
 
+        broadcast_timestamp_updated(updated_timestamp)
+
         # Try posting a comment idempotently using the Commenter
         {comment_posted, _comment_status} =
           case DragNStamp.Commenter.post_for_timestamp(updated_timestamp) do
@@ -511,6 +665,8 @@ defmodule DragNStampWeb.ApiController do
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
               %{timestamp | distilled_content: final_content}
           end
+
+        broadcast_timestamp_updated(updated_timestamp)
 
         # Attempt to post comment via Commenter (first time; idempotent)
         {comment_posted, _comment_status} =

@@ -24,6 +24,10 @@ defmodule DragNStamp.Timestamp do
     field :youtube_comment_external_id, :string
     field :youtube_comment_dedupe_key, :string
     field :youtube_comment_attempts, :integer, default: 0
+    field :processing_status, Ecto.Enum,
+      values: [:processing, :ready, :failed],
+      default: :processing
+    field :processing_error, :string
 
     timestamps()
   end
@@ -47,12 +51,25 @@ defmodule DragNStamp.Timestamp do
       :youtube_comment_last_attempt_at,
       :youtube_comment_external_id,
       :youtube_comment_dedupe_key,
-      :youtube_comment_attempts
+      :youtube_comment_attempts,
+      :processing_status,
+      :processing_error
     ])
-    |> validate_required([:url, :channel_name, :content])
+    |> validate_required([:url, :channel_name])
+    |> maybe_require_content()
     |> validate_format(:url, ~r/^https?:\/\/(.*youtube.*\/watch\?v=.*|youtu\.be\/.*)/,
       message: "must be a valid YouTube URL"
     )
     |> unique_constraint(:url)
+  end
+
+  defp maybe_require_content(changeset) do
+    status = get_field(changeset, :processing_status)
+
+    if status == :ready do
+      validate_required(changeset, [:content])
+    else
+      changeset
+    end
   end
 end
