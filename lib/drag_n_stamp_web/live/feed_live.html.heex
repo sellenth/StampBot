@@ -254,5 +254,32 @@
         <% end %>
       <% end %>
     </div>
-  </div>
+
+    <%= if total_pages(assigns) > 1 do %>
+      <div class="pagination-container flex flex-col items-center mt-6">
+        <div class="pagination">
+          <div class="page-numbers">
+            <%= for page <- 1..total_pages(assigns) do %>
+              <%= cond do %>
+                <% page == @page -> %>
+                  <span class="page-number current">{page}</span>
+                <% page == 1 or page == total_pages(assigns) or (page >= @page - 2 and page <= @page + 2) -> %>
+                  <button phx-click="change_page" phx-value-page={page} class="page-number">
+                    {page}
+                  </button>
+                <% page == 2 and @page > 4 -> %>
+                  <span class="page-ellipsis">...</span>
+                <% page == total_pages(assigns) - 1 and @page < total_pages(assigns) - 3 -> %>
+                  <span class="page-ellipsis">...</span>
+                <% true -> %>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+        <div class="pagination-info">
+          Page {@page} of {total_pages(assigns)}
+        </div>
+      </div>
+    <% end %>
+</div>
 </div>
