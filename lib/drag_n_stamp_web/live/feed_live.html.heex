@@ -213,13 +213,12 @@
                 <% timestamp.processing_status == :failed -> %>
                   <%= if timestamp.processing_error && String.starts_with?(timestamp.processing_error, "[unsupported:") do %>
                     <div class="timestamp-error">
-                      <p>Request not supported.</p>
                       <%= if timestamp.processing_error do %>
                         <p class="timestamp-error-details">
                           {String.replace_prefix(timestamp.processing_error, "[unsupported:video_too_long] ", "")}
                         </p>
                       <% end %>
-                      <p class="timestamp-error-hint">We stored this for future analysis.</p>
+                      <p class="timestamp-error-hint">We stored this submission for future analysis.</p>
                     </div>
                   <% else %>
                     <div class="timestamp-error">
@@ -230,7 +229,7 @@
                 <% timestamp.processing_status == :processing -> %>
                   <div class="timestamp-placeholder">
                     <span class="status-indicator status-indicator--processing" aria-hidden="true"></span>
-                    <p>Generating timestamps… this usually takes a few minutes.</p>
+                    <p class="mb-0">Generating timestamps… this usually takes a few minutes.</p>
                   </div>
                 <% true -> %>
                   <div class="timestamps-container">
