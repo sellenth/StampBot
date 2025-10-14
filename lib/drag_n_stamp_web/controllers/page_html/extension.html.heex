@@ -284,9 +284,9 @@
             })
           });
 
-          const data = await response.json();
+          const data = await response.json().catch(() => ({}));
 
-          if (data.status === 'success') {
+          if (response.ok && data.status === 'success') {
             showAlert('Timestamps generated successfully!', 'success');
 
             // Display the timestamps
@@ -298,7 +298,8 @@
             // Reset form
             document.getElementById('url').value = '';
           } else {
-            showAlert('Failed to generate timestamps. Please try again.', 'error');
+            const msg = data.message || 'Failed to generate timestamps. Please try again.';
+            showAlert(msg, 'error');
           }
         } catch (error) {
           console.error('Error:', error);

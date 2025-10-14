@@ -136,9 +136,15 @@
                     Processing
                   </span>
                 <% :failed -> %>
-                  <span class="tag status-tag status-tag--failed" title="Failed to generate timestamps">
-                    Generation failed
-                  </span>
+                  <%= if timestamp.processing_error && String.starts_with?(timestamp.processing_error, "[unsupported:") do %>
+                    <span class="tag status-tag" title="Not supported">
+                      Not supported
+                    </span>
+                  <% else %>
+                    <span class="tag status-tag status-tag--failed" title="Failed to generate timestamps">
+                      Generation failed
+                    </span>
+                  <% end %>
                 <% _ -> %>
               <% end %>
               <%= if has_distilled_content?(timestamp) do %>
@@ -205,15 +211,22 @@
               </div>
               <%= cond do %>
                 <% timestamp.processing_status == :failed -> %>
-                  <div class="timestamp-error">
-                    <p>We hit a server error while generating these timestamps.</p>
-                    <%= if timestamp.processing_error do %>
-                      <p class="timestamp-error-details">
-                        {timestamp.processing_error}
-                      </p>
-                    <% end %>
-                    <p class="timestamp-error-hint">We automatically retry failed requests.</p>
-                  </div>
+                  <%= if timestamp.processing_error && String.starts_with?(timestamp.processing_error, "[unsupported:") do %>
+                    <div class="timestamp-error">
+                      <p>Request not supported.</p>
+                      <%= if timestamp.processing_error do %>
+                        <p class="timestamp-error-details">
+                          {String.replace_prefix(timestamp.processing_error, "[unsupported:video_too_long] ", "")}
+                        </p>
+                      <% end %>
+                      <p class="timestamp-error-hint">We stored this for future analysis.</p>
+                    </div>
+                  <% else %>
+                    <div class="timestamp-error">
+                      <p class="timestamp-error-hint">Oops, something's not quite right here...</p>
+                      <p>We will retry this submission at a later date (if possible)</p>
+                    </div>
+                  <% end %>
                 <% timestamp.processing_status == :processing -> %>
                   <div class="timestamp-placeholder">
                     <span class="status-indicator status-indicator--processing" aria-hidden="true"></span>

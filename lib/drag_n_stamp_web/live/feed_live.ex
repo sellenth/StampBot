@@ -172,8 +172,15 @@ defmodule DragNStampWeb.FeedLive do
 
   defp recent_failure?(%Timestamp{} = timestamp) do
     timestamp.processing_status == :failed and
+      not unsupported_failure?(timestamp) and
       recent?(reference_time(timestamp), @status_failure_window_minutes)
   end
+
+  defp unsupported_failure?(%Timestamp{processing_error: msg}) when is_binary(msg) do
+    String.starts_with?(msg, "[unsupported:")
+  end
+
+  defp unsupported_failure?(_), do: false
 
   defp recent_processing_count(timestamps) do
     timestamps

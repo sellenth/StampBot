@@ -174,6 +174,56 @@ defmodule DragNStamp.SEO.VideoMetadata do
 
   defp build_metadata_from_api(_), do: {:error, :no_items}
 
+  @doc """
+  Fetch only the duration (in seconds) for a given YouTube `video_id` using the
+  YouTube Data API. Returns `{:ok, seconds}` when available, or `{:error, reason}`.
+
+  This does not fall back to oEmbed, since duration is not provided there.
+  """
+  @spec fetch_duration_seconds(String.t()) :: {:ok, integer()} | {:error, term()}
+  def fetch_duration_seconds(video_id) when is_binary(video_id) do
+    case System.get_env("YOUTUBE_DATA_API_KEY") do
+      nil -> {:error, :no_api_key}
+      "" -> {:error, :no_api_key}
+      api_key -> do_fetch_duration_seconds(video_id, api_key)
+    end
+  end
+
+  def fetch_duration_seconds(_), do: {:error, :invalid_video_id}
+
+  defp do_fetch_duration_seconds(video_id, api_key) do
+    params =
+      URI.encode_query(%{
+        "part" => "contentDetails",
+        "id" => video_id,
+        "key" => api_key
+      })
+
+    url = @youtube_api <> "?" <> params
+
+    request = Finch.build(:get, url, headers())
+
+    case Finch.request(request, DragNStamp.Finch, receive_timeout: 15_000) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        with {:ok, payload} <- Jason.decode(body),
+             %{"items" => [item | _]} <- payload,
+             %{"contentDetails" => %{"duration" => iso_duration}} <- item,
+             seconds when is_integer(seconds) <- parse_duration(iso_duration) do
+          {:ok, seconds}
+        else
+          %{"items" => []} -> {:error, :no_items}
+          _ -> {:error, :parse_error}
+        end
+
+      {:ok, %Finch.Response{status: status, body: body}} ->
+        Logger.warning("YouTube API (duration) returned status #{status}: #{body}")
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   defp fetch_from_oembed(video_url) do
     params = URI.encode_query(%{"url" => video_url, "format" => "json"})
     url = @youtube_oembed <> "?" <> params

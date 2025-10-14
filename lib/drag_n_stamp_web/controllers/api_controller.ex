@@ -142,30 +142,50 @@ defmodule DragNStampWeb.ApiController do
           "Timestamp record present for URL: #{url} with status #{timestamp.processing_status}, attempting regeneration"
         )
 
-        case acquire_url_lock(url) do
-          :acquired ->
-            try do
-              generate_new_timestamps(
-                conn,
-                api_key,
-                channel_name,
-                submitter_username,
-                url,
-                timestamp
-              )
-            after
-              release_url_lock(url)
-            end
+        # Short-circuit if we already know the video is too long
+        case video_too_long?(timestamp) do
+          {:reject, seconds} ->
+            friendly =
+              "We do not currently support videos over 40 minutes. Storing for future analysis."
 
-          :in_flight ->
-            Logger.info("Duplicate request in-flight for URL: #{url}, returning 202 Accepted")
+            db_message = "[unsupported:video_too_long] " <> friendly
+            _ = mark_timestamp_failed(timestamp, db_message)
 
             conn
-            |> put_status(:accepted)
+            |> put_status(:unprocessable_entity)
             |> json(%{
-              status: "processing",
-              message: "A request for this URL is already in progress"
+              status: "error",
+              message: friendly,
+              reason: "video_too_long",
+              max_minutes: 40
             })
+
+          :ok ->
+            case acquire_url_lock(url) do
+              :acquired ->
+                try do
+                  generate_new_timestamps(
+                    conn,
+                    api_key,
+                    channel_name,
+                    submitter_username,
+                    url,
+                    timestamp
+                  )
+                after
+                  release_url_lock(url)
+                end
+
+              :in_flight ->
+                Logger.info("Duplicate request in-flight for URL: #{url}, returning 202 Accepted")
+
+                conn
+                |> put_status(:accepted)
+                |> json(%{
+                  status: "processing",
+                  message: "A request for this URL is already in progress"
+                })
+            end
         end
 
       nil ->
@@ -361,40 +381,61 @@ defmodule DragNStampWeb.ApiController do
         broadcast_timestamp_updated(timestamp)
       end
 
-      if api_key do
-        case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
-          {:ok, generated_content} ->
-            timestamp_with_metadata = ensure_video_metadata(timestamp)
+      # Enforce a 40-minute maximum video length before analysis
+      case video_too_long?(timestamp) do
+        {:reject, seconds} ->
+          friendly =
+            "This video is #{Integer.floor_div(seconds, 60)} minutes long. " <>
+              "Please choose a video under 40 minutes."
 
-            {timestamp_with_signature, signed_content} =
-              persist_timestamp_signature(timestamp_with_metadata, generated_content)
+          db_message = "[unsupported:video_too_long] " <> friendly
+          _ = mark_timestamp_failed(timestamp, db_message)
 
-            broadcast_timestamp_updated(timestamp_with_signature)
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{
+            status: "error",
+            message: friendly,
+            reason: "video_too_long",
+            max_minutes: 40
+          })
 
-            Logger.info("Timestamp saved to database for URL: #{url}")
+        :ok ->
+          if api_key do
+            case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
+              {:ok, generated_content} ->
+                timestamp_with_metadata = ensure_video_metadata(timestamp)
 
-            distill_timestamps(conn, api_key, timestamp_with_signature, signed_content, url)
+                {timestamp_with_signature, signed_content} =
+                  persist_timestamp_signature(timestamp_with_metadata, generated_content)
 
-          {:error, reason} ->
-            mark_timestamp_failed(timestamp, reason)
+                broadcast_timestamp_updated(timestamp_with_signature)
+
+                Logger.info("Timestamp saved to database for URL: #{url}")
+
+                distill_timestamps(conn, api_key, timestamp_with_signature, signed_content, url)
+
+              {:error, reason} ->
+                mark_timestamp_failed(timestamp, reason)
+
+                conn
+                |> put_status(:internal_server_error)
+                |> json(%{
+                  status: "error",
+                  message: "Failed to get response from Gemini API after retries: #{reason}"
+                })
+            end
+          else
+            Logger.error("GEMINI_API_KEY environment variable not set")
+            mark_timestamp_failed(timestamp, "GEMINI_API_KEY environment variable not set")
 
             conn
             |> put_status(:internal_server_error)
             |> json(%{
               status: "error",
-              message: "Failed to get response from Gemini API after retries: #{reason}"
+              message: "GEMINI_API_KEY environment variable not set"
             })
-        end
-      else
-        Logger.error("GEMINI_API_KEY environment variable not set")
-        mark_timestamp_failed(timestamp, "GEMINI_API_KEY environment variable not set")
-
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{
-          status: "error",
-          message: "GEMINI_API_KEY environment variable not set"
-        })
+          end
       end
     else
       {:error, changeset} ->
@@ -435,6 +476,39 @@ defmodule DragNStampWeb.ApiController do
 
   defp metadata_ingest_enabled? do
     Application.get_env(:drag_n_stamp, :fetch_video_metadata_on_ingest, true)
+  end
+
+  defp video_too_long?(%Timestamp{video_duration_seconds: secs} = _timestamp)
+       when is_integer(secs) and secs > 40 * 60, do: {:reject, secs}
+
+  defp video_too_long?(%Timestamp{} = timestamp) do
+    # Attempt to enrich and persist metadata (caches duration for future attempts)
+    updated = ensure_video_metadata(timestamp)
+
+    case updated do
+      %Timestamp{video_duration_seconds: secs} when is_integer(secs) and secs > 40 * 60 ->
+        {:reject, secs}
+
+      _ ->
+        # Fallback: attempt a lightweight duration fetch if metadata ingest is disabled
+        case VideoMetadata.extract_video_id(timestamp.url) do
+          {:ok, video_id} ->
+            case VideoMetadata.fetch_duration_seconds(video_id) do
+              {:ok, secs} when is_integer(secs) and secs > 40 * 60 -> {:reject, secs}
+              {:ok, _} -> :ok
+              {:error, :no_api_key} ->
+                Logger.warning("YOUTUBE_DATA_API_KEY not set; skipping duration check for #{timestamp.url}")
+                :ok
+              {:error, reason} ->
+                Logger.debug("Duration check failed (#{inspect(reason)}); proceeding without block")
+                :ok
+            end
+
+          {:error, reason} ->
+            Logger.debug("Could not extract video id (#{inspect(reason)}); proceeding without block")
+            :ok
+        end
+    end
   end
 
   defp persist_timestamp_signature(%Timestamp{} = timestamp, content) when is_binary(content) do
