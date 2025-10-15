@@ -33,7 +33,8 @@ defmodule DragNStampWeb.HomeLive do
         {:noreply,
          socket
          |> assign(:loading, true)
-         |> put_flash(:info, "Generating timestamps... This may take up to 5 minutes.")}
+         |> put_flash(:info, "Generating timestamps... This may take up to 5 minutes.")
+         |> push_navigate(to: ~p"/feed")}
 
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
