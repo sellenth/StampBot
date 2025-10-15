@@ -268,7 +268,7 @@
         submitBtn.textContent = 'Generating...';
 
         // Show processing message
-        showAlert('Processing video... This may take up to 5 minutes. You can close this window.', 'info');
+        showAlert('Processing video... This may take a few minutes. You can close this window.', 'info');
 
         try {
           const response = await fetch('<%= @api_endpoint %>', {
