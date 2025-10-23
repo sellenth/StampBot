@@ -18,7 +18,8 @@ Change database_url to perform mix ecto.migrate
 ## API Endpoints
 
 - `/api/receive-url` - Collects YouTube URLs and usernames
-- `/api/gemini` - Generates 10 timestamps for YouTube videos
+- `/api/gemini` - Generates timestamps for YouTube videos. Requests exceeding 40 minutes fall back
+  to processing via captions when available; failures store diagnostic context for later analysis.
 
 ## Deploy
 

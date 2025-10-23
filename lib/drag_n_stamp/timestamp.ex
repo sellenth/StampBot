@@ -28,6 +28,7 @@ defmodule DragNStamp.Timestamp do
       values: [:processing, :ready, :failed],
       default: :processing
     field :processing_error, :string
+    field :processing_context, :map
 
     timestamps()
   end
@@ -53,7 +54,8 @@ defmodule DragNStamp.Timestamp do
       :youtube_comment_dedupe_key,
       :youtube_comment_attempts,
       :processing_status,
-      :processing_error
+      :processing_error,
+      :processing_context
     ])
     |> validate_required([:url, :channel_name])
     |> maybe_require_content()
