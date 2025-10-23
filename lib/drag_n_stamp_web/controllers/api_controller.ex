@@ -3,10 +3,10 @@ defmodule DragNStampWeb.ApiController do
   require Logger
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.{PagePath, VideoMetadata}
-  alias DragNStamp.YouTube.Captions
+  alias DragNStamp.Timestamps.Parser
+  alias DragNStamp.Timestamps.GeminiClient
+  alias DragNStamp.Timestamps.CaptionFallback
 
-  @caption_merge_window_ms 15_000
-  @caption_char_limit 60_000
   @caption_attempt_history_limit 5
 
   def receive_url(conn, %{"url" => url} = params) do
@@ -62,26 +62,6 @@ defmodule DragNStampWeb.ApiController do
       true ->
         url
     end
-  end
-
-  defp extract_timestamps_only(text) when is_binary(text) do
-    text
-    |> String.split("\n")
-    |> Enum.filter(fn line ->
-      # Match lines that start with timestamp pattern like "0:00", "1:23", "12:34", etc.
-      String.match?(line, ~r/^\s*\d+:\d+/)
-    end)
-    |> Enum.join("\n")
-  end
-
-  defp extract_timestamps_only(nil) do
-    Logger.error("extract_timestamps_only received nil - Gemini API returned no text")
-    {:error, :nil_response}
-  end
-
-  defp extract_timestamps_only(other) do
-    Logger.error("extract_timestamps_only received unexpected type: #{inspect(other)}")
-    {:error, :unexpected_type}
   end
 
   def gemini(conn, params) do
@@ -371,7 +351,7 @@ defmodule DragNStampWeb.ApiController do
         {:reject, seconds} ->
           Logger.info("Video exceeds 40-minute limit (#{seconds}s). Attempting caption-based processing.")
 
-          case process_video_via_captions(timestamp, channel_name, url, api_key, trigger: "length_gate") do
+          case CaptionFallback.process(channel_name, url, api_key, trigger: "length_gate") do
             {:ok, cleaned, attempt_meta} ->
               attempt_meta =
                 attempt_meta
@@ -422,7 +402,7 @@ defmodule DragNStampWeb.ApiController do
               message: "GEMINI_API_KEY environment variable not set"
             })
           else
-            case call_gemini_api_with_retry(formatted_prompt, api_key, url) do
+            case GeminiClient.timestamps_with_retry(formatted_prompt, api_key, url) do
               {:ok, generated_content} ->
                 complete_timestamp_generation(conn, api_key, timestamp, generated_content, url)
 
@@ -431,8 +411,7 @@ defmodule DragNStampWeb.ApiController do
                   "Gemini video+ request failed with #{inspect(reason)}. Falling back to captions for #{url}"
                 )
 
-                case process_video_via_captions(
-                       timestamp,
+                case CaptionFallback.process(
                        channel_name,
                        url,
                        api_key,
@@ -609,366 +588,6 @@ defmodule DragNStampWeb.ApiController do
 
   defp append_signature(content, _slug), do: content
 
-  defp process_video_via_captions(
-         %Timestamp{} = _timestamp,
-         channel_name,
-         url,
-         api_key,
-         opts \\ []
-       ) do
-    trigger = Keyword.get(opts, :trigger)
-
-    case VideoMetadata.extract_video_id(url) do
-      {:ok, video_id} ->
-        if api_key in [nil, ""] do
-          attempt =
-            build_caption_attempt_meta(nil, "failure", maybe_put_trigger(%{
-              "reason" => "missing_gemini_api_key",
-              "failure_reason" => "missing_api_key",
-              "video_url" => url
-            }, trigger))
-
-          {:error, :missing_api_key, caption_failure_message(:missing_api_key), attempt}
-        else
-          case Captions.fetch_transcript(video_id) do
-            {:ok, %{segments: segments, context: caption_context}} ->
-              case build_transcript_payload(segments) do
-                {:ok, transcript_text, stats} ->
-                  case summarize_captions(channel_name, transcript_text, api_key) do
-                    {:ok, cleaned} ->
-                      attempt =
-                        build_caption_attempt_meta(video_id, "success", maybe_put_trigger(%{
-                          "caption_context" => caption_context,
-                          "transcript_stats" => stats,
-                          "prompt_character_count" => String.length(transcript_text),
-                          "model" => "gemini-2.5-flash",
-                          "video_url" => url
-                        }, trigger))
-
-                      {:ok, cleaned, attempt}
-
-                    {:error, reason_atom, detail} ->
-                      attempt =
-                        build_caption_attempt_meta(video_id, "failure", maybe_put_trigger(%{
-                          "caption_context" => caption_context,
-                          "transcript_stats" => stats,
-                          "failure_reason" => Atom.to_string(reason_atom),
-                          "detail" => inspect(detail),
-                          "video_url" => url
-                        }, trigger))
-
-                      {:error, reason_atom, caption_failure_message(reason_atom), attempt}
-                  end
-
-                {:error, reason_atom, stats} ->
-                  attempt =
-                    build_caption_attempt_meta(video_id, "failure", maybe_put_trigger(%{
-                      "caption_context" => caption_context,
-                      "transcript_stats" => stats,
-                      "failure_reason" => Atom.to_string(reason_atom),
-                      "video_url" => url
-                    }, trigger))
-
-                  {:error, reason_atom, caption_failure_message(reason_atom), attempt}
-              end
-
-            {:error, reason, context} ->
-              failure_reason = caption_fetch_failure_reason(reason)
-
-              attempt =
-                build_caption_attempt_meta(video_id, "failure", maybe_put_trigger(%{
-                  "caption_context" => context,
-                  "reason" => inspect(reason),
-                  "failure_reason" => Atom.to_string(failure_reason),
-                  "video_url" => url
-                }, trigger))
-
-              {:error, failure_reason, caption_failure_message(failure_reason), attempt}
-          end
-        end
-
-      {:error, reason} ->
-        attempt =
-          build_caption_attempt_meta(nil, "failure", maybe_put_trigger(%{
-            "reason" => inspect(reason),
-            "failure_reason" => "video_id_not_found",
-            "video_url" => url
-          }, trigger))
-
-        {:error, :video_id_not_found, caption_failure_message(:video_id_not_found), attempt}
-    end
-  end
-
-  defp summarize_captions(channel_name, transcript_text, api_key) do
-    prompt = build_caption_prompt(channel_name, transcript_text)
-
-    case call_gemini_api_text_only(prompt, api_key) do
-      {:ok, response} ->
-        cond do
-          is_binary(response) ->
-            cleaned = extract_timestamps_only(response)
-
-            cond do
-              is_binary(cleaned) and String.trim(cleaned) != "" ->
-                {:ok, String.trim(cleaned)}
-
-              is_binary(cleaned) ->
-                {:error, :no_timestamps, response}
-
-              true ->
-                {:error, :timestamp_extraction_failed, cleaned}
-            end
-
-          true ->
-            {:error, :gemini_error, :non_binary_response}
-        end
-
-      {:error, reason} ->
-        {:error, :gemini_error, reason}
-    end
-  end
-
-  defp build_caption_prompt(channel_name, transcript_text) do
-    trimmed =
-      case channel_name do
-        nil -> "anonymous"
-        other -> String.trim(other)
-      end
-
-    channel_line =
-      if trimmed == "" or String.downcase(trimmed) == "anonymous" do
-        "The channel name was not supplied. Do not reference a channel name."
-      else
-        "Channel name is #{trimmed}."
-      end
-
-    """
-    Generate 10-14 engaging YouTube timestamps based solely on the transcript below.
-    #{channel_line}
-    Use 8-12 words per timestamp. Progress the timeline in order and highlight the most significant beats.
-    Format as YouTube description lines like `0:00 A short teaser of the moment`.
-    One timestamp per line. No bullet points, no extra commentary or closing remarks.
-    Avoid punctuation that would turn timestamps into clickable URLs in YouTube comments (prefer spaces or dashes).
-    Be accurate to the transcript and keep any humor subtle.
-    <transcript>
-    #{transcript_text}
-    </transcript>
-    """
-  end
-
-  defp build_transcript_payload(segments) when is_list(segments) do
-    lines =
-      segments
-      |> collapse_segments(@caption_merge_window_ms)
-      |> Enum.reject(&(String.trim(&1) == ""))
-
-    original_line_count = length(lines)
-    {trimmed_lines, truncated?} = trim_lines_to_char_limit(lines, @caption_char_limit)
-    transcript_text = trimmed_lines |> Enum.join("\n") |> String.trim()
-
-    stats = %{
-      line_count: original_line_count,
-      used_line_count: length(trimmed_lines),
-      truncated: truncated?,
-      char_count: String.length(transcript_text)
-    }
-
-    if transcript_text == "" do
-      {:error, :transcript_empty, stats}
-    else
-      {:ok, transcript_text, stats}
-    end
-  end
-
-  defp collapse_segments(segments, window_ms) do
-    {reversed, current} =
-      Enum.reduce(segments, {[], nil}, fn
-        %{text: text}, acc when text in [nil, ""] ->
-          acc
-
-        %{start_ms: start_ms, end_ms: end_ms, text: text}, {chunks, nil} ->
-          {chunks, %{start_ms: start_ms, last_ms: end_ms, texts: [text]}}
-
-        %{start_ms: start_ms, end_ms: end_ms, text: text}, {chunks, current_chunk} ->
-          if start_ms - current_chunk.last_ms <= window_ms do
-            updated =
-              current_chunk
-              |> Map.update!(:texts, fn texts -> [text | texts] end)
-              |> Map.put(:last_ms, max(end_ms, current_chunk.last_ms))
-
-            {chunks, updated}
-          else
-            finalized = finalize_caption_chunk(current_chunk)
-            { [finalized | chunks], %{start_ms: start_ms, last_ms: end_ms, texts: [text]} }
-          end
-      end)
-
-    chunks =
-      case current do
-        nil -> reversed
-        chunk -> [finalize_caption_chunk(chunk) | reversed]
-      end
-
-    chunks
-    |> Enum.reverse()
-    |> Enum.map(fn %{start_ms: start_ms, text: text} ->
-      "#{format_caption_time(start_ms)} #{text}"
-    end)
-  end
-
-  defp finalize_caption_chunk(%{start_ms: start_ms, last_ms: last_ms, texts: texts}) do
-    text =
-      texts
-      |> Enum.reverse()
-      |> Enum.join(" ")
-      |> normalize_whitespace()
-
-    %{start_ms: start_ms, last_ms: last_ms, text: text}
-  end
-
-  defp normalize_whitespace(text) when is_binary(text) do
-    text
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-  end
-
-  defp trim_lines_to_char_limit(lines, limit) when is_list(lines) do
-    {acc, _total, truncated?} =
-      Enum.reduce(lines, {[], 0, false}, fn line, {acc, total, truncated?} ->
-        cond do
-          truncated? ->
-            {acc, total, truncated?}
-
-          true ->
-            separator = if acc == [], do: 0, else: 1
-            potential_total = total + String.length(line) + separator
-
-            cond do
-              potential_total <= limit ->
-                {[line | acc], potential_total, truncated?}
-
-              acc == [] ->
-                trimmed = String.slice(line, 0, limit)
-                {[trimmed | acc], limit, true}
-
-              true ->
-                {acc, total, true}
-            end
-        end
-      end)
-
-    {Enum.reverse(acc), truncated?}
-  end
-
-  defp format_caption_time(ms) when is_integer(ms) do
-    total_seconds = div(ms, 1000)
-    hours = div(total_seconds, 3600)
-    minutes = div(rem(total_seconds, 3600), 60)
-    seconds = rem(total_seconds, 60)
-
-    if hours > 0 do
-      "#{hours}:#{pad_two_digits(minutes)}:#{pad_two_digits(seconds)}"
-    else
-      "#{minutes}:#{pad_two_digits(seconds)}"
-    end
-  end
-
-  defp pad_two_digits(value) when value < 10, do: "0#{value}"
-  defp pad_two_digits(value), do: Integer.to_string(value)
-
-  defp caption_fetch_failure_reason(reason) do
-    case reason do
-      :no_tracks -> :captions_unavailable
-      :no_tracks_available -> :captions_unavailable
-      :empty_segments -> :captions_empty
-      {:invalid_caption_payload, _} -> :captions_fetch_failed
-      {:http_error, _} -> :captions_fetch_failed
-      {:request_failed, _} -> :captions_fetch_failed
-      _ -> :captions_fetch_failed
-    end
-  end
-
-  defp caption_failure_message(:missing_api_key),
-    do:
-      "We couldn't access our caption summarizer right now. Please try again later—this video is saved for future analysis."
-
-  defp caption_failure_message(:video_id_not_found),
-    do:
-      "We couldn't read this YouTube link, so caption summarization is paused. We've saved it for follow-up."
-
-  defp caption_failure_message(:captions_unavailable),
-    do:
-      "Auto timestamps need captions, and we couldn't find any for this longer video. It's saved so we can re-check later."
-
-  defp caption_failure_message(:captions_empty),
-    do:
-      "The available captions were empty or unusable, so timestamps aren't ready yet. We've stored this video for review."
-
-  defp caption_failure_message(:captions_fetch_failed),
-    do:
-      "We hit an issue fetching captions from YouTube. It's logged for future analysis."
-
-  defp caption_failure_message(:transcript_empty),
-    do:
-      "Captions didn't contain enough usable speech to build timestamps. We'll keep this video on file to retry."
-
-  defp caption_failure_message(:gemini_error),
-    do:
-      "Gemini had trouble summarizing the captions. We've saved the attempt and will keep an eye on it."
-
-  defp caption_failure_message(:timestamp_extraction_failed),
-    do:
-      "Gemini responded without clear timestamps. We've saved the output for debugging."
-
-  defp caption_failure_message(:no_timestamps),
-    do:
-      "Gemini didn't produce usable timestamps from the captions. We'll review this later."
-
-  defp caption_failure_message(_other),
-    do:
-      "We couldn't create timestamps from captions yet, but the video is stored so we can revisit it."
-
-  defp maybe_put_trigger(map, nil), do: map
-  defp maybe_put_trigger(map, trigger), do: Map.put(map, "trigger", trigger)
-
-  defp build_caption_attempt_meta(video_id, result, extra) when is_map(extra) do
-    base = %{
-      "at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
-      "result" => result
-    }
-
-    base =
-      if video_id do
-        Map.put(base, "video_id", video_id)
-      else
-        base
-      end
-
-    base
-    |> Map.merge(stringify_keys(extra))
-  end
-
-  defp stringify_keys(value) when is_map(value) do
-    value
-    |> Enum.map(fn {key, inner_value} ->
-      string_key =
-        case key do
-          k when is_binary(k) -> k
-          k when is_atom(k) -> Atom.to_string(k)
-          other -> inspect(other)
-        end
-
-      {string_key, stringify_keys(inner_value)}
-    end)
-    |> Enum.into(%{})
-  end
-
-  defp stringify_keys(value) when is_list(value) do
-    Enum.map(value, &stringify_keys/1)
-  end
-
-  defp stringify_keys(value), do: value
-
   defp record_caption_attempt(%Timestamp{} = timestamp, attempt_meta) when is_map(attempt_meta) do
     current_context = timestamp.processing_context || %{}
     existing_attempts = Map.get(current_context, "caption_attempts", [])
@@ -1006,94 +625,6 @@ defmodule DragNStampWeb.ApiController do
 
   defp maybe_put_caption_summary(context, summary) when summary == %{}, do: context
   defp maybe_put_caption_summary(context, summary), do: Map.put(context, "captions_summary", summary)
-
-  defp call_gemini_api_with_retry(prompt, api_key, video_url, attempt \\ 1) do
-    case call_gemini_api(prompt, api_key, video_url) do
-      {:ok, response} ->
-        {:ok, response}
-
-      {:error, reason} when attempt < 3 ->
-        delay = if attempt == 1, do: 5_000, else: 60_000
-
-        Logger.warning(
-          "Gemini API attempt #{attempt} failed: #{reason}. Retrying in #{delay}ms..."
-        )
-
-        Process.sleep(delay)
-        call_gemini_api_with_retry(prompt, api_key, video_url, attempt + 1)
-
-      {:error, reason} ->
-        Logger.error("Gemini API failed after #{attempt} attempts: #{reason}")
-        {:error, reason}
-    end
-  end
-
-  defp call_gemini_api(prompt, api_key, video_url) do
-    api_url =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=#{api_key}"
-
-    headers = [
-      {"Content-Type", "application/json"}
-    ]
-
-    # Build parts array - always include text prompt
-    parts = [%{text: prompt}]
-
-    # Add file_data if video_url is provided
-    parts =
-      case build_video_part(video_url) do
-        nil -> parts
-        video_part -> parts ++ [video_part]
-      end
-
-    body = %{
-      contents: [
-        %{
-          parts: parts
-        }
-      ]
-    }
-
-    request = Finch.build(:post, api_url, headers, Jason.encode!(body))
-
-    case Finch.request(request, DragNStamp.Finch, receive_timeout: 300_000) do
-      {:ok, %Finch.Response{status: 200, body: response_body}} ->
-        case Jason.decode(response_body) do
-          {:ok, %{"candidates" => candidates}} ->
-            text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
-            Logger.info("Gemini API raw response: #{inspect(text)}")
-
-            case extract_timestamps_only(text) do
-              {:error, reason} ->
-                Logger.error("Failed to extract timestamps: #{reason}")
-                {:error, "No valid timestamps in response"}
-
-              cleaned_text ->
-                Logger.info("Gemini API cleaned timestamps: #{inspect(cleaned_text)}")
-                {:ok, cleaned_text}
-            end
-
-          {:ok, %{"error" => error}} ->
-            {:error, error["message"]}
-
-          {:error, reason} ->
-            {:error, "Failed to parse response: #{reason}"}
-        end
-
-      {:error, reason} ->
-        {:error, "HTTP request failed: #{inspect(reason)}"}
-
-      {:ok, %Finch.Response{status: status}} ->
-        {:error, "HTTP request failed with status: #{status}"}
-    end
-  end
-
-  defp build_video_part(nil), do: nil
-
-  defp build_video_part(video_url) when is_binary(video_url) do
-    %{file_data: %{file_uri: video_url}}
-    #|> Map.put(:videoMetadata, %{"fps" => 0.5})
-  end
 
   defp distill_existing_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
@@ -1283,11 +814,11 @@ defmodule DragNStampWeb.ApiController do
     #{content}
     """
 
-    case call_gemini_api_text_only(distillation_prompt, api_key) do
+    case GeminiClient.text_only(distillation_prompt, api_key) do
       {:ok, response} ->
         Logger.info("Gemini distillation raw response: #{inspect(response)}")
 
-        case extract_timestamps_only(response) do
+        case Parser.extract_timestamps_only(response) do
           {:error, reason} ->
             Logger.error("Failed to extract timestamps from distillation: #{reason}")
             {:error, "No valid timestamps in distillation response"}
@@ -1301,47 +832,5 @@ defmodule DragNStampWeb.ApiController do
         {:error, reason}
     end
   end
-
-  defp call_gemini_api_text_only(prompt, api_key) do
-    api_url =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=#{api_key}"
-
-    headers = [
-      {"Content-Type", "application/json"}
-    ]
-
-    body = %{
-      contents: [
-        %{
-          parts: [%{text: prompt}]
-        }
-      ]
-    }
-
-    request = Finch.build(:post, api_url, headers, Jason.encode!(body))
-
-    case Finch.request(request, DragNStamp.Finch, receive_timeout: 300_000) do
-      {:ok, %Finch.Response{status: 200, body: response_body}} ->
-        case Jason.decode(response_body) do
-          {:ok, %{"candidates" => candidates}} ->
-            text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
-            Logger.info("Gemini text-only API raw response: #{inspect(text)}")
-            {:ok, text}
-
-          {:ok, %{"error" => error}} ->
-            {:error, error["message"]}
-
-          {:error, reason} ->
-            {:error, "Failed to parse response: #{reason}"}
-        end
-
-      {:error, reason} ->
-        {:error, "HTTP request failed: #{inspect(reason)}"}
-
-      {:ok, %Finch.Response{status: status}} ->
-        {:error, "HTTP request failed with status: #{status}"}
-    end
-  end
-
   # Note: direct posting helper removed in favor of DragNStamp.Commenter
 end

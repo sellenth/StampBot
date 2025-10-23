@@ -6,7 +6,17 @@ defmodule DragNStamp.YouTube.Captions do
 
   require Logger
 
+  alias DragNStamp.YouTube.Innertube
+
   @timedtext_url "https://www.youtube.com/api/timedtext"
+  @timedtext_fallback_attempts [
+    %{"lang_code" => "en"},
+    %{"lang_code" => "en", "kind" => "asr"},
+    %{"lang_code" => "en-US"},
+    %{"lang_code" => "en-US", "kind" => "asr"},
+    %{"lang_code" => "en-GB"},
+    %{"lang_code" => "en-GB", "kind" => "asr"}
+  ]
 
   @doc """
   Attempts to fetch the most useful caption track for the given YouTube `video_id`.
@@ -30,6 +40,28 @@ defmodule DragNStamp.YouTube.Captions do
 
       {:ok, %{track: track, segments: segments, context: context}}
     else
+      {:error, :no_tracks, context} ->
+        case fallback_download(video_id) do
+          {:ok, track, segments, attempts} ->
+            merged_context =
+              context
+              |> Map.put(:fallback_used, true)
+              |> Map.put(:fallback_attempts, attempts)
+              |> Map.put(:segment_count, length(segments))
+              |> Map.put(:chosen_track, scrub_track_for_context(track))
+              |> Map.put(:stage, :transcript_ready)
+
+            {:ok, %{track: track, segments: segments, context: merged_context}}
+
+          {:error, reason, attempts} ->
+            merged_context =
+              context
+              |> Map.put(:fallback_used, true)
+              |> Map.put(:fallback_attempts, attempts)
+
+            {:error, reason, merged_context}
+        end
+
       {:error, reason, context} ->
         {:error, reason, context}
 
@@ -238,6 +270,84 @@ defmodule DragNStamp.YouTube.Captions do
       binary
       |> binary_part(0, 500)
       |> Kernel.<>("…")
+    end
+  end
+
+  defp fallback_download(video_id) do
+    case fallback_timedtext(video_id) do
+      {:ok, track, segments, attempts} ->
+        {:ok, track, segments, attempts}
+
+      {:error, :no_tracks, attempts} ->
+        use_innertube(video_id, attempts)
+
+      {:error, reason, attempts} ->
+        {:error, reason, attempts}
+    end
+  end
+
+  defp fallback_timedtext(video_id) do
+    Enum.reduce_while(@timedtext_fallback_attempts, {:error, :no_tracks, []}, fn attempt,
+                                                                                {:error, :no_tracks,
+                                                                                 failures} ->
+      case download_track(video_id, attempt) do
+        {:ok, segments} ->
+          info = %{
+            attempt: scrub_track_for_context(attempt),
+            result: :ok,
+            source: :timedtext_fallback
+          }
+
+          {:halt, {:ok, attempt, segments, Enum.reverse([info | failures])}}
+
+        {:error, reason, attempt_context} ->
+          failure = %{
+            attempt: scrub_track_for_context(attempt),
+            result: reason,
+            context: attempt_context,
+            source: :timedtext_fallback
+          }
+
+          {:cont, {:error, :no_tracks, [failure | failures]}}
+
+        {:error, reason} ->
+          failure = %{
+            attempt: scrub_track_for_context(attempt),
+            result: reason,
+            source: :timedtext_fallback
+          }
+
+          {:cont, {:error, :no_tracks, [failure | failures]}}
+      end
+    end)
+    |> case do
+      {:ok, attempt, segments, attempts} ->
+        {:ok, attempt, segments, attempts}
+
+      {:error, reason, attempts} ->
+        {:error, reason, Enum.reverse(attempts)}
+    end
+  end
+
+  defp use_innertube(video_id, attempts) do
+    case Innertube.fetch_transcript(video_id) do
+      {:ok, %{segments: segments, track: track, context: context}} ->
+        entry = %{
+          attempt: %{"source" => "innertube"},
+          result: :ok,
+          context: context
+        }
+
+        {:ok, track, segments, attempts ++ [entry]}
+
+      {:error, reason, context} ->
+        entry = %{
+          attempt: %{"source" => "innertube"},
+          result: reason,
+          context: context
+        }
+
+        {:error, reason, attempts ++ [entry]}
     end
   end
 end
