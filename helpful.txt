@@ -6,3 +6,14 @@ mix ecto.migrate
 yt-dlp --cookies-from-browser chrome --cookies cookies.txt
 gzip -c cookies.txt | base64 -w0 > youtube.cookies.b64
 fly secrets set YTDLP_COOKIES_B64=$(cat youtube.cookies.b6) -a drag-n-stamp-prod
+
+fly mpg proxy
+fly mpg connect
+
+DELETE FROM timestamps
+WHERE id IN (
+    SELECT id
+    FROM timestamps
+    ORDER BY updated_at desc
+    LIMIT 1
+);
