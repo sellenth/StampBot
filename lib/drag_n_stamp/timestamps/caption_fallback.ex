@@ -308,10 +308,21 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     case reason do
       :no_tracks -> :captions_unavailable
       :no_tracks_available -> :captions_unavailable
+      :no_subtitles -> :captions_unavailable
+      :no_cues -> :captions_unavailable
+      :subtitle_file_missing -> :captions_unavailable
       :empty_segments -> :captions_empty
+      :no_segments -> :captions_empty
       {:invalid_caption_payload, _} -> :captions_fetch_failed
       {:http_error, _} -> :captions_fetch_failed
       {:request_failed, _} -> :captions_fetch_failed
+      {:yt_dlp_failed, _} -> :captions_fetch_failed
+      {:subtitle_directory_error, _} -> :captions_fetch_failed
+      :invalid_cue -> :captions_fetch_failed
+      {:invalid_timecode, _} -> :captions_fetch_failed
+      {:invalid_time_parts, _} -> :captions_fetch_failed
+      {:invalid_float, _} -> :captions_fetch_failed
+      {:invalid_integer, _} -> :captions_fetch_failed
       _ -> :captions_fetch_failed
     end
   end
@@ -333,8 +344,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       "The available captions were empty or unusable, so timestamps aren't ready yet. We've stored this video for review."
 
   def failure_message(:captions_fetch_failed),
-    do:
-      "We hit an issue fetching captions from YouTube. It's logged for future analysis."
+    do: "We hit an issue fetching captions from YouTube. It's logged for future analysis."
 
   def failure_message(:transcript_empty),
     do:
@@ -345,12 +355,10 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       "Gemini had trouble summarizing the captions. We've saved the attempt and will keep an eye on it."
 
   def failure_message(:timestamp_extraction_failed),
-    do:
-      "Gemini responded without clear timestamps. We've saved the output for debugging."
+    do: "Gemini responded without clear timestamps. We've saved the output for debugging."
 
   def failure_message(:no_timestamps),
-    do:
-      "Gemini didn't produce usable timestamps from the captions. We'll review this later."
+    do: "Gemini didn't produce usable timestamps from the captions. We'll review this later."
 
   def failure_message(_other),
     do:
@@ -399,10 +407,12 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   defp maybe_put_transcript_stats(map, stats), do: Map.put(map, "transcript_stats", stats)
 
   defp maybe_put_detail(map, nil), do: map
+
   defp maybe_put_detail(map, value) when is_binary(value) and value != "",
     do: Map.put(map, "detail", String.slice(value, 0, 500))
 
   defp maybe_put_detail(map, value) when is_binary(value), do: map
+
   defp maybe_put_detail(map, value) when is_map(value) or is_list(value),
     do: Map.put(map, "detail", value |> inspect() |> String.slice(0, 500))
 
