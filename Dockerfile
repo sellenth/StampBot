@@ -22,7 +22,9 @@ FROM hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-alpine-${ALPINE_VERSIO
 # Install build dependencies.  Node/npm are required for Tailwind
 # and JS bundling, git allows mix to fetch dependencies, and
 # build-base provides compilers for native dependencies.
-RUN apk add --no-cache build-base git npm curl python3 yt-dlp
+RUN apk add --no-cache build-base git npm curl python3 && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod +x /usr/local/bin/yt-dlp
 
 # Set working directory inside the container
 WORKDIR /app
@@ -63,7 +65,9 @@ FROM alpine:${ALPINE_VERSION} AS app
 # Elixir/Erlang libraries (for example, :crypto), libstdc++ is
 # required for some NIFs, and ncurses-libs ensures :observer and
 # other tools can run if needed.
-RUN apk add --no-cache libstdc++ openssl ncurses-libs python3 yt-dlp
+RUN apk add --no-cache libstdc++ openssl ncurses-libs python3
+# Provide yt-dlp via the official standalone binary.
+COPY --from=build /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 
 # Set working directory
 WORKDIR /app
