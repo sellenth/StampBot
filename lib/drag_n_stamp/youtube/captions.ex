@@ -88,7 +88,7 @@ defmodule DragNStamp.YouTube.Captions do
             fallback_used: true,
             source: :yt_dlp,
             attempts: Enum.reverse(attempts),
-            last_reason: reason
+            last_reason: inspect(reason)
           })
 
         {:error, reason, context}
@@ -183,7 +183,17 @@ defmodule DragNStamp.YouTube.Captions do
         decoded =
           case System.get_env("YTDLP_COOKIES_B64") do
             encoded when is_binary(encoded) and encoded != "" ->
-              Base.decode64(encoded)
+              with {:ok, binary} <- Base.decode64(encoded),
+                   {:ok, maybe_plain} <- maybe_gunzip(binary) do
+                {:ok, maybe_plain}
+              else
+                {:error, reason} ->
+                  Logger.warning("""
+                  Failed to decode YTDLP_COOKIES_B64 environment variable: #{inspect(reason)}
+                  """)
+
+                  :error
+              end
 
             _ ->
               :missing
@@ -224,10 +234,6 @@ defmodule DragNStamp.YouTube.Captions do
             nil
 
           :error ->
-            Logger.warning("""
-            Failed to decode YTDLP_COOKIES_B64 environment variable: :error
-            """)
-
             :persistent_term.put(@cookie_term_key, :error)
             nil
         end
@@ -267,6 +273,18 @@ defmodule DragNStamp.YouTube.Captions do
 
   defp cookies_args(nil), do: []
   defp cookies_args(path), do: ["--cookies", path]
+
+  defp maybe_gunzip(<<0x1F, 0x8B, _rest::binary>> = binary) do
+    try do
+      {:ok, :zlib.gunzip(binary)}
+    rescue
+      error ->
+        {:error, {:gunzip_failed, error}}
+    end
+  end
+
+  defp maybe_gunzip(binary) when is_binary(binary), do: {:ok, binary}
+  defp maybe_gunzip(_), do: {:error, :invalid_binary}
 
   defp locate_subtitle_file(dir) do
     case File.ls(dir) do
