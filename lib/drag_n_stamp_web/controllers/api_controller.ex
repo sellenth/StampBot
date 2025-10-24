@@ -778,13 +778,13 @@ defmodule DragNStampWeb.ApiController do
 
   defp distill_timestamps_content(content, api_key) do
     distillation_prompt = """
-    You are given a list of timestamps for a YouTube video. Your task is to select only the MOST IMPORTANT timestamps. Secondary goal: try to get timestamps from throughout the whole video.
+    You are given a list of timestamps for a YouTube video. Your task is to select the most important timestamps. Secondary goal: try to get timestamps from throughout the whole video.
 
     1 minute video - 1 timestamp
     [2, 5] minute video - [2, 3] timestamps
     [6, 10] minute video - [6, 8] timestmaps
     [10, 20] minute video - [8, 12] timestamps
-    20+ minute video - about (duration / 4) timestamps
+    For videos longer than that, really focus on getting timestamps from all throughout the video. If there's a bunching of 2+ timestamps within a 60 second period, try to combine them into one timestamp.
 
     Rules:
     1. Keep only the most significant moments or topics
