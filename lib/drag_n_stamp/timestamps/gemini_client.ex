@@ -10,10 +10,14 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   @base_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
   @text_only_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"
 
-  @spec timestamps_with_retry(binary(), binary(), binary() | nil, pos_integer()) ::
+  @spec timestamps_with_retry(binary(), binary(), binary() | nil, keyword()) ::
           {:ok, binary()} | {:error, term()}
-  def timestamps_with_retry(prompt, api_key, video_url, attempt \\ 1) do
-    case timestamps(prompt, api_key, video_url) do
+  def timestamps_with_retry(prompt, api_key, video_url, opts \\ []) do
+    do_timestamps_with_retry(prompt, api_key, video_url, opts, 1)
+  end
+
+  defp do_timestamps_with_retry(prompt, api_key, video_url, opts, attempt) do
+    case timestamps(prompt, api_key, video_url, opts) do
       {:ok, response} ->
         {:ok, response}
 
@@ -25,7 +29,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
         )
 
         Process.sleep(delay)
-        timestamps_with_retry(prompt, api_key, video_url, attempt + 1)
+        do_timestamps_with_retry(prompt, api_key, video_url, opts, attempt + 1)
 
       {:error, reason} ->
         Logger.error("Gemini API failed after #{attempt} attempts: #{inspect(reason)}")
@@ -33,8 +37,9 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     end
   end
 
-  @spec timestamps(binary(), binary(), binary() | nil) :: {:ok, binary()} | {:error, term()}
-  def timestamps(prompt, api_key, video_url) do
+  @spec timestamps(binary(), binary(), binary() | nil, keyword()) ::
+          {:ok, binary()} | {:error, term()}
+  def timestamps(prompt, api_key, video_url, opts \\ []) do
     api_url = "#{@base_url}?key=#{api_key}"
     headers = [{"Content-Type", "application/json"}]
 
@@ -42,7 +47,10 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       [%{text: prompt}]
       |> maybe_with_video_part(video_url)
 
-    body = %{contents: [%{parts: parts}]}
+    body =
+      %{contents: [%{parts: parts}]}
+      |> maybe_put_generation_config(opts)
+
     request = Finch.build(:post, api_url, headers, Jason.encode!(body))
 
     with {:ok, %Finch.Response{status: 200, body: response_body}} <-
@@ -100,6 +108,13 @@ defmodule DragNStamp.Timestamps.GeminiClient do
 
   defp maybe_with_video_part(parts, nil), do: parts
   defp maybe_with_video_part(parts, url), do: parts ++ [build_video_part(url)]
+
+  defp maybe_put_generation_config(body, opts) do
+    case Keyword.get(opts, :generation_config) do
+      nil -> body
+      config when is_map(config) -> Map.put(body, "generationConfig", config)
+    end
+  end
 
   defp build_video_part(url) do
     %{file_data: %{file_uri: url}}

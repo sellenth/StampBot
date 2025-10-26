@@ -346,10 +346,11 @@ defmodule DragNStampWeb.ApiController do
         broadcast_timestamp_updated(timestamp)
       end
 
-      # Enforce a 40-minute maximum video length before analysis
-      case video_too_long?(timestamp) do
-        {:reject, seconds} ->
-          Logger.info("Video exceeds 40-minute limit (#{seconds}s). Attempting caption-based processing.")
+      case video_processing_plan(timestamp) do
+        {:captions, seconds} ->
+          Logger.info(
+            "Video exceeds 90-minute limit (#{seconds}s). Attempting caption-based processing."
+          )
 
           case CaptionFallback.process(channel_name, url, api_key, trigger: "length_gate") do
             {:ok, cleaned, attempt_meta} ->
@@ -383,13 +384,23 @@ defmodule DragNStampWeb.ApiController do
                 status: "error",
                 message: "#{friendly_message} This video is #{minutes} minutes long.",
                 reason: Atom.to_string(reason_atom),
-                max_minutes: 40,
+                max_minutes: 90,
                 video_minutes: minutes,
                 fallback: "captions"
               })
           end
 
-        :ok ->
+        {:vlm, plan_opts} ->
+          generation_config = Map.get(plan_opts, :generation_config)
+          video_seconds = Map.get(plan_opts, :seconds)
+          gemini_opts = build_gemini_opts(generation_config)
+
+          if generation_config do
+            Logger.info(
+              "Requesting Gemini video+ timestamps with #{generation_config["mediaResolution"]} for #{url}"
+            )
+          end
+
           if api_key in [nil, ""] do
             Logger.error("GEMINI_API_KEY environment variable not set")
 
@@ -402,7 +413,7 @@ defmodule DragNStampWeb.ApiController do
               message: "GEMINI_API_KEY environment variable not set"
             })
           else
-            case GeminiClient.timestamps_with_retry(formatted_prompt, api_key, url) do
+            case GeminiClient.timestamps_with_retry(formatted_prompt, api_key, url, gemini_opts) do
               {:ok, generated_content} ->
                 complete_timestamp_generation(conn, api_key, timestamp, generated_content, url)
 
@@ -421,6 +432,8 @@ defmodule DragNStampWeb.ApiController do
                     attempt_meta =
                       attempt_meta
                       |> Map.put_new("vlm_error", inspect(reason))
+                      |> maybe_put_resolution_meta(generation_config)
+                      |> maybe_put_video_seconds(video_seconds)
 
                     updated_timestamp = record_caption_attempt(timestamp, attempt_meta)
 
@@ -432,6 +445,8 @@ defmodule DragNStampWeb.ApiController do
                     attempt_meta =
                       attempt_meta
                       |> Map.put_new("vlm_error", inspect(reason))
+                      |> maybe_put_resolution_meta(generation_config)
+                      |> maybe_put_video_seconds(video_seconds)
 
                     updated_timestamp = record_caption_attempt(timestamp, attempt_meta)
 
@@ -493,36 +508,91 @@ defmodule DragNStampWeb.ApiController do
     Application.get_env(:drag_n_stamp, :fetch_video_metadata_on_ingest, true)
   end
 
-  defp video_too_long?(%Timestamp{video_duration_seconds: secs} = _timestamp)
-       when is_integer(secs) and secs > 40 * 60, do: {:reject, secs}
+  defp build_gemini_opts(nil), do: []
+  defp build_gemini_opts(config) when is_map(config), do: [generation_config: config]
 
-  defp video_too_long?(%Timestamp{} = timestamp) do
-    # Attempt to enrich and persist metadata (caches duration for future attempts)
+  defp maybe_put_resolution_meta(attempt_meta, nil), do: attempt_meta
+
+  defp maybe_put_resolution_meta(attempt_meta, config) when is_map(config) do
+    resolution = Map.get(config, "mediaResolution", "MEDIA_RESOLUTION_UNSPECIFIED")
+
+    case attempt_meta do
+      %{} = meta -> Map.put_new(meta, "vlm_media_resolution", resolution)
+      _ -> attempt_meta
+    end
+  end
+
+  defp maybe_put_video_seconds(attempt_meta, nil), do: attempt_meta
+
+  defp maybe_put_video_seconds(attempt_meta, seconds) when is_integer(seconds) do
+    case attempt_meta do
+      %{} = meta -> Map.put_new(meta, "video_seconds", seconds)
+      _ -> attempt_meta
+    end
+  end
+
+  defp maybe_put_video_seconds(attempt_meta, _), do: attempt_meta
+
+  defp video_processing_plan(%Timestamp{video_duration_seconds: secs}) when is_integer(secs) do
+    classify_video_plan(secs)
+  end
+
+  defp video_processing_plan(%Timestamp{} = timestamp) do
     updated = ensure_video_metadata(timestamp)
 
     case updated do
-      %Timestamp{video_duration_seconds: secs} when is_integer(secs) and secs > 40 * 60 ->
-        {:reject, secs}
+      %Timestamp{video_duration_seconds: secs} when is_integer(secs) ->
+        classify_video_plan(secs)
 
       _ ->
-        # Fallback: attempt a lightweight duration fetch if metadata ingest is disabled
         case VideoMetadata.extract_video_id(timestamp.url) do
           {:ok, video_id} ->
             case VideoMetadata.fetch_duration_seconds(video_id) do
-              {:ok, secs} when is_integer(secs) and secs > 40 * 60 -> {:reject, secs}
-              {:ok, _} -> :ok
+              {:ok, secs} when is_integer(secs) ->
+                classify_video_plan(secs)
+
+              {:ok, _unknown} ->
+                {:vlm, %{seconds: nil, generation_config: nil}}
+
               {:error, :no_api_key} ->
-                Logger.warning("YOUTUBE_DATA_API_KEY not set; skipping duration check for #{timestamp.url}")
-                :ok
+                Logger.warning(
+                  "YOUTUBE_DATA_API_KEY not set; skipping duration check for #{timestamp.url}"
+                )
+
+                {:vlm, %{seconds: nil, generation_config: nil}}
+
               {:error, reason} ->
-                Logger.debug("Duration check failed (#{inspect(reason)}); proceeding without block")
-                :ok
+                Logger.debug(
+                  "Duration check failed (#{inspect(reason)}); proceeding without block"
+                )
+
+                {:vlm, %{seconds: nil, generation_config: nil}}
             end
 
           {:error, reason} ->
-            Logger.debug("Could not extract video id (#{inspect(reason)}); proceeding without block")
-            :ok
+            Logger.debug(
+              "Could not extract video id (#{inspect(reason)}); proceeding without block"
+            )
+
+            {:vlm, %{seconds: nil, generation_config: nil}}
         end
+    end
+  end
+
+  defp classify_video_plan(seconds) when is_integer(seconds) do
+    cond do
+      seconds > 90 * 60 ->
+        {:captions, seconds}
+
+      seconds > 30 * 60 ->
+        {:vlm,
+         %{
+           seconds: seconds,
+           generation_config: %{"mediaResolution" => "MEDIA_RESOLUTION_LOW"}
+         }}
+
+      true ->
+        {:vlm, %{seconds: seconds, generation_config: nil}}
     end
   end
 
@@ -616,7 +686,10 @@ defmodule DragNStampWeb.ApiController do
         updated
 
       {:error, changeset} ->
-        Logger.error("Failed to record caption attempt for #{timestamp.id}: #{inspect(changeset.errors)}")
+        Logger.error(
+          "Failed to record caption attempt for #{timestamp.id}: #{inspect(changeset.errors)}"
+        )
+
         %{timestamp | processing_context: updated_context}
     end
   end
@@ -624,7 +697,9 @@ defmodule DragNStampWeb.ApiController do
   defp record_caption_attempt(%Timestamp{} = timestamp, _), do: timestamp
 
   defp maybe_put_caption_summary(context, summary) when summary == %{}, do: context
-  defp maybe_put_caption_summary(context, summary), do: Map.put(context, "captions_summary", summary)
+
+  defp maybe_put_caption_summary(context, summary),
+    do: Map.put(context, "captions_summary", summary)
 
   defp distill_existing_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
@@ -832,5 +907,6 @@ defmodule DragNStampWeb.ApiController do
         {:error, reason}
     end
   end
+
   # Note: direct posting helper removed in favor of DragNStamp.Commenter
 end
