@@ -34,10 +34,10 @@ defmodule DragNStampWeb.CoreComponents do
     <nav :if={!@extension_mode} class={["navigation", @extension_mode && "navigation-compact"]}>
       <div class="nav-brand">
         <.link navigate={~p"/"} class="nav-brand-link">
-          StampBot
+          <img src="images/128x128.png" width="32" class="inline pb-2 mr-2" />StampBot
         </.link>
       </div>
-      
+
     <!-- Hamburger button for mobile -->
       <button
         class="hamburger-menu"
@@ -52,7 +52,7 @@ defmodule DragNStampWeb.CoreComponents do
         <span class="hamburger-line"></span>
         <span class="hamburger-line"></span>
       </button>
-      
+
     <!-- Desktop nav links -->
       <div class="nav-links nav-links-desktop">
         <.link
@@ -94,7 +94,7 @@ defmodule DragNStampWeb.CoreComponents do
           </.link>
         <% end %>
       </div>
-      
+
     <!-- Mobile menu overlay -->
       <div id="mobile-menu-overlay" class="mobile-menu-overlay hidden">
         <div class="mobile-menu">
