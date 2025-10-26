@@ -313,6 +313,8 @@ defmodule DragNStampWeb.ApiController do
     formatted_prompt =
       "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. feel free to be slightly humorous but not cheesy. channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
 
+      If you are provided input that seems missing the content, do no make up timestamps. Just put '0:00 UNWATCHED' so our support agent can handle the submission.
+
       construct a timestamp in a way that doesn't create a valid link in a youtube comment.
       For example, the period is creating a link which may flag us as spam.
       <bad>

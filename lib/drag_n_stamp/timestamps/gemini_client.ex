@@ -44,8 +44,9 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     headers = [{"Content-Type", "application/json"}]
 
     parts =
-      [%{text: prompt}]
+      []
       |> maybe_with_video_part(video_url)
+      |> append_prompt_part(prompt)
 
     body =
       %{contents: [%{parts: parts}]}
@@ -108,6 +109,8 @@ defmodule DragNStamp.Timestamps.GeminiClient do
 
   defp maybe_with_video_part(parts, nil), do: parts
   defp maybe_with_video_part(parts, url), do: parts ++ [build_video_part(url)]
+
+  defp append_prompt_part(parts, prompt), do: parts ++ [%{text: prompt}]
 
   defp maybe_put_generation_config(body, opts) do
     case Keyword.get(opts, :generation_config) do
