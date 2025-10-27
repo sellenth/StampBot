@@ -342,6 +342,11 @@ body {
 @media (max-width: 768px) {
     .hamburger-menu {
         display: flex;
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        margin: 0;
+        padding: 8px;
     }
 
     .nav-links-desktop {

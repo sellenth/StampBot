@@ -434,7 +434,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     else
       """
       <section>
-        <h2>Submission Content</h2>
+        <h2>Unprocessed Timestamp Content</h2>
         <pre>#{html_escape(content)}</pre>
       </section>
       """

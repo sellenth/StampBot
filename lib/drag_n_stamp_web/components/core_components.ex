@@ -80,6 +80,7 @@ defmodule DragNStampWeb.CoreComponents do
           Info
         </.link>
 
+        <!--
         <%= if @current_user do %>
           <.link
             href="/auth/logout"
@@ -93,6 +94,7 @@ defmodule DragNStampWeb.CoreComponents do
             Sign in with Google
           </.link>
         <% end %>
+        -->
       </div>
 
     <!-- Mobile menu overlay -->
@@ -139,6 +141,7 @@ defmodule DragNStampWeb.CoreComponents do
             Info
           </.link>
 
+          <!--
           <div class="mobile-menu-divider"></div>
 
           <%= if @current_user do %>
@@ -165,6 +168,7 @@ defmodule DragNStampWeb.CoreComponents do
               Sign in with Google
             </.link>
           <% end %>
+          -->
         </div>
       </div>
     </nav>
