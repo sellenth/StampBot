@@ -37,6 +37,14 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
       Map.get(opts, :thumbnail_url) || timestamp.video_thumbnail_url ||
         default_thumbnail(video_id)
 
+    thumbnail_meta =
+      %{
+        alt: Map.get(opts, :thumbnail_alt) || video_title,
+        type: Map.get(opts, :thumbnail_mime) || guess_thumbnail_mime(thumbnail_url),
+        width: Map.get(opts, :thumbnail_width),
+        height: Map.get(opts, :thumbnail_height)
+      }
+
     published_at =
       Map.get(opts, :published_at) || timestamp.video_published_at || timestamp.inserted_at
 
@@ -62,7 +70,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
 
     chapter_section = build_content_body(chapters, timestamp, video_url)
     hero_section = build_hero(thumbnail_url, video_url, video_title)
-      canonical_tag = canonical_link_tag(canonical_url)
+    canonical_tag = canonical_link_tag(canonical_url)
 
     """
     <!DOCTYPE html>
@@ -74,7 +82,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
       <meta name=\"description\" content=\"#{html_escape(seo_summary)}\" />
       <meta name=\"robots\" content=\"index,follow\" />
       #{canonical_tag}
-      #{meta_tags(video_title, seo_summary, canonical_url, thumbnail_url, site_name)}
+      #{meta_tags(video_title, seo_summary, canonical_url, thumbnail_url, site_name, thumbnail_meta)}
       <script type=\"application/ld+json\">#{structured_data}</script>
       <style>
         :root {
@@ -297,37 +305,87 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
   defp canonical_link_tag(nil), do: ""
   defp canonical_link_tag(url), do: "<link rel=\"canonical\" href=\"#{html_escape(url)}\" />"
 
-  defp meta_tags(title, description, canonical_url, thumbnail_url, site_name) do
-    og_image =
-      if thumbnail_url,
-        do: "  <meta property=\"og:image\" content=\"#{html_escape(thumbnail_url)}\" />",
-        else: nil
+  defp meta_tags(title, description, canonical_url, thumbnail_url, site_name, thumbnail_meta) do
+    meta = thumbnail_meta || %{}
+    image_alt = Map.get(meta, :alt)
+    image_type = Map.get(meta, :type)
+    image_width = numeric_to_string(Map.get(meta, :width))
+    image_height = numeric_to_string(Map.get(meta, :height))
 
-    [
-      "  <meta property=\"og:type\" content=\"video.other\" />",
-      "  <meta property=\"og:title\" content=\"#{html_escape(title)}\" />",
-      "  <meta property=\"og:description\" content=\"#{html_escape(description)}\" />",
-      if(canonical_url,
-        do: "  <meta property=\"og:url\" content=\"#{html_escape(canonical_url)}\" />",
-        else: nil
-      ),
-      og_image,
-      "  <meta name=\"twitter:card\" content=\"summary_large_image\" />",
-      "  <meta name=\"twitter:title\" content=\"#{html_escape(title)}\" />",
-      "  <meta name=\"twitter:description\" content=\"#{html_escape(description)}\" />",
-      if(thumbnail_url,
-        do: "  <meta name=\"twitter:image\" content=\"#{html_escape(thumbnail_url)}\" />",
-        else: nil
-      ),
-      "  <meta property=\"og:site_name\" content=\"#{html_escape(site_name)}\" />"
-    ]
+    image_tags =
+      if thumbnail_url do
+        [
+          "  <link rel=\"image_src\" href=\"#{html_escape(thumbnail_url)}\" />",
+          "  <meta name=\"thumbnail\" content=\"#{html_escape(thumbnail_url)}\" />",
+          "  <meta itemprop=\"image\" content=\"#{html_escape(thumbnail_url)}\" />",
+          "  <meta property=\"og:image\" content=\"#{html_escape(thumbnail_url)}\" />",
+          "  <meta property=\"og:image:secure_url\" content=\"#{html_escape(thumbnail_url)}\" />",
+          if(image_type,
+            do: "  <meta property=\"og:image:type\" content=\"#{html_escape(image_type)}\" />",
+            else: nil
+          ),
+          if(image_width,
+            do: "  <meta property=\"og:image:width\" content=\"#{html_escape(image_width)}\" />",
+            else: nil
+          ),
+          if(image_height,
+            do:
+              "  <meta property=\"og:image:height\" content=\"#{html_escape(image_height)}\" />",
+            else: nil
+          ),
+          if(image_alt,
+            do: "  <meta property=\"og:image:alt\" content=\"#{html_escape(image_alt)}\" />",
+            else: nil
+          )
+        ]
+        |> Enum.reject(&is_nil/1)
+      else
+        []
+      end
+
+    ([
+       "  <meta property=\"og:type\" content=\"video.other\" />",
+       "  <meta property=\"og:title\" content=\"#{html_escape(title)}\" />",
+       "  <meta property=\"og:description\" content=\"#{html_escape(description)}\" />",
+       if(canonical_url,
+         do: "  <meta property=\"og:url\" content=\"#{html_escape(canonical_url)}\" />",
+         else: nil
+       ),
+       "  <meta name=\"twitter:card\" content=\"summary_large_image\" />",
+       "  <meta name=\"twitter:title\" content=\"#{html_escape(title)}\" />",
+       "  <meta name=\"twitter:description\" content=\"#{html_escape(description)}\" />",
+       if(thumbnail_url,
+         do: "  <meta name=\"twitter:image\" content=\"#{html_escape(thumbnail_url)}\" />",
+         else: nil
+       ),
+       if(thumbnail_url && image_alt,
+         do: "  <meta name=\"twitter:image:alt\" content=\"#{html_escape(image_alt)}\" />",
+         else: nil
+       ),
+       "  <meta property=\"og:site_name\" content=\"#{html_escape(site_name)}\" />"
+     ] ++ image_tags)
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")
   end
 
+  defp numeric_to_string(nil), do: nil
+  defp numeric_to_string(""), do: nil
+  defp numeric_to_string(value) when is_binary(value), do: value
+  defp numeric_to_string(value) when is_integer(value), do: Integer.to_string(value)
+
+  defp numeric_to_string(value) when is_float(value) do
+    value
+    |> Float.to_string()
+    |> String.trim_trailing("0")
+    |> String.trim_trailing(".")
+  end
+
+  defp numeric_to_string(value), do: to_string(value)
+
   defp truncate_summary(nil, _limit), do: ""
 
-  defp truncate_summary(summary, limit) when is_binary(summary) and is_integer(limit) and limit > 0 do
+  defp truncate_summary(summary, limit)
+       when is_binary(summary) and is_integer(limit) and limit > 0 do
     trimmed =
       summary
       |> String.trim()
@@ -346,7 +404,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
           |> String.slice(0, limit)
           |> String.trim_trailing()
 
-        (if truncated == "", do: String.slice(trimmed, 0, limit), else: truncated) <> "…"
+        if(truncated == "", do: String.slice(trimmed, 0, limit), else: truncated) <> "…"
     end
   end
 
@@ -738,6 +796,21 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
         nil
     end
   end
+
+  defp guess_thumbnail_mime(nil), do: nil
+
+  defp guess_thumbnail_mime(url) when is_binary(url) do
+    downcased = String.downcase(url)
+
+    cond do
+      String.contains?(downcased, ".png") -> "image/png"
+      String.contains?(downcased, ".webp") -> "image/webp"
+      String.contains?(downcased, ".gif") -> "image/gif"
+      true -> "image/jpeg"
+    end
+  end
+
+  defp guess_thumbnail_mime(_), do: nil
 
   defp default_thumbnail(nil), do: nil
   defp default_thumbnail(video_id), do: "https://i.ytimg.com/vi/#{video_id}/hqdefault.jpg"
