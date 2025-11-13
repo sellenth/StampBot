@@ -246,6 +246,17 @@
                     >
                       Copy
                     </button>
+                    <%= if retry_allowed?(timestamp) do %>
+                      <button
+                        class="retry-btn"
+                        phx-click="retry_submission"
+                        phx-value-id={timestamp.id}
+                        phx-disable-with="Retrying…"
+                        title="Retry the full submission flow (one time)"
+                      >
+                        ↻ Retry Submission
+                      </button>
+                    <% end %>
                   </div>
               <% end %>
             </div>

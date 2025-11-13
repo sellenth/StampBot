@@ -9,6 +9,42 @@ defmodule DragNStampWeb.ApiController do
 
   @caption_attempt_history_limit 5
 
+  @doc """
+  Re-run the full generation + distillation flow for an existing Timestamp.
+  Acquires the same URL lock and reuses the standard pipeline.
+  Intended for one-off manual retries triggered from the UI.
+  """
+  def reprocess_timestamp(%Timestamp{} = existing) do
+    api_key = System.get_env("GEMINI_API_KEY")
+    url = existing.url |> normalize_youtube_url()
+
+    case acquire_url_lock(url) do
+      :acquired ->
+        try do
+          conn = Plug.Test.conn(:post, "/api/gemini")
+
+          # Use existing record to avoid creating duplicates; this will
+          # update it to :processing and proceed through the pipeline.
+          generate_new_timestamps(
+            conn,
+            api_key,
+            existing.channel_name || "anonymous",
+            existing.submitter_username || "anonymous",
+            url,
+            existing
+          )
+        after
+          release_url_lock(url)
+        end
+
+        :ok
+
+      :in_flight ->
+        Logger.info("Reprocess skipped; lock already held for URL: #{url}")
+        {:error, :in_flight}
+    end
+  end
+
   def receive_url(conn, %{"url" => url} = params) do
     username =
       case Map.get(params, "username") do

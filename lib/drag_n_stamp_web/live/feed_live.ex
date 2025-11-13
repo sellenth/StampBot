@@ -98,6 +98,49 @@ defmodule DragNStampWeb.FeedLive do
     end
   end
 
+  def handle_event("retry_submission", %{"id" => id}, socket) do
+    case Repo.get(Timestamp, id) do
+      nil ->
+        {:noreply, socket}
+
+      %Timestamp{} = ts ->
+        if retry_allowed?(ts) do
+          now = DateTime.utc_now()
+          ctx = ts.processing_context || %{}
+          updated_ctx =
+            ctx
+            |> Map.put("manual_retry_used", true)
+            |> Map.put("manual_retry_last_at", now)
+
+          changes = %{processing_context: updated_ctx}
+
+          {:ok, persisted} = Repo.update(Timestamp.changeset(ts, changes))
+
+          # Kick off a background reprocessing using the existing pipeline
+          Task.start(fn -> DragNStampWeb.ApiController.reprocess_timestamp(persisted) end)
+
+          # Optimistic UI update: mark local copy as processing and with retry set
+          optimistic = %{
+            persisted
+            | processing_status: :processing,
+              processing_error: nil
+          }
+
+          updated_list =
+            Enum.map(socket.assigns.timestamps, fn t ->
+              if t.id == optimistic.id, do: optimistic, else: t
+            end)
+
+          {:noreply,
+           socket
+           |> assign(:timestamps, updated_list)
+           |> put_flash(:info, "Retry started for this submission.")}
+        else
+          {:noreply, put_flash(socket, :error, "Retry not allowed for this submission.")}
+        end
+    end
+  end
+
   defp sort_timestamps(timestamps, sort_by) do
     case sort_by do
       "newest" -> Enum.sort_by(timestamps, & &1.inserted_at, {:desc, NaiveDateTime})
@@ -200,6 +243,27 @@ defmodule DragNStampWeb.FeedLive do
   end
 
   defp has_distilled_content?(_), do: false
+
+  defp content_contains_unwatched?(%Timestamp{content: content}) when is_binary(content) do
+    String.contains?(content, "0:00 UNWATCHED")
+  end
+
+  defp content_contains_unwatched?(_), do: false
+
+  defp manual_retry_used?(%Timestamp{processing_context: ctx}) when is_map(ctx) do
+    case ctx do
+      %{} = m ->
+        (Map.get(m, "manual_retry_used") == true) or
+          (Map.get(m, "manual_retry_count", 0) |> Kernel.>=(1))
+      _ -> false
+    end
+  end
+
+  defp manual_retry_used?(_), do: false
+
+  defp retry_allowed?(%Timestamp{} = ts) do
+    content_contains_unwatched?(ts) and not manual_retry_used?(ts)
+  end
 
   defp recent?(nil, _window_minutes), do: false
 
