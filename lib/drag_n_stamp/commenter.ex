@@ -50,9 +50,21 @@ defmodule DragNStamp.Commenter do
       is_nil(ts.distilled_content) or String.trim(to_string(ts.distilled_content)) == "" ->
         {:error, :no_distilled_content}
 
+      unwatched_content?(ts) ->
+        # Do not comment when the generated content indicates missing input
+        {:skip, :unwatched, ts}
+
       true ->
         {:ok, :ready}
     end
+  end
+
+  defp unwatched_content?(%Timestamp{} = ts) do
+    base =
+      (ts.distilled_content || ts.content || "")
+      |> to_string()
+
+    String.contains?(base, "0:00 UNWATCHED")
   end
 
   defp compute_dedupe_key(%Timestamp{url: url, distilled_content: content}) when is_binary(url) and is_binary(content) do

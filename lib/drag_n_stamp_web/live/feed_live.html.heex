@@ -248,7 +248,7 @@
                     </button>
                     <%= if retry_allowed?(timestamp) do %>
                       <button
-                        class="retry-btn"
+                        class="retry-btn mt-2"
                         phx-click="retry_submission"
                         phx-value-id={timestamp.id}
                         phx-disable-with="Retrying…"
