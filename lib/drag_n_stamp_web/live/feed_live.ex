@@ -81,20 +81,24 @@ defmodule DragNStampWeb.FeedLive do
         {:noreply, socket}
 
       ts ->
-        result = DragNStamp.Commenter.post_for_timestamp(ts)
+        if ts.youtube_comment_status == :succeeded || not is_nil(ts.youtube_comment_external_id) do
+          {:noreply, socket}
+        else
+          result = DragNStamp.Commenter.post_for_timestamp(ts)
 
-        updated_ts =
-          case result do
-            {:ok, updated, _info} -> updated
-            _ -> ts
-          end
+          updated_ts =
+            case result do
+              {:ok, updated, _info} -> updated
+              _ -> ts
+            end
 
-        updated_list =
-          Enum.map(socket.assigns.timestamps, fn t ->
-            if t.id == updated_ts.id, do: updated_ts, else: t
-          end)
+          updated_list =
+            Enum.map(socket.assigns.timestamps, fn t ->
+              if t.id == updated_ts.id, do: updated_ts, else: t
+            end)
 
-        {:noreply, assign(socket, :timestamps, updated_list)}
+          {:noreply, assign(socket, :timestamps, updated_list)}
+        end
     end
   end
 
