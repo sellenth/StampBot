@@ -674,6 +674,11 @@ textarea::placeholder {
     color: white;
 }
 
+.model-tag {
+    background: #8b5cf6;
+    color: white;
+}
+
 .timestamp-url {
     margin-bottom: 1rem;
 }

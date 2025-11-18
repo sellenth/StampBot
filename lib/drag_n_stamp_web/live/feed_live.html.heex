@@ -121,6 +121,11 @@
             <div class="timestamp-meta">
               <span class="tag user-tag">{timestamp.submitter_username}</span>
               <span class="tag channel-tag">{timestamp.channel_name}</span>
+              <%= if timestamp.processing_context && Map.get(timestamp.processing_context, "generation_model") do %>
+                <span class="tag model-tag" title="AI Model Used">
+                  {timestamp.processing_context["generation_model"]}
+                </span>
+              <% end %>
               <span class="tag date-tag">
                 <time
                   id={"time-#{timestamp.id}"}

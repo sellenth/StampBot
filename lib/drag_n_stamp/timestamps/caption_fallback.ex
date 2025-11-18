@@ -55,13 +55,13 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
         case build_transcript_payload(segments) do
           {:ok, transcript_text, stats} ->
             case summarize_captions(channel_name, transcript_text, api_key) do
-              {:ok, cleaned} ->
+              {:ok, cleaned, model} ->
                 attempt =
                   build_caption_attempt_meta(video_id, "success", %{
                     "caption_context" => caption_context,
                     "transcript_stats" => stats,
                     "prompt_character_count" => String.length(transcript_text),
-                    "model" => "gemini-2.5-flash",
+                    "model" => model,
                     "video_url" => url,
                     "trigger" => trigger
                   })
@@ -132,13 +132,13 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     prompt = build_caption_prompt(channel_name, transcript_text)
 
     case GeminiClient.text_only(prompt, api_key) do
-      {:ok, response} when is_binary(response) ->
+      {:ok, response, model} when is_binary(response) ->
         case Parser.extract_timestamps_only(response) do
           cleaned when is_binary(cleaned) ->
             cleaned_trimmed = String.trim(cleaned)
 
             if cleaned_trimmed != "" do
-              {:ok, cleaned_trimmed}
+              {:ok, cleaned_trimmed, model}
             else
               {:error, :no_timestamps, response}
             end
@@ -147,7 +147,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
             {:error, :timestamp_extraction_failed, other}
         end
 
-      {:ok, _response} ->
+      {:ok, _response, _model} ->
         {:error, :gemini_error, :non_binary_response}
 
       {:error, reason} ->

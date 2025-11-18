@@ -400,7 +400,14 @@ defmodule DragNStampWeb.ApiController do
 
               Logger.info("Caption-based pipeline succeeded for long video #{url}")
 
-              complete_timestamp_generation(conn, api_key, updated_timestamp, cleaned, url)
+              complete_timestamp_generation(
+                conn,
+                api_key,
+                updated_timestamp,
+                cleaned,
+                url,
+                Map.get(attempt_meta, "model")
+              )
 
             {:error, reason_atom, friendly_message, attempt_meta} ->
               attempt_meta =
@@ -452,8 +459,15 @@ defmodule DragNStampWeb.ApiController do
             })
           else
             case GeminiClient.timestamps_with_retry(formatted_prompt, api_key, url, gemini_opts) do
-              {:ok, generated_content} ->
-                complete_timestamp_generation(conn, api_key, timestamp, generated_content, url)
+              {:ok, generated_content, model} ->
+                complete_timestamp_generation(
+                  conn,
+                  api_key,
+                  timestamp,
+                  generated_content,
+                  url,
+                  model
+                )
 
               {:error, reason} ->
                 Logger.warning(
@@ -477,7 +491,14 @@ defmodule DragNStampWeb.ApiController do
 
                     Logger.info("Caption-based fallback succeeded after VLM failure for #{url}")
 
-                    complete_timestamp_generation(conn, api_key, updated_timestamp, cleaned, url)
+                    complete_timestamp_generation(
+                      conn,
+                      api_key,
+                      updated_timestamp,
+                      cleaned,
+                      url,
+                      Map.get(attempt_meta, "model")
+                    )
 
                   {:error, fallback_reason, friendly_message, attempt_meta} ->
                     attempt_meta =
@@ -634,7 +655,7 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  defp persist_timestamp_signature(%Timestamp{} = timestamp, content) when is_binary(content) do
+  defp persist_timestamp_signature(%Timestamp{} = timestamp, content, model) when is_binary(content) do
     signed_content = append_signature(content, submission_slug(timestamp))
 
     attrs = %{
@@ -642,6 +663,14 @@ defmodule DragNStampWeb.ApiController do
       processing_status: :ready,
       processing_error: nil
     }
+
+    attrs =
+      if model do
+        context = timestamp.processing_context || %{}
+        Map.put(attrs, :processing_context, Map.put(context, "generation_model", model))
+      else
+        attrs
+      end
 
     case Repo.update(Timestamp.changeset(timestamp, attrs)) do
       {:ok, updated} ->
@@ -657,15 +686,15 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  defp persist_timestamp_signature(%Timestamp{} = timestamp, _content) do
+  defp persist_timestamp_signature(%Timestamp{} = timestamp, _content, _model) do
     {timestamp, timestamp.content}
   end
 
-  defp complete_timestamp_generation(conn, api_key, %Timestamp{} = timestamp, content, url) do
+  defp complete_timestamp_generation(conn, api_key, %Timestamp{} = timestamp, content, url, model) do
     timestamp_with_metadata = ensure_video_metadata(timestamp)
 
     {timestamp_with_signature, signed_content} =
-      persist_timestamp_signature(timestamp_with_metadata, content)
+      persist_timestamp_signature(timestamp_with_metadata, content, model)
 
     broadcast_timestamp_updated(timestamp_with_signature)
 
@@ -928,7 +957,7 @@ defmodule DragNStampWeb.ApiController do
     """
 
     case GeminiClient.text_only(distillation_prompt, api_key) do
-      {:ok, response} ->
+      {:ok, response, _model} ->
         Logger.info("Gemini distillation raw response: #{inspect(response)}")
 
         case Parser.extract_timestamps_only(response) do

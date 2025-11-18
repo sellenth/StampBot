@@ -537,7 +537,8 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
         channel_tag(timestamp),
         submitted_tag(timestamp),
         duration_tag(timestamp),
-        published_tag(timestamp)
+        published_tag(timestamp),
+        generation_model_tag(timestamp)
       ]
       |> Enum.reject(&(&1 in [nil, ""]))
 
@@ -550,6 +551,18 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
           Enum.join(tags, "<span class=\"separator\">•</span>") <> "</div>"
     end
   end
+
+  defp generation_model_tag(%Timestamp{processing_context: context}) when is_map(context) do
+    case Map.get(context, "generation_model") do
+      model when is_binary(model) ->
+        "<span>Model: #{html_escape(model)}</span>"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp generation_model_tag(_), do: nil
 
   defp build_json_ld(assigns) do
     %{

@@ -8,18 +8,18 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   alias DragNStamp.Timestamps.Parser
 
   @base_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-  @text_only_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"
+  @text_only_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent"
 
   @spec timestamps_with_retry(binary(), binary(), binary() | nil, keyword()) ::
-          {:ok, binary()} | {:error, term()}
+          {:ok, binary(), binary()} | {:error, term()}
   def timestamps_with_retry(prompt, api_key, video_url, opts \\ []) do
     do_timestamps_with_retry(prompt, api_key, video_url, opts, 1)
   end
 
   defp do_timestamps_with_retry(prompt, api_key, video_url, opts, attempt) do
     case timestamps(prompt, api_key, video_url, opts) do
-      {:ok, response} ->
-        {:ok, response}
+      {:ok, response, model} ->
+        {:ok, response, model}
 
       {:error, reason} when attempt < 3 ->
         delay = if attempt == 1, do: 5_000, else: 60_000
@@ -38,7 +38,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   end
 
   @spec timestamps(binary(), binary(), binary() | nil, keyword()) ::
-          {:ok, binary()} | {:error, term()}
+          {:ok, binary(), binary()} | {:error, term()}
   def timestamps(prompt, api_key, video_url, opts \\ []) do
     api_url = "#{@base_url}?key=#{api_key}"
     headers = [{"Content-Type", "application/json"}]
@@ -60,11 +60,8 @@ defmodule DragNStamp.Timestamps.GeminiClient do
          text <- get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"]),
          :ok <- log_raw_response(text),
          {:ok, cleaned} <- parse_timestamps(text) do
-      {:ok, cleaned}
+      {:ok, cleaned, "gemini-2.5-flash"}
     else
-      {:ok, %Finch.Response{status: status}} ->
-        {:error, "HTTP request failed with status: #{status}"}
-
       {:ok, %Finch.Response{status: status, body: body}} ->
         {:error, "HTTP request failed with status: #{status} and body: #{body}"}
 
@@ -76,7 +73,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     end
   end
 
-  @spec text_only(binary(), binary()) :: {:ok, binary()} | {:error, term()}
+  @spec text_only(binary(), binary()) :: {:ok, binary(), binary()} | {:error, term()}
   def text_only(prompt, api_key) do
     api_url = "#{@text_only_url}?key=#{api_key}"
     headers = [{"Content-Type", "application/json"}]
@@ -90,7 +87,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
             Logger.info("Gemini text-only API raw response: #{inspect(text)}")
-            {:ok, text}
+            {:ok, text, "gemini-3-pro-preview"}
 
           {:ok, %{"error" => error}} ->
             {:error, error["message"]}
