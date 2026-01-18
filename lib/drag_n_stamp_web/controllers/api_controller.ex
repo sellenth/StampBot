@@ -387,7 +387,7 @@ defmodule DragNStampWeb.ApiController do
       case video_processing_plan(timestamp) do
         {:captions, seconds} ->
           Logger.info(
-            "Video exceeds 90-minute limit (#{seconds}s). Attempting caption-based processing."
+            "Video exceeds 20-minute limit (#{seconds}s). Attempting caption-based processing."
           )
 
           case CaptionFallback.process(channel_name, url, api_key, trigger: "length_gate") do
@@ -429,7 +429,7 @@ defmodule DragNStampWeb.ApiController do
                 status: "error",
                 message: "#{friendly_message} This video is #{minutes} minutes long.",
                 reason: Atom.to_string(reason_atom),
-                max_minutes: 90,
+                max_minutes: 20,
                 video_minutes: minutes,
                 fallback: "captions"
               })
@@ -640,18 +640,15 @@ defmodule DragNStampWeb.ApiController do
 
   defp classify_video_plan(seconds) when is_integer(seconds) do
     cond do
-      seconds > 90 * 60 ->
+      seconds > 20 * 60 ->
         {:captions, seconds}
 
-      seconds > 30 * 60 ->
+      true ->
         {:vlm,
          %{
            seconds: seconds,
            generation_config: %{"mediaResolution" => "MEDIA_RESOLUTION_LOW"}
          }}
-
-      true ->
-        {:vlm, %{seconds: seconds, generation_config: nil}}
     end
   end
 

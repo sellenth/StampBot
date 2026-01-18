@@ -8,7 +8,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   alias DragNStamp.Timestamps.Parser
 
   @base_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-  @text_only_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent"
+  @text_only_url "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
 
   @spec timestamps_with_retry(binary(), binary(), binary() | nil, keyword()) ::
           {:ok, binary(), binary()} | {:error, term()}
@@ -87,7 +87,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
           {:ok, %{"candidates" => candidates}} ->
             text = get_in(candidates, [Access.at(0), "content", "parts", Access.at(0), "text"])
             Logger.info("Gemini text-only API raw response: #{inspect(text)}")
-            {:ok, text, "gemini-3-pro-preview"}
+            {:ok, text, "gemini-3-flash-preview"}
 
           {:ok, %{"error" => error}} ->
             {:error, error["message"]}
