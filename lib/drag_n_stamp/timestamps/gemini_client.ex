@@ -117,7 +117,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   end
 
   defp build_video_part(url) do
-    %{file_data: %{file_uri: url}}
+    %{file_data: %{file_uri: url, mimeType: "video/mp4"}}
   end
 
   defp parse_timestamps(text) do

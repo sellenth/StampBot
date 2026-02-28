@@ -386,19 +386,21 @@ defmodule DragNStampWeb.ApiController do
 
       case video_processing_plan(timestamp) do
         {:captions, seconds} ->
+          trigger = if is_integer(seconds), do: "length_gate", else: "duration_unknown"
+
           Logger.info(
-            "Video exceeds 20-minute limit (#{seconds}s). Attempting caption-based processing."
+            "Using caption-based processing for #{url} (duration: #{inspect(seconds)}s, trigger: #{trigger})"
           )
 
-          case CaptionFallback.process(channel_name, url, api_key, trigger: "length_gate") do
+          case CaptionFallback.process(channel_name, url, api_key, trigger: trigger) do
             {:ok, cleaned, attempt_meta} ->
               attempt_meta =
                 attempt_meta
-                |> Map.put_new("video_seconds", seconds)
+                |> maybe_put_video_seconds(seconds)
 
               updated_timestamp = record_caption_attempt(timestamp, attempt_meta)
 
-              Logger.info("Caption-based pipeline succeeded for long video #{url}")
+              Logger.info("Caption-based pipeline succeeded for #{url}")
 
               complete_timestamp_generation(
                 conn,
@@ -412,27 +414,42 @@ defmodule DragNStampWeb.ApiController do
             {:error, reason_atom, friendly_message, attempt_meta} ->
               attempt_meta =
                 attempt_meta
-                |> Map.put_new("video_seconds", seconds)
+                |> maybe_put_video_seconds(seconds)
 
               updated_timestamp = record_caption_attempt(timestamp, attempt_meta)
 
-              minutes = Integer.floor_div(seconds, 60)
+              length_info =
+                if is_integer(seconds),
+                  do: " (length=#{Integer.floor_div(seconds, 60)}m)",
+                  else: " (length=unknown)"
 
               db_message =
-                "[captions_fallback_failed_long_video] #{friendly_message} (length=#{minutes}m)"
+                "[captions_fallback_failed] #{friendly_message}#{length_info}"
 
               _ = mark_timestamp_failed(updated_timestamp, db_message)
 
+              response = %{
+                status: "error",
+                message: friendly_message,
+                reason: Atom.to_string(reason_atom),
+                fallback: "captions"
+              }
+
+              response =
+                if is_integer(seconds) do
+                  minutes = Integer.floor_div(seconds, 60)
+
+                  response
+                  |> Map.put(:message, "#{friendly_message} This video is #{minutes} minutes long.")
+                  |> Map.put(:max_minutes, 20)
+                  |> Map.put(:video_minutes, minutes)
+                else
+                  response
+                end
+
               conn
               |> put_status(:unprocessable_entity)
-              |> json(%{
-                status: "error",
-                message: "#{friendly_message} This video is #{minutes} minutes long.",
-                reason: Atom.to_string(reason_atom),
-                max_minutes: 20,
-                video_minutes: minutes,
-                fallback: "captions"
-              })
+              |> json(response)
           end
 
         {:vlm, plan_opts} ->
@@ -611,29 +628,33 @@ defmodule DragNStampWeb.ApiController do
                 classify_video_plan(secs)
 
               {:ok, _unknown} ->
-                {:vlm, %{seconds: nil, generation_config: nil}}
+                Logger.warning(
+                  "Duration unknown for #{timestamp.url}; using captions for safety"
+                )
+
+                {:captions, nil}
 
               {:error, :no_api_key} ->
                 Logger.warning(
-                  "YOUTUBE_DATA_API_KEY not set; skipping duration check for #{timestamp.url}"
+                  "YOUTUBE_DATA_API_KEY not set; using captions for #{timestamp.url}"
                 )
 
-                {:vlm, %{seconds: nil, generation_config: nil}}
+                {:captions, nil}
 
               {:error, reason} ->
-                Logger.debug(
-                  "Duration check failed (#{inspect(reason)}); proceeding without block"
+                Logger.warning(
+                  "Duration check failed (#{inspect(reason)}); using captions for #{timestamp.url}"
                 )
 
-                {:vlm, %{seconds: nil, generation_config: nil}}
+                {:captions, nil}
             end
 
           {:error, reason} ->
-            Logger.debug(
-              "Could not extract video id (#{inspect(reason)}); proceeding without block"
+            Logger.warning(
+              "Could not extract video id (#{inspect(reason)}); using captions for #{timestamp.url}"
             )
 
-            {:vlm, %{seconds: nil, generation_config: nil}}
+            {:captions, nil}
         end
     end
   end
