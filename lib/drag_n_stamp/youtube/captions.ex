@@ -110,6 +110,7 @@ defmodule DragNStamp.YouTube.Captions do
         #"--sub-format",
         #"vtt",
         "--quiet",
+        "--js-runtimes", "nodejs",
         "--output",
         Path.join(variant_dir, @output_template)
       ] ++ cookies_args(cookies_path)

@@ -65,7 +65,7 @@ FROM alpine:${ALPINE_VERSION} AS app
 # Elixir/Erlang libraries (for example, :crypto), libstdc++ is
 # required for some NIFs, and ncurses-libs ensures :observer and
 # other tools can run if needed.
-RUN apk add --no-cache libstdc++ openssl ncurses-libs python3
+RUN apk add --no-cache libstdc++ openssl ncurses-libs python3 nodejs
 # Provide yt-dlp via the official standalone binary.
 COPY --from=build /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 
