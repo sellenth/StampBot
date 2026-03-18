@@ -65,7 +65,7 @@ FROM alpine:${ALPINE_VERSION} AS app
 # Elixir/Erlang libraries (for example, :crypto), libstdc++ is
 # required for some NIFs, and ncurses-libs ensures :observer and
 # other tools can run if needed.
-RUN apk add --no-cache libstdc++ openssl ncurses-libs python3 nodejs
+RUN apk add --no-cache libstdc++ openssl ncurses-libs python3 nodejs ffmpeg
 # Provide yt-dlp via the official standalone binary.
 COPY --from=build /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 
@@ -93,7 +93,12 @@ ENV PHX_SERVER=true
 # Expose port 4000 (Fly will map this automatically to 80/443)
 EXPOSE 4000
 
-# Start the release.  `start` runs the app in the foreground so
-# Docker can capture logs.
-ENTRYPOINT ["/app/bin/drag_n_stamp"]
-CMD ["start"]
+# Update yt-dlp to latest version at startup, then start the release.
+COPY <<'EOF' /app/start.sh
+#!/bin/sh
+yt-dlp -U 2>&1 || true
+exec /app/bin/drag_n_stamp start
+EOF
+RUN chmod +x /app/start.sh
+
+ENTRYPOINT ["/app/start.sh"]

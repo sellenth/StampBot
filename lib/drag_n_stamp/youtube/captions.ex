@@ -103,20 +103,14 @@ defmodule DragNStamp.YouTube.Captions do
     params =
       [
         "--skip-download",
-        # flag,
-        "--write-auto-sub",
+        flag,
         "--convert-subs=vtt",
-        # language,
-        # "--sub-format",
-        # "vtt",
         "--quiet",
         "--js-runtimes",
         "node",
         "--output",
         Path.join(variant_dir, @output_template)
       ] ++ cookies_args(cookies_path)
-
-    IO.puts(params)
 
     result =
       case Exyt.ytdlp(params, url) do
