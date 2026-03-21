@@ -1,10 +1,14 @@
 defmodule DragNStampWeb.PageController do
   use DragNStampWeb, :controller
   require Logger
-  
+
   import Ecto.Query
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.PagePath
+
+  def feed_redirect(conn, _params) do
+    redirect(conn, to: "/#feed")
+  end
 
   def sitemap(conn, _params) do
     base_url = "https://stamp-bot.com"
@@ -12,7 +16,7 @@ defmodule DragNStampWeb.PageController do
 
     # Get all timestamps for SEO pages
     seo_entries = get_seo_sitemap_entries(base_url)
-    
+
     static_entries = """
       <url>
         <loc>#{base_url}/</loc>
@@ -24,24 +28,6 @@ defmodule DragNStampWeb.PageController do
           <image:title>StampBot YouTube Timestamp Generator</image:title>
           <image:caption>AI-powered YouTube timestamp generation tool</image:caption>
         </image:image>
-      </url>
-      <url>
-        <loc>#{base_url}/feed</loc>
-        <lastmod>#{current_date}</lastmod>
-        <changefreq>hourly</changefreq>
-        <priority>0.8</priority>
-      </url>
-      <url>
-        <loc>#{base_url}/leaderboard</loc>
-        <lastmod>#{current_date}</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>0.7</priority>
-      </url>
-      <url>
-        <loc>#{base_url}/more-info</loc>
-        <lastmod>#{current_date}</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.6</priority>
       </url>
       <url>
         <loc>#{base_url}/extension</loc>
@@ -56,7 +42,7 @@ defmodule DragNStampWeb.PageController do
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
             xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
             xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
-#{static_entries}#{seo_entries}
+    #{static_entries}#{seo_entries}
     </urlset>
     """
 
@@ -165,7 +151,8 @@ defmodule DragNStampWeb.PageController do
   defp get_seo_sitemap_entries(base_url) do
     Timestamp
     |> order_by(desc: :inserted_at)
-    |> limit(1000)  # Limit to prevent sitemap from getting too large
+    # Limit to prevent sitemap from getting too large
+    |> limit(1000)
     |> Repo.all()
     |> Enum.map(&build_seo_entry(&1, base_url))
     |> Enum.join("")
@@ -174,10 +161,10 @@ defmodule DragNStampWeb.PageController do
   defp build_seo_entry(%Timestamp{} = timestamp, base_url) do
     page_url = PagePath.page_url(timestamp, base_url)
     lastmod = format_timestamp_date(timestamp.inserted_at)
-    
+
     # Include video thumbnail if available
     thumbnail_entry = build_thumbnail_entry(timestamp)
-    
+
     """
       <url>
         <loc>#{page_url}</loc>
@@ -191,7 +178,7 @@ defmodule DragNStampWeb.PageController do
   defp build_thumbnail_entry(%Timestamp{video_thumbnail_url: url}) when is_binary(url) do
     title = "StampBot Timestamp"
     caption = "AI-generated YouTube timestamp"
-    
+
     """
         <image:image>
           <image:loc>#{url}</image:loc>
@@ -200,18 +187,18 @@ defmodule DragNStampWeb.PageController do
         </image:image>
     """
   end
-  
+
   defp build_thumbnail_entry(_), do: ""
-  
+
   defp format_timestamp_date(%DateTime{} = datetime) do
     DateTime.to_iso8601(datetime)
   end
-  
+
   defp format_timestamp_date(%NaiveDateTime{} = naive_datetime) do
     naive_datetime
     |> DateTime.from_naive!("Etc/UTC")
     |> DateTime.to_iso8601()
   end
-  
+
   defp format_timestamp_date(_), do: DateTime.utc_now() |> DateTime.to_iso8601()
 end

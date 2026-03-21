@@ -32,7 +32,7 @@ defmodule DragNStampWeb.SeoPageController do
         base_url: base_url,
         page_path: canonical_path,
         canonical_url: canonical_url,
-        feed_url: base_url <> "/feed",
+        feed_url: base_url <> "/#feed",
         site_name: @site_name
       })
 
@@ -54,7 +54,8 @@ defmodule DragNStampWeb.SeoPageController do
           _ -> :error
         end
 
-      _ -> :error
+      _ ->
+        :error
     end
   end
 

@@ -37,7 +37,7 @@ defmodule DragNStampWeb.CoreComponents do
           <img src="images/128x128.png" width="32" class="inline pb-2 mr-2" />StampBot
         </.link>
       </div>
-
+      
     <!-- Hamburger button for mobile -->
       <button
         class="hamburger-menu"
@@ -52,7 +52,7 @@ defmodule DragNStampWeb.CoreComponents do
         <span class="hamburger-line"></span>
         <span class="hamburger-line"></span>
       </button>
-
+      
     <!-- Desktop nav links -->
       <div class="nav-links nav-links-desktop">
         <.link
@@ -62,24 +62,11 @@ defmodule DragNStampWeb.CoreComponents do
           Home
         </.link>
         <.link
-          navigate={~p"/feed"}
-          class={["nav-link", @current_page == "feed" && "nav-link-active"]}
-        >
-          Feed
-        </.link>
-        <.link
           navigate={~p"/leaderboard"}
           class={["nav-link", @current_page == "leaderboard" && "nav-link-active"]}
         >
           Leaderboard
         </.link>
-        <.link
-          navigate={~p"/more-info"}
-          class={["nav-link", @current_page == "more-info" && "nav-link-active"]}
-        >
-          Info
-        </.link>
-
         <!--
         <%= if @current_user do %>
           <.link
@@ -96,7 +83,7 @@ defmodule DragNStampWeb.CoreComponents do
         <% end %>
         -->
       </div>
-
+      
     <!-- Mobile menu overlay -->
       <div id="mobile-menu-overlay" class="mobile-menu-overlay hidden">
         <div class="mobile-menu">
@@ -111,16 +98,6 @@ defmodule DragNStampWeb.CoreComponents do
             Home
           </.link>
           <.link
-            navigate={~p"/feed"}
-            class={["mobile-menu-link", @current_page == "feed" && "mobile-menu-link-active"]}
-            phx-click={
-              JS.hide(to: "#mobile-menu-overlay")
-              |> JS.toggle_class("is-active", to: ".hamburger-menu")
-            }
-          >
-            Feed
-          </.link>
-          <.link
             navigate={~p"/leaderboard"}
             class={["mobile-menu-link", @current_page == "leaderboard" && "mobile-menu-link-active"]}
             phx-click={
@@ -130,17 +107,6 @@ defmodule DragNStampWeb.CoreComponents do
           >
             Leaderboard
           </.link>
-          <.link
-            navigate={~p"/more-info"}
-            class={["mobile-menu-link", @current_page == "more-info" && "mobile-menu-link-active"]}
-            phx-click={
-              JS.hide(to: "#mobile-menu-overlay")
-              |> JS.toggle_class("is-active", to: ".hamburger-menu")
-            }
-          >
-            Info
-          </.link>
-
           <!--
           <div class="mobile-menu-divider"></div>
 

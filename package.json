@@ -1,0 +1,10 @@
+{
+  "name": "stampbot",
+  "private": true,
+  "scripts": {
+    "test:puppeteer": "node test/puppeteer/home_merge.mjs"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.7.1"
+  }
+}

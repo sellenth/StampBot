@@ -11,14 +11,9 @@ defmodule DragNStampWeb.LeaderboardLive do
       Phoenix.PubSub.subscribe(DragNStamp.PubSub, @topic)
     end
 
-    timestamps =
-      Timestamp
-      |> order_by(desc: :inserted_at)
-      |> Repo.all()
-
     {:ok,
      assign(socket,
-       timestamps: timestamps,
+       timestamps: load_timestamps(),
        page_title: "Timestamp Leaderboard | Top YouTube Content Creators & Contributors",
        page_description:
          "Discover the most active YouTube timestamp contributors and popular channels. See who's creating the most AI-generated video chapters and top performing content."
@@ -28,12 +23,29 @@ defmodule DragNStampWeb.LeaderboardLive do
   def handle_info({:timestamp_created, timestamp}, socket) do
     Logger.info("Received new timestamp via PubSub: #{timestamp.id}")
 
-    updated_timestamps = [timestamp | socket.assigns.timestamps]
-
     {:noreply,
      socket
-     |> assign(:timestamps, updated_timestamps)
+     |> assign(:timestamps, [timestamp | socket.assigns.timestamps])
      |> put_flash(:info, "New timestamp added by #{timestamp.submitter_username}!")}
+  end
+
+  def handle_info({:timestamp_updated, timestamp}, socket) do
+    timestamps = socket.assigns.timestamps
+
+    updated_list =
+      if Enum.any?(timestamps, &(&1.id == timestamp.id)) do
+        Enum.map(timestamps, fn t -> if t.id == timestamp.id, do: timestamp, else: t end)
+      else
+        [timestamp | timestamps]
+      end
+
+    {:noreply, assign(socket, :timestamps, updated_list)}
+  end
+
+  defp load_timestamps do
+    Timestamp
+    |> order_by(desc: :inserted_at)
+    |> Repo.all()
   end
 
   defp submitter_stats(timestamps) do
@@ -55,14 +67,8 @@ defmodule DragNStampWeb.LeaderboardLive do
     |> Enum.take(10)
   end
 
-  defp recent_activity(timestamps) do
-    timestamps
-    |> Enum.take(5)
-  end
-
-  defp total_timestamps(timestamps) do
-    length(timestamps)
-  end
+  defp recent_activity(timestamps), do: Enum.take(timestamps, 5)
+  defp total_timestamps(timestamps), do: length(timestamps)
 
   defp unique_contributors(timestamps) do
     timestamps

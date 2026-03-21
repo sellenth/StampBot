@@ -22,9 +22,8 @@ defmodule DragNStampWeb.Router do
     pipe_through :browser
 
     live "/", HomeLive
-    live "/feed", FeedLive
+    get "/feed", PageController, :feed_redirect
     live "/leaderboard", LeaderboardLive
-    live "/more-info", MoreInfoLive
 
     # Static extension endpoint (no LiveView/WebSockets)
     get "/extension", PageController, :extension

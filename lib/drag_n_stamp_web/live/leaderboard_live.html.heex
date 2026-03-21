@@ -67,7 +67,9 @@
                         end
                       }
                       data-variant="date"
-                    >Loading…</time>
+                    >
+                      Loading…
+                    </time>
                   </div>
                 </div>
                 <div class="contribution-count">
@@ -136,7 +138,9 @@
                       other -> to_string(other)
                     end
                   }
-                >Loading…</time>
+                >
+                  Loading…
+                </time>
               </div>
             </div>
           <% end %>
@@ -145,9 +149,7 @@
 
       <%= if length(@timestamps) > 5 do %>
         <div class="activity-footer">
-          <.link navigate={~p"/feed"} class="btn btn-secondary">
-            View All Timestamps
-          </.link>
+          <a href="/#feed" class="btn btn-secondary">View All Timestamps</a>
         </div>
       <% end %>
     </div>

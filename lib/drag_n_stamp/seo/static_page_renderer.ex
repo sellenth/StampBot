@@ -51,7 +51,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     duration = Map.get(opts, :video_duration) || timestamp.video_duration_seconds
     channel_meta = build_channel_meta(timestamp)
     channel_name = Map.get(opts, :channel_name) || timestamp.channel_name
-    feed_url = Map.get(opts, :feed_url, base_url <> "/feed")
+    feed_url = Map.get(opts, :feed_url, base_url <> "/#feed")
 
     structured_data =
       build_json_ld(%{
