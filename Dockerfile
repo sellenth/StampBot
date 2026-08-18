@@ -17,14 +17,23 @@
 ARG ELIXIR_VERSION=1.17.0
 ARG OTP_VERSION=27.0
 ARG ALPINE_VERSION=3.19.1
+ARG NODE_VERSION=22
+ARG NODE_ALPINE_VERSION=3.19
 FROM hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-alpine-${ALPINE_VERSION} AS build
+
+ARG YT_DLP_VERSION=2026.07.04
+ARG YT_DLP_SHA256=495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd
 
 # Install build dependencies.  Node/npm are required for Tailwind
 # and JS bundling, git allows mix to fetch dependencies, and
 # build-base provides compilers for native dependencies.
 RUN apk add --no-cache build-base git npm curl python3 && \
-    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
-    chmod +x /usr/local/bin/yt-dlp
+    curl --fail --location \
+      "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp" \
+      --output /usr/local/bin/yt-dlp && \
+    echo "${YT_DLP_SHA256}  /usr/local/bin/yt-dlp" | sha256sum -c - && \
+    chmod +x /usr/local/bin/yt-dlp && \
+    test "$(/usr/local/bin/yt-dlp --version)" = "${YT_DLP_VERSION}"
 
 # Set working directory inside the container
 WORKDIR /app
@@ -59,13 +68,13 @@ RUN mix release --overwrite
 ## ------------------------------------------------------
 ## Runtime stage
 ## ------------------------------------------------------
-FROM alpine:${ALPINE_VERSION} AS app
+FROM node:${NODE_VERSION}-alpine${NODE_ALPINE_VERSION} AS app
 
 # Install runtime dependencies.  openssl is required by certain
 # Elixir/Erlang libraries (for example, :crypto), libstdc++ is
 # required for some NIFs, and ncurses-libs ensures :observer and
 # other tools can run if needed.
-RUN apk add --no-cache libstdc++ openssl ncurses-libs python3 py3-pip nodejs ffmpeg && \
+RUN apk add --no-cache libstdc++ openssl ncurses-libs python3 py3-pip ffmpeg && \
     pip3 install --break-system-packages curl_cffi
 # Provide yt-dlp via the official standalone binary.
 COPY --from=build /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
@@ -100,7 +109,12 @@ COPY <<'EOF' /app/start.sh
 #!/bin/sh
 set -e
 /app/bin/drag_n_stamp eval "DragNStamp.Release.migrate()"
-yt-dlp -U 2>&1 || true
+if ! update_output="$(yt-dlp -U 2>&1)"; then
+  echo "WARNING: yt-dlp self-update failed; continuing with build version $(yt-dlp --version)." >&2
+  echo "$update_output" >&2
+else
+  echo "$update_output"
+fi
 exec /app/bin/drag_n_stamp start
 EOF
 RUN chmod +x /app/start.sh

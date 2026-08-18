@@ -283,7 +283,8 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   defp pad_two_digits(value) when value < 10, do: "0#{value}"
   defp pad_two_digits(value), do: Integer.to_string(value)
 
-  defp caption_fetch_failure_reason(reason) do
+  @doc false
+  def caption_fetch_failure_reason(reason) do
     case reason do
       :no_tracks -> :captions_unavailable
       :no_tracks_available -> :captions_unavailable
@@ -295,6 +296,16 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       {:invalid_caption_payload, _} -> :captions_fetch_failed
       {:http_error, _} -> :captions_fetch_failed
       {:request_failed, _} -> :captions_fetch_failed
+      {:yt_dlp_failed, :unsupported_option, _} -> :caption_downloader_outdated
+      {:yt_dlp_failed, :unsupported_runtime, _} -> :caption_runtime_outdated
+      {:yt_dlp_failed, :binary_unavailable, _} -> :caption_downloader_unavailable
+      {:yt_dlp_failed, :cookies_invalid, _} -> :youtube_auth_failed
+      {:yt_dlp_failed, :youtube_auth_required, _} -> :youtube_auth_failed
+      {:yt_dlp_failed, :rate_limited, _} -> :youtube_rate_limited
+      {:yt_dlp_failed, :network_error, _} -> :youtube_network_error
+      {:yt_dlp_failed, :video_unavailable, _} -> :video_unavailable
+      {:yt_dlp_failed, :no_subtitles, _} -> :captions_unavailable
+      {:yt_dlp_failed, _category, _} -> :captions_fetch_failed
       {:yt_dlp_failed, _} -> :captions_fetch_failed
       {:subtitle_directory_error, _} -> :captions_fetch_failed
       :invalid_cue -> :captions_fetch_failed
@@ -324,6 +335,34 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
   def failure_message(:captions_fetch_failed),
     do: "We hit an issue fetching captions from YouTube. It's logged for future analysis."
+
+  def failure_message(:caption_downloader_outdated),
+    do:
+      "Our YouTube caption downloader is out of date and needs a service update. This video has been saved for a retry."
+
+  def failure_message(:caption_downloader_unavailable),
+    do:
+      "Our YouTube caption downloader isn't available on the server right now. This video has been saved for a retry."
+
+  def failure_message(:caption_runtime_outdated),
+    do:
+      "The server's YouTube caption runtime is out of date and needs a service update. This video has been saved for a retry."
+
+  def failure_message(:youtube_auth_failed),
+    do:
+      "YouTube rejected the server's caption access credentials. This video has been saved while we refresh access."
+
+  def failure_message(:youtube_rate_limited),
+    do:
+      "YouTube temporarily rate-limited caption requests. This video has been saved so it can be retried later."
+
+  def failure_message(:youtube_network_error),
+    do:
+      "The server couldn't reach YouTube's caption service. This video has been saved for a retry."
+
+  def failure_message(:video_unavailable),
+    do:
+      "YouTube reports that this video is private, removed, or otherwise unavailable to the server."
 
   def failure_message(:transcript_empty),
     do:

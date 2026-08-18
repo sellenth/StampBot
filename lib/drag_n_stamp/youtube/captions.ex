@@ -6,8 +6,6 @@ defmodule DragNStamp.YouTube.Captions do
 
   require Logger
 
-  alias Exyt
-
   @default_language "en"
   @sub_variants [
     {"--write-subs", :subtitles},
@@ -113,7 +111,7 @@ defmodule DragNStamp.YouTube.Captions do
       ] ++ cookies_args(cookies_path)
 
     result =
-      case Exyt.ytdlp(params, url) do
+      case run_ytdlp(params ++ [url]) do
         {:ok, _output} ->
           with {:ok, subtitle_path} <- locate_subtitle_file(variant_dir),
                {:ok, segments, parse_meta} <- parse_vtt(subtitle_path) do
@@ -146,7 +144,11 @@ defmodule DragNStamp.YouTube.Captions do
           end
 
         {:error, reason} ->
-          {:error, {:yt_dlp_failed, reason},
+          Logger.warning(fn ->
+            "yt-dlp caption attempt failed (#{variant}): #{inspect(reason)}"
+          end)
+
+          {:error, reason,
            %{
              variant: Atom.to_string(variant),
              status: :error,
@@ -156,6 +158,118 @@ defmodule DragNStamp.YouTube.Captions do
 
     File.rm_rf(variant_dir)
     result
+  end
+
+  defp run_ytdlp(params) do
+    case System.cmd("yt-dlp", params, stderr_to_stdout: true) do
+      {output, 0} ->
+        {:ok, output}
+
+      {output, exit_status} ->
+        category = classify_ytdlp_failure(output)
+
+        {:error,
+         {:yt_dlp_failed, category,
+          %{
+            exit_status: exit_status,
+            message: diagnostic_summary(output),
+            version: yt_dlp_version()
+          }}}
+    end
+  rescue
+    error in ErlangError ->
+      {:error,
+       {:yt_dlp_failed, :binary_unavailable,
+        %{message: diagnostic_summary(Exception.message(error)), version: yt_dlp_version()}}}
+  end
+
+  @doc false
+  def classify_ytdlp_failure(output) when is_binary(output) do
+    normalized = String.downcase(output)
+
+    cond do
+      contains_any?(normalized, [
+        "no such option",
+        "unrecognized arguments",
+        "unsupported option"
+      ]) ->
+        :unsupported_option
+
+      (String.contains?(normalized, "node") or String.contains?(normalized, "javascript")) and
+          contains_any?(normalized, ["unsupported version", "not supported", "too old"]) ->
+        :unsupported_runtime
+
+      contains_any?(normalized, [
+        "cookies are no longer valid",
+        "cookie file must be in mozilla/netscape format",
+        "failed to decrypt cookies",
+        "failed to load cookies"
+      ]) ->
+        :cookies_invalid
+
+      contains_any?(normalized, [
+        "sign in to confirm you're not a bot",
+        "sign in to confirm you’re not a bot",
+        "login required",
+        "authentication required",
+        "use --cookies-from-browser or --cookies"
+      ]) ->
+        :youtube_auth_required
+
+      contains_any?(normalized, ["http error 429", "too many requests", "rate limit"]) ->
+        :rate_limited
+
+      contains_any?(normalized, [
+        "video unavailable",
+        "private video",
+        "this video has been removed",
+        "this video is not available"
+      ]) ->
+        :video_unavailable
+
+      contains_any?(normalized, [
+        "there are no subtitles for the requested languages",
+        "has no subtitles"
+      ]) ->
+        :no_subtitles
+
+      contains_any?(normalized, [
+        "unable to download webpage",
+        "temporary failure in name resolution",
+        "name or service not known",
+        "connection refused",
+        "connection reset",
+        "network is unreachable",
+        "timed out"
+      ]) ->
+        :network_error
+
+      true ->
+        :unknown
+    end
+  end
+
+  defp contains_any?(text, candidates), do: Enum.any?(candidates, &String.contains?(text, &1))
+
+  defp diagnostic_summary(output) do
+    output
+    |> to_string()
+    |> String.split(~r/\r?\n/, trim: true)
+    |> Enum.reverse()
+    |> Enum.find("yt-dlp failed", fn line ->
+      String.contains?(String.downcase(line), ["error", "warning", "failed"])
+    end)
+    |> String.replace(~r/https?:\/\/\S+/, "[url redacted]")
+    |> String.slice(0, 500)
+  end
+
+  defp yt_dlp_version do
+    case System.cmd("yt-dlp", ["--version"], stderr_to_stdout: true) do
+      {version, 0} -> String.trim(version)
+      _ -> "unknown"
+    end
+  rescue
+    ErlangError -> "unavailable"
   end
 
   @cookie_term_key {:drag_n_stamp, :yt_dlp_cookies_path}
