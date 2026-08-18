@@ -4,6 +4,7 @@ defmodule DragNStampWeb.HomeLiveTest do
   import Phoenix.LiveViewTest
 
   alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.Timestamps.SubmissionLimit
 
   test "home page renders submit and feed in order", %{conn: conn} do
     insert_timestamp(%{
@@ -41,6 +42,20 @@ defmodule DragNStampWeb.HomeLiveTest do
     refute has_element?(view, "#leaderboard")
   end
 
+  test "shows the funding banner and disables submissions at 1,000 timestamps", %{conn: conn} do
+    insert_timestamps(SubmissionLimit.limit())
+
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#submission-limit-banner")
+    assert html =~ SubmissionLimit.message()
+    assert has_element?(view, "#url-form input[name=url][disabled]")
+    assert has_element?(view, "#url-form input[name=username][disabled]")
+    assert has_element?(view, "#url-form button[type=submit][disabled]", "Submissions Closed")
+
+    assert Repo.aggregate(Timestamp, :count, :id) == SubmissionLimit.limit()
+  end
+
   defp insert_timestamp(attrs) do
     defaults = %{
       url: "https://www.youtube.com/watch?v=#{System.unique_integer([:positive])}",
@@ -55,6 +70,26 @@ defmodule DragNStampWeb.HomeLiveTest do
     %Timestamp{}
     |> Timestamp.changeset(Map.merge(defaults, attrs))
     |> Repo.insert!()
+  end
+
+  defp insert_timestamps(count) do
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    rows =
+      for index <- 1..count do
+        %{
+          url: "https://www.youtube.com/watch?v=homeLimit#{index}",
+          channel_name: "Limit Test",
+          submitter_username: "anonymous",
+          content: "0:00 Intro",
+          distilled_content: "0:00 Intro",
+          processing_status: :ready,
+          inserted_at: now,
+          updated_at: now
+        }
+      end
+
+    Repo.insert_all(Timestamp, rows)
   end
 
   defp html_index(html, needle) do

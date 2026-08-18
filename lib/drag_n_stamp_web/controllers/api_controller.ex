@@ -3,7 +3,14 @@ defmodule DragNStampWeb.ApiController do
   require Logger
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.{PagePath, VideoMetadata}
-  alias DragNStamp.Timestamps.{CaptionFallback, CostEstimator, GeminiClient, Prompts}
+
+  alias DragNStamp.Timestamps.{
+    CaptionFallback,
+    CostEstimator,
+    GeminiClient,
+    Prompts,
+    SubmissionLimit
+  }
 
   @caption_attempt_history_limit 5
 
@@ -188,36 +195,51 @@ defmodule DragNStampWeb.ApiController do
         end
 
       nil ->
-        Logger.info(
-          "No existing timestamps found for URL: #{url}, attempting to acquire lock and call Gemini API"
-        )
+        if SubmissionLimit.reached?() do
+          submission_limit_response(conn)
+        else
+          Logger.info(
+            "No existing timestamps found for URL: #{url}, attempting to acquire lock and call Gemini API"
+          )
 
-        case acquire_url_lock(url) do
-          :acquired ->
-            try do
-              generate_new_timestamps(
-                conn,
-                api_key,
-                channel_name,
-                submitter_username,
-                url,
-                nil
-              )
-            after
-              release_url_lock(url)
-            end
+          case acquire_url_lock(url) do
+            :acquired ->
+              try do
+                generate_new_timestamps(
+                  conn,
+                  api_key,
+                  channel_name,
+                  submitter_username,
+                  url,
+                  nil
+                )
+              after
+                release_url_lock(url)
+              end
 
-          :in_flight ->
-            Logger.info("Duplicate request in-flight for URL: #{url}, returning 202 Accepted")
+            :in_flight ->
+              Logger.info("Duplicate request in-flight for URL: #{url}, returning 202 Accepted")
 
-            conn
-            |> put_status(:accepted)
-            |> json(%{
-              status: "processing",
-              message: "A request for this URL is already in progress"
-            })
+              conn
+              |> put_status(:accepted)
+              |> json(%{
+                status: "processing",
+                message: "A request for this URL is already in progress"
+              })
+          end
         end
     end
+  end
+
+  defp submission_limit_response(conn) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{
+      status: "error",
+      reason: "submission_limit_reached",
+      message: SubmissionLimit.message(),
+      limit: SubmissionLimit.limit()
+    })
   end
 
   # Lightweight distributed lock to prevent concurrent processing of the same URL
@@ -251,7 +273,7 @@ defmodule DragNStampWeb.ApiController do
       estimated_cost_usd: nil
     }
 
-    case Repo.insert(Timestamp.changeset(%Timestamp{}, attrs)) do
+    case SubmissionLimit.insert_if_available(Timestamp.changeset(%Timestamp{}, attrs)) do
       {:ok, timestamp} ->
         {:ok, timestamp, true}
 
@@ -532,6 +554,9 @@ defmodule DragNStampWeb.ApiController do
           end
       end
     else
+      {:error, :submission_limit_reached} ->
+        submission_limit_response(conn)
+
       {:error, changeset} ->
         Logger.error("Failed to prepare timestamp record: #{inspect(changeset.errors)}")
 

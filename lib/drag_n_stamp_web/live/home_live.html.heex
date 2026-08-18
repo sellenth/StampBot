@@ -118,6 +118,16 @@
         </p>
       </div>
 
+      <div
+        :if={@submission_limit_reached}
+        id="submission-limit-banner"
+        class="status-banner status-banner--issue"
+        role="alert"
+      >
+        <span class="status-indicator status-indicator--issue" aria-hidden="true"></span>
+        <div class="status-banner__content">{@submission_limit_message}</div>
+      </div>
+
       <div class="url-input-section">
         <form id="url-form" phx-submit="generate_from_url" phx-hook="UrlForm">
           <div class="input-group">
@@ -126,17 +136,28 @@
               name="url"
               placeholder="Paste YouTube URL here..."
               class="url-input"
-              disabled={@loading}
+              disabled={@loading || @submission_limit_reached}
             />
             <input
               type="text"
               name="username"
               placeholder="Your username (optional)"
               class="username-input"
-              disabled={@loading}
+              disabled={@loading || @submission_limit_reached}
             />
-            <button type="submit" class="generate-btn" disabled={@loading}>
-              {if @loading, do: "Generating...", else: "Generate Timestamps"}
+            <button
+              type="submit"
+              class="generate-btn"
+              disabled={@loading || @submission_limit_reached}
+            >
+              <%= cond do %>
+                <% @submission_limit_reached -> %>
+                  Submissions Closed
+                <% @loading -> %>
+                  Generating...
+                <% true -> %>
+                  Generate Timestamps
+              <% end %>
             </button>
           </div>
           <p class="input-help">

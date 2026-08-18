@@ -2,6 +2,7 @@ defmodule DragNStampWeb.HomeLive do
   use DragNStampWeb, :live_view
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.PagePath
+  alias DragNStamp.Timestamps.SubmissionLimit
   import Ecto.Query
   require Logger
 
@@ -21,11 +22,14 @@ defmodule DragNStampWeb.HomeLive do
     is_extension_mode = params["mode"] == "extension"
     page = parse_page(params["page"])
     timestamps = load_timestamps()
+    submission_limit_reached = length(timestamps) >= SubmissionLimit.limit()
 
     {:ok,
      assign(socket,
        bookmarklet_code: bookmarklet_code,
        loading: false,
+       submission_limit_reached: submission_limit_reached,
+       submission_limit_message: SubmissionLimit.message(),
        extension_mode: is_extension_mode,
        timestamps: timestamps,
        filter_submitter: "",
@@ -40,24 +44,15 @@ defmodule DragNStampWeb.HomeLive do
   end
 
   def handle_event("generate_from_url", %{"url" => url, "username" => username}, socket) do
-    case validate_youtube_url(url) do
-      :ok ->
-        submitter_username =
-          if username && String.trim(username) != "", do: String.trim(username), else: "anonymous"
-
-        parent = self()
-
-        Task.start(fn ->
-          send(parent, {:generation_finished, generate_timestamps(url, submitter_username)})
-        end)
-
+    cond do
+      socket.assigns.submission_limit_reached or SubmissionLimit.reached?() ->
         {:noreply,
          socket
-         |> assign(:loading, true)
-         |> put_flash(:info, "Generating timestamps... This may take a few minutes.")}
+         |> assign(:submission_limit_reached, true)
+         |> put_flash(:error, SubmissionLimit.message())}
 
-      {:error, message} ->
-        {:noreply, put_flash(socket, :error, message)}
+      true ->
+        handle_submission(url, username, socket)
     end
   end
 
@@ -144,6 +139,28 @@ defmodule DragNStampWeb.HomeLive do
     end
   end
 
+  defp handle_submission(url, username, socket) do
+    case validate_youtube_url(url) do
+      :ok ->
+        submitter_username =
+          if username && String.trim(username) != "", do: String.trim(username), else: "anonymous"
+
+        parent = self()
+
+        Task.start(fn ->
+          send(parent, {:generation_finished, generate_timestamps(url, submitter_username)})
+        end)
+
+        {:noreply,
+         socket
+         |> assign(:loading, true)
+         |> put_flash(:info, "Generating timestamps... This may take a few minutes.")}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
   def handle_info({:generation_finished, :ok}, socket) do
     {:noreply, assign(socket, :loading, false)}
   end
@@ -163,6 +180,7 @@ defmodule DragNStampWeb.HomeLive do
     {:noreply,
      socket
      |> assign(:timestamps, sort_timestamps(updated_timestamps, socket.assigns.sort_by))
+     |> assign(:submission_limit_reached, length(updated_timestamps) >= SubmissionLimit.limit())
      |> put_flash(:info, "New timestamp received from #{timestamp.submitter_username}!")}
   end
 
@@ -215,7 +233,14 @@ defmodule DragNStampWeb.HomeLive do
 
       {:ok, response} ->
         Logger.info("Timestamp generation completed: #{inspect(response.status)}")
-        {:error, "StampBot could not process that video right now."}
+
+        message =
+          case Jason.decode(response.body) do
+            {:ok, %{"message" => message}} when is_binary(message) -> message
+            _ -> "StampBot could not process that video right now."
+          end
+
+        {:error, message}
 
       {:error, reason} ->
         Logger.error("Failed to generate timestamps: #{inspect(reason)}")
