@@ -24,11 +24,14 @@ defmodule DragNStamp.Timestamp do
     field :youtube_comment_external_id, :string
     field :youtube_comment_dedupe_key, :string
     field :youtube_comment_attempts, :integer, default: 0
+
     field :processing_status, Ecto.Enum,
       values: [:processing, :ready, :failed],
       default: :processing
+
     field :processing_error, :string
     field :processing_context, :map
+    field :estimated_cost_usd, :decimal
 
     timestamps()
   end
@@ -55,7 +58,8 @@ defmodule DragNStamp.Timestamp do
       :youtube_comment_attempts,
       :processing_status,
       :processing_error,
-      :processing_context
+      :processing_context,
+      :estimated_cost_usd
     ])
     |> validate_required([:url, :channel_name])
     |> maybe_require_content()

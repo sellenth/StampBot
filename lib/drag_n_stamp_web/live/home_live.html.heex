@@ -271,6 +271,12 @@
                       {timestamp.processing_context["generation_model"]}
                     </span>
                   <% end %>
+                  <span
+                    class="tag cost-tag"
+                    title="Estimated total Gemini API cost from returned token usage"
+                  >
+                    Est. total: {format_estimated_cost(timestamp)}
+                  </span>
                   <span class="tag date-tag">
                     <time
                       id={"time-#{timestamp.id}"}

@@ -11,6 +11,39 @@ config :drag_n_stamp,
   ecto_repos: [DragNStamp.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Keep model roles explicit so quality-critical video understanding can advance
+# independently from lower-cost caption summarization and distillation.
+config :drag_n_stamp, :gemini,
+  video_model: "gemini-3.7-flash",
+  text_model: "gemini-3.5-flash-lite",
+  video_thinking_level: "medium",
+  text_thinking_level: "low"
+
+# Estimated USD per one million tokens. Keep this map configurable because
+# provider pricing changes independently of application releases.
+config :drag_n_stamp, :gemini_cost_rates, %{
+  "gemini-3.7-flash" => %{
+    input_per_million: "0.75",
+    cached_input_per_million: "0.075",
+    output_per_million: "3.75"
+  },
+  "gemini-3.5-flash-lite" => %{
+    input_per_million: "0.30",
+    cached_input_per_million: "0.03",
+    output_per_million: "2.50"
+  },
+  "gemini-3-flash-preview" => %{
+    input_per_million: "0.50",
+    cached_input_per_million: "0.05",
+    output_per_million: "3.00"
+  },
+  "gemini-2.5-flash" => %{
+    input_per_million: "0.30",
+    cached_input_per_million: "0.03",
+    output_per_million: "2.50"
+  }
+}
+
 # Configures the endpoint
 config :drag_n_stamp, DragNStampWeb.Endpoint,
   url: [host: "localhost"],

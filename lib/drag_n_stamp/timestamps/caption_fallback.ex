@@ -5,7 +5,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   """
 
   alias DragNStamp.SEO.VideoMetadata
-  alias DragNStamp.Timestamps.{GeminiClient, Parser}
+  alias DragNStamp.Timestamps.{CostEstimator, GeminiClient, Parser, Prompts}
   alias DragNStamp.YouTube.Captions
 
   @caption_merge_window_ms 15_000
@@ -55,13 +55,14 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
         case build_transcript_payload(segments) do
           {:ok, transcript_text, stats} ->
             case summarize_captions(channel_name, transcript_text, api_key) do
-              {:ok, cleaned, model} ->
+              {:ok, cleaned, model, estimated_cost_usd} ->
                 attempt =
                   build_caption_attempt_meta(video_id, "success", %{
                     "caption_context" => caption_context,
                     "transcript_stats" => stats,
                     "prompt_character_count" => String.length(transcript_text),
                     "model" => model,
+                    "estimated_cost_usd" => CostEstimator.serialize(estimated_cost_usd),
                     "video_url" => url,
                     "trigger" => trigger
                   })
@@ -131,14 +132,17 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   defp summarize_captions(channel_name, transcript_text, api_key) do
     prompt = build_caption_prompt(channel_name, transcript_text)
 
-    case GeminiClient.text_only(prompt, api_key) do
-      {:ok, response, model} when is_binary(response) ->
+    case GeminiClient.text_only_detailed(prompt, api_key) do
+      {:ok, result} when is_binary(result.content) ->
+        response = result.content
+
         case Parser.extract_timestamps_only(response) do
           cleaned when is_binary(cleaned) ->
             cleaned_trimmed = String.trim(cleaned)
 
             if cleaned_trimmed != "" do
-              {:ok, cleaned_trimmed, model}
+              {:ok, cleaned_trimmed, result.model_version || result.model,
+               CostEstimator.estimate_usd(result)}
             else
               {:error, :no_timestamps, response}
             end
@@ -147,7 +151,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
             {:error, :timestamp_extraction_failed, other}
         end
 
-      {:ok, _response, _model} ->
+      {:ok, _result} ->
         {:error, :gemini_error, :non_binary_response}
 
       {:error, reason} ->
@@ -156,32 +160,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   end
 
   defp build_caption_prompt(channel_name, transcript_text) do
-    trimmed =
-      channel_name
-      |> case do
-        nil -> "anonymous"
-        other -> String.trim(other)
-      end
-
-    channel_line =
-      if trimmed == "" or String.downcase(trimmed) == "anonymous" do
-        "The channel name was not supplied. Do not reference a channel name."
-      else
-        "Channel name is #{trimmed}."
-      end
-
-    """
-    Generate 10-14 engaging YouTube timestamps based solely on the transcript below.
-    #{channel_line}
-    Use 8-12 words per timestamp. Progress the timeline in order and highlight the most significant beats.
-    Format as YouTube description lines like `0:00 A short teaser of the moment`.
-    One timestamp per line. No bullet points, no extra commentary or closing remarks.
-    Avoid punctuation that would turn timestamps into clickable URLs in YouTube comments (prefer spaces or dashes).
-    Be accurate to the transcript and keep any humor subtle.
-    <transcript>
-    #{transcript_text}
-    </transcript>
-    """
+    Prompts.captions(channel_name, transcript_text)
   end
 
   defp build_transcript_payload(segments) when is_list(segments) do

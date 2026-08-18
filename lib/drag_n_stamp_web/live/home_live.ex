@@ -382,6 +382,24 @@ defmodule DragNStampWeb.HomeLive do
     format_datetime(timestamp.inserted_at)
   end
 
+  defp format_estimated_cost(%Timestamp{
+         estimated_cost_usd: nil,
+         processing_status: :processing
+       }),
+       do: "Calculating…"
+
+  defp format_estimated_cost(%Timestamp{estimated_cost_usd: nil}), do: "Unavailable"
+
+  defp format_estimated_cost(%Timestamp{estimated_cost_usd: %Decimal{} = cost}) do
+    threshold = Decimal.new("0.0001")
+
+    if Decimal.positive?(cost) and Decimal.lt?(cost, threshold) do
+      "<$0.0001"
+    else
+      "$" <> (cost |> Decimal.round(4) |> Decimal.to_string(:normal))
+    end
+  end
+
   defp format_datetime(nil), do: "—"
 
   defp format_datetime(%DateTime{} = dt), do: format_datetime(DateTime.to_naive(dt))

@@ -94,9 +94,12 @@ ENV PHX_SERVER=true
 # Expose port 4000 (Fly will map this automatically to 80/443)
 EXPOSE 4000
 
-# Update yt-dlp to latest version at startup, then start the release.
+# Apply database migrations, update yt-dlp, then start the release. Ecto's
+# migration lock keeps this safe if the platform starts more than one instance.
 COPY <<'EOF' /app/start.sh
 #!/bin/sh
+set -e
+/app/bin/drag_n_stamp eval "DragNStamp.Release.migrate()"
 yt-dlp -U 2>&1 || true
 exec /app/bin/drag_n_stamp start
 EOF

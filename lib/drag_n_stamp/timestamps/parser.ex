@@ -17,11 +17,6 @@ defmodule DragNStamp.Timestamps.Parser do
     |> Enum.join("\n")
   end
 
-  # Convert "0 00 Description" to "0:00 Description"
-  defp normalize_timestamp(line) do
-    Regex.replace(~r/^(\s*)(\d+)\s(\d+)/, line, "\\1\\2:\\3")
-  end
-
   def extract_timestamps_only(nil) do
     Logger.error("Parser.extract_timestamps_only received nil - Gemini API returned no text")
     {:error, :nil_response}
@@ -31,5 +26,9 @@ defmodule DragNStamp.Timestamps.Parser do
     Logger.error("Parser.extract_timestamps_only received unexpected type: #{inspect(other)}")
     {:error, :unexpected_type}
   end
-end
 
+  # Convert "0 00 Description" to "0:00 Description"
+  defp normalize_timestamp(line) do
+    Regex.replace(~r/^(\s*)(\d+)\s(\d+)/, line, "\\1\\2:\\3")
+  end
+end

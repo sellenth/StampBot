@@ -679,6 +679,16 @@ textarea::placeholder {
     color: white;
 }
 
+.cost-tag {
+    background: rgba(14, 116, 144, 0.14);
+    color: #0e5f76;
+}
+
+[data-theme="dark"] .cost-tag {
+    background: rgba(34, 211, 238, 0.16);
+    color: #a5f3fc;
+}
+
 .timestamp-url {
     margin-bottom: 1rem;
 }

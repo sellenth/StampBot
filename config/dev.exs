@@ -2,7 +2,11 @@ import Config
 
 # Configure your database
 config :drag_n_stamp, DragNStamp.Repo,
-  url: System.fetch_env!("DATABASE_URL"),
+  url:
+    System.get_env(
+      "DATABASE_URL",
+      "ecto://postgres:postgres@localhost/drag_n_stamp_dev"
+    ),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10,

@@ -11,7 +11,8 @@ defmodule DragNStampWeb.HomeLiveTest do
       channel_name: "Alpha Channel",
       content: "0:00 Intro",
       distilled_content: "0:00 Intro",
-      processing_status: :ready
+      processing_status: :ready,
+      estimated_cost_usd: Decimal.new("0.012345")
     })
 
     {:ok, view, html} = live(conn, ~p"/")
@@ -19,6 +20,7 @@ defmodule DragNStampWeb.HomeLiveTest do
     assert has_element?(view, "#url-form")
     assert has_element?(view, "#feed")
     refute has_element?(view, "#leaderboard")
+    assert html =~ "Est. total: $0.0123"
 
     assert html_index(html, ~s(id="url-form")) < html_index(html, ~s(id="feed"))
   end

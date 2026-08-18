@@ -3,9 +3,7 @@ defmodule DragNStampWeb.ApiController do
   require Logger
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.{PagePath, VideoMetadata}
-  alias DragNStamp.Timestamps.Parser
-  alias DragNStamp.Timestamps.GeminiClient
-  alias DragNStamp.Timestamps.CaptionFallback
+  alias DragNStamp.Timestamps.{CaptionFallback, CostEstimator, GeminiClient, Prompts}
 
   @caption_attempt_history_limit 5
 
@@ -249,7 +247,8 @@ defmodule DragNStampWeb.ApiController do
       channel_name: channel_name,
       submitter_username: submitter_username,
       processing_status: :processing,
-      processing_error: nil
+      processing_error: nil,
+      estimated_cost_usd: nil
     }
 
     case Repo.insert(Timestamp.changeset(%Timestamp{}, attrs)) do
@@ -281,7 +280,8 @@ defmodule DragNStampWeb.ApiController do
       channel_name: channel_name,
       submitter_username: submitter_username,
       processing_status: :processing,
-      processing_error: nil
+      processing_error: nil,
+      estimated_cost_usd: nil
     }
 
     case Repo.update(Timestamp.changeset(timestamp, attrs)) do
@@ -345,30 +345,7 @@ defmodule DragNStampWeb.ApiController do
          url,
          existing_timestamp
        ) do
-    # Create the formatted prompt for timestamps
-    formatted_prompt =
-      "give me timestamps every few minutes of the important parts of this video. use 8-12 words per timestamp. structure your response as a youtube description. feel free to be slightly humorous but not cheesy. channel name is #{channel_name}. put each timestmap on its own line, no indentation, no extra lines between, NO EXTRA COMMENTARY BESIDES THE TIMESTMAPS.
-
-      If you are provided input that seems missing the content, do no make up timestamps. Just put '0:00 UNWATCHED' so our support agent can handle the submission.
-
-      construct a timestamp in a way that doesn't create a valid link in a youtube comment.
-      For example, the period is creating a link which may flag us as spam.
-      <bad>
-      0:00 __________ Parse.bot: ___ _____.
-      </bad>
-      <good>
-      0:00 __________ Parse bot: ___ _____.
-      </good>
-
-      if the channel name is anonymous, that just means a name wasn't supplied, DONT REFERENCE
-      ANONYMOUS.
-      <bad>
-      0:00 Welcome to the anonymous channel's RC helicopter extravaganza!
-      </bad>
-      <good>
-      0:00 Welcome to the RC helicopter extravaganza!
-      </good>
-      "
+    formatted_prompt = Prompts.video(channel_name)
 
     with {:ok, timestamp, created?} <-
            ensure_processing_timestamp(
@@ -408,7 +385,8 @@ defmodule DragNStampWeb.ApiController do
                 updated_timestamp,
                 cleaned,
                 url,
-                Map.get(attempt_meta, "model")
+                Map.get(attempt_meta, "model"),
+                estimated_cost_from_attempt(attempt_meta)
               )
 
             {:error, reason_atom, friendly_message, attempt_meta} ->
@@ -440,7 +418,10 @@ defmodule DragNStampWeb.ApiController do
                   minutes = Integer.floor_div(seconds, 60)
 
                   response
-                  |> Map.put(:message, "#{friendly_message} This video is #{minutes} minutes long.")
+                  |> Map.put(
+                    :message,
+                    "#{friendly_message} This video is #{minutes} minutes long."
+                  )
                   |> Map.put(:max_minutes, 20)
                   |> Map.put(:video_minutes, minutes)
                 else
@@ -455,7 +436,7 @@ defmodule DragNStampWeb.ApiController do
         {:vlm, plan_opts} ->
           generation_config = Map.get(plan_opts, :generation_config)
           video_seconds = Map.get(plan_opts, :seconds)
-          gemini_opts = build_gemini_opts(generation_config)
+          gemini_opts = build_gemini_opts(generation_config, video_seconds)
 
           if generation_config do
             Logger.info(
@@ -475,15 +456,21 @@ defmodule DragNStampWeb.ApiController do
               message: "GEMINI_API_KEY environment variable not set"
             })
           else
-            case GeminiClient.timestamps_with_retry(formatted_prompt, api_key, url, gemini_opts) do
-              {:ok, generated_content, model} ->
+            case GeminiClient.timestamps_detailed_with_retry(
+                   formatted_prompt,
+                   api_key,
+                   url,
+                   gemini_opts
+                 ) do
+              {:ok, result} ->
                 complete_timestamp_generation(
                   conn,
                   api_key,
                   timestamp,
-                  generated_content,
+                  result.content,
                   url,
-                  model
+                  result.model_version || result.model,
+                  CostEstimator.estimate_usd(result)
                 )
 
               {:error, reason} ->
@@ -514,7 +501,8 @@ defmodule DragNStampWeb.ApiController do
                       updated_timestamp,
                       cleaned,
                       url,
-                      Map.get(attempt_meta, "model")
+                      Map.get(attempt_meta, "model"),
+                      estimated_cost_from_attempt(attempt_meta)
                     )
 
                   {:error, fallback_reason, friendly_message, attempt_meta} ->
@@ -563,8 +551,6 @@ defmodule DragNStampWeb.ApiController do
     end)
   end
 
-  defp ensure_video_metadata(nil), do: nil
-
   defp ensure_video_metadata(%Timestamp{} = timestamp) do
     if metadata_ingest_enabled?() do
       case VideoMetadata.ensure_metadata(timestamp) do
@@ -584,8 +570,12 @@ defmodule DragNStampWeb.ApiController do
     Application.get_env(:drag_n_stamp, :fetch_video_metadata_on_ingest, true)
   end
 
-  defp build_gemini_opts(nil), do: []
-  defp build_gemini_opts(config) when is_map(config), do: [generation_config: config]
+  defp build_gemini_opts(nil, nil), do: []
+  defp build_gemini_opts(nil, seconds), do: [max_seconds: seconds]
+
+  defp build_gemini_opts(config, seconds) when is_map(config) do
+    [generation_config: config, max_seconds: seconds]
+  end
 
   defp maybe_put_resolution_meta(attempt_meta, nil), do: attempt_meta
 
@@ -628,9 +618,7 @@ defmodule DragNStampWeb.ApiController do
                 classify_video_plan(secs)
 
               {:ok, _unknown} ->
-                Logger.warning(
-                  "Duration unknown for #{timestamp.url}; using captions for safety"
-                )
+                Logger.warning("Duration unknown for #{timestamp.url}; using captions for safety")
 
                 {:captions, nil}
 
@@ -673,13 +661,15 @@ defmodule DragNStampWeb.ApiController do
     end
   end
 
-  defp persist_timestamp_signature(%Timestamp{} = timestamp, content, model) when is_binary(content) do
+  defp persist_timestamp_signature(%Timestamp{} = timestamp, content, model, estimated_cost_usd)
+       when is_binary(content) do
     signed_content = append_signature(content, submission_slug(timestamp))
 
     attrs = %{
       content: signed_content,
       processing_status: :ready,
-      processing_error: nil
+      processing_error: nil,
+      estimated_cost_usd: estimated_cost_usd
     }
 
     attrs =
@@ -699,20 +689,38 @@ defmodule DragNStampWeb.ApiController do
           "Failed to persist signature on timestamp #{timestamp.id || "new"}: #{inspect(changeset.errors)}"
         )
 
-        {%{timestamp | content: signed_content, processing_status: :ready, processing_error: nil},
-         signed_content}
+        {%{
+           timestamp
+           | content: signed_content,
+             processing_status: :ready,
+             processing_error: nil,
+             estimated_cost_usd: estimated_cost_usd
+         }, signed_content}
     end
   end
 
-  defp persist_timestamp_signature(%Timestamp{} = timestamp, _content, _model) do
+  defp persist_timestamp_signature(
+         %Timestamp{} = timestamp,
+         _content,
+         _model,
+         _estimated_cost_usd
+       ) do
     {timestamp, timestamp.content}
   end
 
-  defp complete_timestamp_generation(conn, api_key, %Timestamp{} = timestamp, content, url, model) do
+  defp complete_timestamp_generation(
+         conn,
+         api_key,
+         %Timestamp{} = timestamp,
+         content,
+         url,
+         model,
+         estimated_cost_usd
+       ) do
     timestamp_with_metadata = ensure_video_metadata(timestamp)
 
     {timestamp_with_signature, signed_content} =
-      persist_timestamp_signature(timestamp_with_metadata, content, model)
+      persist_timestamp_signature(timestamp_with_metadata, content, model, estimated_cost_usd)
 
     broadcast_timestamp_updated(timestamp_with_signature)
 
@@ -786,12 +794,24 @@ defmodule DragNStampWeb.ApiController do
   defp maybe_put_caption_summary(context, summary),
     do: Map.put(context, "captions_summary", summary)
 
+  defp estimated_cost_from_attempt(attempt_meta) when is_map(attempt_meta) do
+    attempt_meta
+    |> Map.get("estimated_cost_usd")
+    |> CostEstimator.parse()
+  end
+
+  defp estimated_cost_from_attempt(_attempt_meta), do: nil
+
   defp distill_existing_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
-      {:ok, distilled_body} ->
+      {:ok, distilled_body, distillation_cost} ->
         # Update the existing timestamp record with distilled content
         final_content = append_signature(distilled_body, submission_slug(timestamp))
-        updated_attrs = %{distilled_content: final_content}
+
+        updated_attrs = %{
+          distilled_content: final_content,
+          estimated_cost_usd: CostEstimator.add(timestamp.estimated_cost_usd, distillation_cost)
+        }
 
         updated_timestamp =
           case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
@@ -800,7 +820,13 @@ defmodule DragNStampWeb.ApiController do
 
             {:error, changeset} ->
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
-              %{timestamp | distilled_content: final_content}
+
+              %{
+                timestamp
+                | distilled_content: final_content,
+                  estimated_cost_usd:
+                    CostEstimator.add(timestamp.estimated_cost_usd, distillation_cost)
+              }
           end
 
         broadcast_timestamp_updated(updated_timestamp)
@@ -838,7 +864,8 @@ defmodule DragNStampWeb.ApiController do
         response = %{
           status: "success",
           response: final_content,
-          cached: true
+          cached: true,
+          estimated_cost_usd: CostEstimator.serialize(updated_timestamp.estimated_cost_usd)
         }
 
         response =
@@ -863,10 +890,14 @@ defmodule DragNStampWeb.ApiController do
 
   defp distill_timestamps(conn, api_key, timestamp, content, url) do
     case distill_timestamps_content(content, api_key) do
-      {:ok, distilled_body} ->
+      {:ok, distilled_body, distillation_cost} ->
         # Update the timestamp record with distilled content
         final_content = append_signature(distilled_body, submission_slug(timestamp))
-        updated_attrs = %{distilled_content: final_content}
+
+        updated_attrs = %{
+          distilled_content: final_content,
+          estimated_cost_usd: CostEstimator.add(timestamp.estimated_cost_usd, distillation_cost)
+        }
 
         updated_timestamp =
           case Repo.update(Timestamp.changeset(timestamp, updated_attrs)) do
@@ -875,7 +906,13 @@ defmodule DragNStampWeb.ApiController do
 
             {:error, changeset} ->
               Logger.error("Failed to save distilled timestamps: #{inspect(changeset.errors)}")
-              %{timestamp | distilled_content: final_content}
+
+              %{
+                timestamp
+                | distilled_content: final_content,
+                  estimated_cost_usd:
+                    CostEstimator.add(timestamp.estimated_cost_usd, distillation_cost)
+              }
           end
 
         broadcast_timestamp_updated(updated_timestamp)
@@ -913,7 +950,8 @@ defmodule DragNStampWeb.ApiController do
         response = %{
           status: "success",
           response: final_content,
-          cached: false
+          cached: false,
+          estimated_cost_usd: CostEstimator.serialize(updated_timestamp.estimated_cost_usd)
         }
 
         response =
@@ -937,56 +975,12 @@ defmodule DragNStampWeb.ApiController do
   end
 
   defp distill_timestamps_content(content, api_key) do
-    distillation_prompt = """
-    You are given a list of timestamps for a YouTube video. Your task is to select the most important timestamps. Secondary goal: try to get timestamps from throughout the whole video.
+    distillation_prompt = Prompts.distillation(content)
 
-    1 minute video - 1 timestamp
-    [2, 5] minute video - [2, 3] timestamps
-    [6, 10] minute video - [6, 8] timestmaps
-    [10, 20] minute video - [8, 12] timestamps
-    For videos longer than that, really focus on getting timestamps from all throughout the video. If there's a bunching of 2+ timestamps within a 60 second period, try to combine them into one timestamp.
-
-    Rules:
-    1. Keep only the most significant moments or topics
-    3. Preserve the format of the timecode of the timestamps you select
-    4. You may update the timestamp text to make the list more engaging
-    5. Return only the selected timestamps, nothing else
-
-    <avoid>
-      <example>
-      0:00 Welcome to GosuCoder: Unveiling the lightning-fast "Sonic" AI model.
-      </example>
-      <explanation>
-      GosuCoder is the channel name, it doesn't really make sense. Don't add an introduction if it isn't in the video.
-      </explanation
-
-
-      <example>
-      10:58 The big reveal: Is it Mistral hiding in plain sight?
-      </example
-      <explanation>
-      I want to explore making the timestamps more engaging. The whole mystery of the video in this case was Mistral, so giving it away in text kind of disincentivizes video engagement.
-      </explanation>
-    </avoid>
-
-    Here are the timestamps to distill:
-
-    #{content}
-    """
-
-    case GeminiClient.text_only(distillation_prompt, api_key) do
-      {:ok, response, _model} ->
-        Logger.info("Gemini distillation raw response: #{inspect(response)}")
-
-        case Parser.extract_timestamps_only(response) do
-          {:error, reason} ->
-            Logger.error("Failed to extract timestamps from distillation: #{reason}")
-            {:error, "No valid timestamps in distillation response"}
-
-          cleaned_response ->
-            Logger.info("Gemini distillation cleaned timestamps: #{inspect(cleaned_response)}")
-            {:ok, cleaned_response}
-        end
+    case GeminiClient.text_only_detailed(distillation_prompt, api_key) do
+      {:ok, result} ->
+        # GeminiClient has already decoded the schema and validated ordering/bounds.
+        {:ok, result.content, CostEstimator.estimate_usd(result)}
 
       {:error, reason} ->
         {:error, reason}

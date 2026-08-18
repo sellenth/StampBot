@@ -195,16 +195,18 @@ defmodule DragNStamp.YouTube.Innertube do
         end
     end
   end
-@@
-  defp request_transcript(_video_id, %{"INNERTUBE_API_KEY" => api_key, "INNERTUBE_CONTEXT" => context}, params)
+
+  defp request_transcript(
+         _video_id,
+         %{"INNERTUBE_API_KEY" => api_key, "INNERTUBE_CONTEXT" => context},
+         params
+       )
        when is_binary(api_key) and is_map(context) and is_binary(params) do
     url = @transcript_url <> "?" <> URI.encode_query(%{"key" => api_key})
     body = %{"context" => context, "params" => params}
 
     request =
-      Finch.build(:post, url, headers(),
-        body: Jason.encode!(body)
-      )
+      Finch.build(:post, url, headers(), body: Jason.encode!(body))
 
     case Finch.request(request, DragNStamp.Finch, receive_timeout: 20_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->

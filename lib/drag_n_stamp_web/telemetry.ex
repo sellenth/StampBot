@@ -75,6 +75,24 @@ defmodule DragNStampWeb.Telemetry do
           "The time the connection spent waiting before being checked out for the query"
       ),
 
+      # Gemini model metrics
+      summary("drag_n_stamp.gemini.request.duration",
+        tags: [:operation, :model, :status],
+        unit: {:native, :millisecond}
+      ),
+      sum("drag_n_stamp.gemini.request.prompt_tokens",
+        tags: [:operation, :model, :status]
+      ),
+      sum("drag_n_stamp.gemini.request.output_tokens",
+        tags: [:operation, :model, :status]
+      ),
+      sum("drag_n_stamp.gemini.request.thinking_tokens",
+        tags: [:operation, :model, :status]
+      ),
+      sum("drag_n_stamp.gemini.request.total_tokens",
+        tags: [:operation, :model, :status]
+      ),
+
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),
