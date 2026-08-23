@@ -45,6 +45,22 @@ defmodule DragNStamp.Timestamps.FailureMessageTest do
     refute details.summary =~ "issue fetching captions"
   end
 
+  test "uses current copy for a classified error stored with outdated guidance" do
+    timestamp = %Timestamp{
+      processing_error:
+        "[captions_fallback_failed] YouTube rejected the server's caption access credentials. This video has been saved while we refresh access. (length=59m)",
+      processing_context: %{
+        "caption_attempts" => [%{"failure_reason" => "youtube_auth_failed"}]
+      }
+    }
+
+    details = FailureMessage.for_timestamp(timestamp)
+
+    assert details.category == "caption_youtube_auth_failed"
+    assert details.summary =~ "server-side access issue"
+    refute details.summary =~ "while we refresh access"
+  end
+
   test "is honest when no classified error was stored" do
     details = FailureMessage.from_error("unexpected internal value")
 

@@ -95,7 +95,7 @@ defmodule DragNStamp.Timestamps.FailureMessage do
   defp caption_summary(stored_summary, reason) do
     atom = Map.get(@caption_reason_atoms, reason)
 
-    if atom && String.contains?(stored_summary, "We hit an issue fetching captions") do
+    if atom do
       CaptionFallback.failure_message(atom)
     else
       stored_summary
