@@ -350,7 +350,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
   def failure_message(:youtube_auth_failed),
     do:
-      "YouTube rejected the server's caption access credentials. This video has been saved while we refresh access."
+      "YouTube rejected StampBot's caption access credentials. This is a server-side access issue, not necessarily a problem with the submitted video."
 
   def failure_message(:youtube_rate_limited),
     do:
