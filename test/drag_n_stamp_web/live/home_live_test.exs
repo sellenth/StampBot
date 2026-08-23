@@ -56,6 +56,24 @@ defmodule DragNStampWeb.HomeLiveTest do
     assert Repo.aggregate(Timestamp, :count, :id) == SubmissionLimit.limit()
   end
 
+  test "failed cards show the stored public reason instead of promising a retry", %{conn: conn} do
+    insert_timestamp(%{
+      processing_status: :failed,
+      content: nil,
+      distilled_content: nil,
+      processing_error:
+        "[captions_fallback_failed] YouTube temporarily rate-limited caption requests. (length=59m)"
+    })
+
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert has_element?(view, "[data-failure-category=caption_pipeline]")
+    assert html =~ "YouTube temporarily rate-limited caption requests. (length=59m)"
+    assert html =~ "not scheduled an automatic retry"
+    refute html =~ "Oops, something's not quite right here"
+    refute html =~ "We will retry this submission"
+  end
+
   defp insert_timestamp(attrs) do
     defaults = %{
       url: "https://www.youtube.com/watch?v=#{System.unique_integer([:positive])}",

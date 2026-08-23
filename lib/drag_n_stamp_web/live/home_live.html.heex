@@ -402,29 +402,11 @@
                   </div>
                   <%= cond do %>
                     <% timestamp.processing_status == :failed -> %>
-                      <%= if timestamp.processing_error && String.starts_with?(timestamp.processing_error, "[unsupported:") do %>
-                        <div class="timestamp-error">
-                          <%= if timestamp.processing_error do %>
-                            <p class="timestamp-error-details">
-                              {String.replace_prefix(
-                                timestamp.processing_error,
-                                "[unsupported:video_too_long] ",
-                                ""
-                              )}
-                            </p>
-                          <% end %>
-                          <p class="timestamp-error-hint">
-                            We stored this submission for future analysis.
-                          </p>
-                        </div>
-                      <% else %>
-                        <div class="timestamp-error">
-                          <p class="timestamp-error-hint">
-                            Oops, something's not quite right here...
-                          </p>
-                          <p>We will retry this submission at a later date (if possible)</p>
-                        </div>
-                      <% end %>
+                      <% failure = failure_details(timestamp) %>
+                      <div class="timestamp-error" data-failure-category={failure.category}>
+                        <p class="timestamp-error-details">{failure.summary}</p>
+                        <p class="timestamp-error-hint">{failure.guidance}</p>
+                      </div>
                     <% timestamp.processing_status == :processing -> %>
                       <div class="timestamp-placeholder">
                         <span

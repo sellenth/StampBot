@@ -2,7 +2,7 @@ defmodule DragNStampWeb.HomeLive do
   use DragNStampWeb, :live_view
   alias DragNStamp.{Repo, Timestamp}
   alias DragNStamp.SEO.PagePath
-  alias DragNStamp.Timestamps.SubmissionLimit
+  alias DragNStamp.Timestamps.{FailureMessage, SubmissionLimit}
   import Ecto.Query
   require Logger
 
@@ -390,6 +390,8 @@ defmodule DragNStampWeb.HomeLive do
   defp retry_allowed?(%Timestamp{} = ts) do
     content_contains_unwatched?(ts) and not manual_retry_used?(ts)
   end
+
+  defp failure_details(%Timestamp{} = timestamp), do: FailureMessage.for_timestamp(timestamp)
 
   defp recent?(nil, _window_minutes), do: false
 

@@ -5,6 +5,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
 
   alias DragNStamp.Timestamp
   alias DragNStamp.SEO.ChapterParser
+  alias DragNStamp.Timestamps.FailureMessage
 
   @default_base_url "https://stamp-bot.com"
   @default_site_name "StampBot"
@@ -413,6 +414,22 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
   end
 
   defp truncate_summary(_, _limit), do: ""
+
+  defp build_content_body(
+         _chapters,
+         %Timestamp{processing_status: :failed} = timestamp,
+         _video_url
+       ) do
+    failure = FailureMessage.for_timestamp(timestamp)
+
+    """
+    <section class="generation-failure" data-failure-category="#{html_escape(failure.category)}">
+      <h2>Timestamp Generation Failed</h2>
+      <p>#{html_escape(failure.summary)}</p>
+      <p>#{html_escape(failure.guidance)}</p>
+    </section>
+    """
+  end
 
   defp build_content_body([], timestamp, _video_url) do
     """
