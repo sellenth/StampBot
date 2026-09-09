@@ -27,6 +27,45 @@ if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 end
 
+# Operator actions stay unavailable without a strong explicit credential.
+config :drag_n_stamp,
+  operator_token: System.get_env("STAMPBOT_OPERATOR_TOKEN"),
+  publication_mode:
+    if(System.get_env("STAMPBOT_AUTO_PUBLISH") == "true", do: :automatic, else: :manual),
+  publication_daily_limit: String.to_integer(System.get_env("STAMPBOT_DAILY_POST_LIMIT") || "10")
+
+# Forwarding headers are ignored unless the ingress path is explicitly trusted.
+if proxy_cidrs = System.get_env("STAMPBOT_TRUSTED_PROXY_CIDRS") do
+  config :drag_n_stamp,
+         :trusted_proxy_cidrs,
+         String.split(proxy_cidrs, ",", trim: true) |> Enum.map(&String.trim/1)
+end
+
+# Positive integer deployment overrides; dollar allowances are in millionths of USD.
+work_budget_env = [
+  caller_hourly_limit: "STAMPBOT_CALLER_HOURLY_LIMIT",
+  video_cooldown_seconds: "STAMPBOT_VIDEO_COOLDOWN_SECONDS",
+  daily_submission_limit: "STAMPBOT_DAILY_SUBMISSION_LIMIT",
+  daily_request_limit: "STAMPBOT_DAILY_REQUEST_LIMIT",
+  run_request_limit: "STAMPBOT_RUN_REQUEST_LIMIT",
+  daily_budget_microusd: "STAMPBOT_DAILY_BUDGET_MICROUSD",
+  initial_allowance_microusd: "STAMPBOT_INITIAL_ALLOWANCE_MICROUSD",
+  video_request_microusd: "STAMPBOT_VIDEO_REQUEST_MICROUSD",
+  text_request_microusd: "STAMPBOT_TEXT_REQUEST_MICROUSD"
+]
+
+work_budget_overrides =
+  for {key, env} <- work_budget_env, value = System.get_env(env), value != nil do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> {key, integer}
+      _ -> raise "#{env} must be a positive integer"
+    end
+  end
+
+if work_budget_overrides != [] do
+  config :drag_n_stamp, :work_budget, work_budget_overrides
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

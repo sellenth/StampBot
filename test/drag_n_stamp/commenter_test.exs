@@ -9,7 +9,7 @@ defmodule DragNStamp.CommenterTest do
 
     winner =
       Task.async(fn ->
-        Commenter.post_for_timestamp(timestamp,
+        post(timestamp,
           post_fun: fn _url, _content ->
             send(parent, {:posting, self()})
 
@@ -27,7 +27,7 @@ defmodule DragNStamp.CommenterTest do
     callers =
       for _ <- 1..6 do
         Task.async(fn ->
-          Commenter.post_for_timestamp(timestamp, post_fun: &unexpected_post/2)
+          post(timestamp, post_fun: &unexpected_post/2)
         end)
       end
 
@@ -45,7 +45,7 @@ defmodule DragNStamp.CommenterTest do
     assert completed.youtube_comment_attempts == 1
 
     assert {:ok, latest, {:skipped, :already_commented}} =
-             Commenter.post_for_timestamp(timestamp, post_fun: &unexpected_post/2)
+             post(timestamp, post_fun: &unexpected_post/2)
 
     assert latest.youtube_comment_status == :succeeded
     assert Repo.get!(Timestamp, timestamp.id).youtube_comment_attempts == 1
@@ -60,7 +60,7 @@ defmodule DragNStamp.CommenterTest do
       timestamp = insert_timestamp(Map.put(attrs, :youtube_comment_error, "preserve-this-state"))
 
       assert {:ok, unchanged, {:skipped, _reason}} =
-               Commenter.post_for_timestamp(timestamp, post_fun: &unexpected_post/2)
+               post(timestamp, post_fun: &unexpected_post/2)
 
       assert unchanged == timestamp
       assert Repo.get!(Timestamp, timestamp.id) == timestamp
@@ -71,7 +71,7 @@ defmodule DragNStamp.CommenterTest do
     timestamp = insert_timestamp()
 
     assert {:ok, updated, {:error, :auth_required}} =
-             Commenter.post_for_timestamp(timestamp,
+             post(timestamp,
                post_fun: fn _url, _content -> {:error, :unauthorized} end
              )
 
@@ -86,7 +86,7 @@ defmodule DragNStamp.CommenterTest do
     timestamp = insert_timestamp()
 
     assert {:ok, updated, {:skipped, :claim_changed}} =
-             Commenter.post_for_timestamp(timestamp,
+             post(timestamp,
                post_fun: fn _url, _content ->
                  timestamp
                  |> Timestamp.changeset(%{
@@ -119,7 +119,7 @@ defmodule DragNStamp.CommenterTest do
         })
 
       assert {:ok, unchanged, {:error, ^reason}} =
-               Commenter.post_for_timestamp(timestamp, post_fun: &unexpected_post/2)
+               post(timestamp, post_fun: &unexpected_post/2)
 
       assert unchanged == timestamp
       assert Repo.get!(Timestamp, timestamp.id) == timestamp
@@ -136,7 +136,7 @@ defmodule DragNStamp.CommenterTest do
       })
 
     assert {:ok, updated, :ok} =
-             Commenter.post_for_timestamp(timestamp,
+             post(timestamp,
                post_fun: fn _url, _content -> {:ok, %{"id" => "next-day-comment"}} end
              )
 
@@ -148,16 +148,20 @@ defmodule DragNStamp.CommenterTest do
     timestamp = insert_timestamp()
 
     assert_raise RuntimeError, "connection interrupted", fn ->
-      Commenter.post_for_timestamp(timestamp,
+      post(timestamp,
         post_fun: fn _url, _content -> raise "connection interrupted" end
       )
     end
 
     assert {:ok, pending, {:skipped, :in_flight}} =
-             Commenter.post_for_timestamp(timestamp, post_fun: &unexpected_post/2)
+             post(timestamp, post_fun: &unexpected_post/2)
 
     assert pending.youtube_comment_status == :pending
     assert pending.youtube_comment_attempts == 1
+  end
+
+  defp post(timestamp, opts) do
+    Commenter.post_for_timestamp(timestamp, Keyword.put(opts, :authority, :operator))
   end
 
   defp unexpected_post(_url, _content), do: flunk("a skipped claim must not post a comment")

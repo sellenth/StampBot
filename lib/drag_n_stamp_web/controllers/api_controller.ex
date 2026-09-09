@@ -1,11 +1,14 @@
 defmodule DragNStampWeb.ApiController do
   use DragNStampWeb, :controller
 
-  alias DragNStamp.Submissions
+  alias DragNStamp.{Submissions, WorkBudget}
+  alias DragNStamp.Security.Caller
   alias DragNStamp.Timestamps.SubmissionLimit
 
   def gemini(conn, params) do
-    case Submissions.submit(Map.get(params, "url"), params) do
+    case Submissions.submit(Map.get(params, "url"), params,
+           caller_hash: Caller.from_connection(conn.remote_ip, conn.req_headers)
+         ) do
       {:ok, timestamp, disposition} ->
         payload = Submissions.response(timestamp)
         cached = timestamp.processing_status == :ready and disposition == :existing
@@ -42,6 +45,34 @@ defmodule DragNStampWeb.ApiController do
           status: "error",
           reason: "retry_in_flight",
           message: "The previous attempt is finishing. Please retry shortly."
+        })
+
+      {:error, reason}
+      when reason in [
+             :caller_rate_limited,
+             :video_cooldown,
+             :daily_work_limit,
+             :daily_budget_exceeded
+           ] ->
+        conn
+        |> put_status(:too_many_requests)
+        |> put_resp_header(
+          "retry-after",
+          to_string(WorkBudget.retry_after(reason))
+        )
+        |> json(%{
+          status: "error",
+          reason: Atom.to_string(reason),
+          message: WorkBudget.message(reason)
+        })
+
+      {:error, :invalid_input} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          status: "error",
+          reason: "invalid_input",
+          message: "Names must be 200 characters or fewer."
         })
 
       {:error, _reason} ->

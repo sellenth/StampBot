@@ -47,6 +47,22 @@ defmodule DragNStamp.SubmissionsTest do
     assert Submissions.response(cached).status == "success"
   end
 
+  test "status distinguishes a known cost subtotal from complete accounting" do
+    timestamp =
+      insert_timestamp(%{
+        processing_status: :ready,
+        content: "0:00 Intro",
+        estimated_cost_usd: Decimal.new("0.01"),
+        processing_context: %{"cost_complete" => false, "unknown_cost_requests" => 2}
+      })
+
+    assert %{estimated_cost_usd: "0.01", cost_complete: false, unknown_cost_requests: 2} =
+             Submissions.response(timestamp)
+
+    assert %{cost_complete: nil, unknown_cost_requests: nil} =
+             Submissions.response(%{timestamp | processing_context: nil})
+  end
+
   test "failure to insert a job rolls the submission back too" do
     # A real database constraint injects failure at the second write in the
     # acceptance transaction. The surrounding sandbox rolls back the DDL.
@@ -120,7 +136,21 @@ defmodule DragNStamp.SubmissionsTest do
     refute_enqueued(worker: PublishWorker)
   end
 
-  test "completion and a separate publishing job persist together" do
+  test "completion remains available while automatic publication is disabled" do
+    previous = Application.get_env(:drag_n_stamp, :publication_mode)
+    Application.put_env(:drag_n_stamp, :publication_mode, :manual)
+    on_exit(fn -> Application.put_env(:drag_n_stamp, :publication_mode, previous) end)
+    timestamp = insert_timestamp(%{content: "0:00 Opening", video_duration_seconds: 30})
+    opts = [api_key: "fixture-key", text_fun: fn _, _, _ -> {:ok, result("0:00 Opening")} end]
+    assert {:ok, ready} = Processor.process(timestamp, opts)
+    assert ready.processing_status == :ready
+    refute_enqueued(worker: PublishWorker)
+  end
+
+  test "completion and an explicitly enabled automatic publishing job persist together" do
+    previous = Application.get_env(:drag_n_stamp, :publication_mode)
+    Application.put_env(:drag_n_stamp, :publication_mode, :automatic)
+    on_exit(fn -> Application.put_env(:drag_n_stamp, :publication_mode, previous) end)
     timestamp = insert_timestamp(%{content: "0:00 Opening", video_duration_seconds: 30})
     opts = [api_key: "fixture-key", text_fun: fn _, _, _ -> {:ok, result("0:00 Opening")} end]
     assert {:ok, ready} = Processor.process(timestamp, opts)

@@ -2,9 +2,17 @@ defmodule DragNStamp.Submissions.Processor do
   @moduledoc "The production generation pipeline, independent of HTTP and job execution."
 
   require Logger
-  alias DragNStamp.{Repo, Submissions, Timestamp}
+
+  alias DragNStamp.{
+    ProcessingAttempts,
+    PublicationPolicy,
+    Repo,
+    Submissions,
+    Timestamp,
+    WorkBudget
+  }
+
   alias DragNStamp.SEO.{PagePath, VideoMetadata}
-  alias DragNStamp.Submissions.PublishWorker
   alias DragNStamp.Timestamps.{CaptionFallback, CostEstimator, GeminiClient, Prompts}
 
   @doc "External IO can be injected with functions for deterministic production-path evaluations."
@@ -13,6 +21,31 @@ defmodule DragNStamp.Submissions.Processor do
   def process(%Timestamp{processing_status: :ready} = timestamp, _opts), do: {:ok, timestamp}
 
   def process(%Timestamp{} = timestamp, opts) do
+    context = %{
+      timestamp_id: timestamp.id,
+      job_id: Keyword.get(opts, :job_id),
+      job_attempt: Keyword.get(opts, :job_attempt, 1),
+      reservation_id: (timestamp.processing_context || %{})["work_reservation_id"]
+    }
+
+    ProcessingAttempts.with_run(context, fn handle ->
+      result =
+        with {:ok, reserved} <- WorkBudget.ensure_reservation(timestamp) do
+          reservation_id = (reserved.processing_context || %{})["work_reservation_id"]
+          ProcessingAttempts.annotate(handle, %{reservation_id: reservation_id})
+
+          ProcessingAttempts.with_context(%{reservation_id: reservation_id}, fn ->
+            process_reserved(reserved, opts)
+          end)
+        else
+          {:error, reason} -> {:error, failure(reason, WorkBudget.message(reason), false)}
+        end
+
+      record_cost_summary(result, timestamp.id)
+    end)
+  end
+
+  defp process_reserved(timestamp, opts) do
     api_key = Keyword.get_lazy(opts, :api_key, fn -> System.get_env("GEMINI_API_KEY") end)
 
     if api_key in [nil, ""] do
@@ -31,9 +64,16 @@ defmodule DragNStamp.Submissions.Processor do
 
   # Content is a durable checkpoint. A worker restart after generation resumes
   # distillation without paying to analyze the video again.
-  defp generate_or_resume(%Timestamp{content: content} = timestamp, _key, _opts)
-       when is_binary(content) and content != "",
-       do: {:ok, timestamp}
+  defp generate_or_resume(%Timestamp{content: content} = timestamp, key, opts)
+       when is_binary(content) and content != "" do
+    if unwatched_content?(content) do
+      timestamp
+      |> Submissions.update!(%{content: nil, distilled_content: nil})
+      |> generate_or_resume(key, opts)
+    else
+      {:ok, timestamp}
+    end
+  end
 
   defp generate_or_resume(timestamp, key, opts) do
     timestamp =
@@ -42,24 +82,35 @@ defmodule DragNStamp.Submissions.Processor do
     metadata_fun = Keyword.get(opts, :metadata_fun, &metadata/1)
 
     timestamp =
-      case metadata_fun.(timestamp) do
+      case ProcessingAttempts.around(
+             %{kind: :stage, stage: "metadata", provider: "youtube"},
+             fn -> metadata_fun.(timestamp) end
+           ) do
         {:ok, updated} -> updated
         {:error, _reason} -> timestamp
       end
 
-    timestamp = Submissions.update!(timestamp, %{processing_phase: "generating"})
+    with :ok <-
+           WorkBudget.check_duration(
+             ProcessingAttempts.context(),
+             timestamp.video_duration_seconds
+           ) do
+      timestamp = Submissions.update!(timestamp, %{processing_phase: "generating"})
 
-    case route(timestamp.video_duration_seconds) do
-      :video ->
-        generate_video(timestamp, key, opts)
+      case route(timestamp.video_duration_seconds) do
+        :video ->
+          generate_video(timestamp, key, opts)
 
-      :captions ->
-        trigger =
-          if is_integer(timestamp.video_duration_seconds),
-            do: "length_gate",
-            else: "duration_unknown"
+        :captions ->
+          trigger =
+            if is_integer(timestamp.video_duration_seconds),
+              do: "length_gate",
+              else: "duration_unknown"
 
-        generate_captions(timestamp, key, opts, trigger, nil)
+          generate_captions(timestamp, key, opts, trigger, nil)
+      end
+    else
+      {:error, reason} -> {:error, failure(reason, WorkBudget.message(reason), false)}
     end
   end
 
@@ -67,9 +118,21 @@ defmodule DragNStamp.Submissions.Processor do
     video_fun = Keyword.get(opts, :video_fun, &GeminiClient.timestamps_detailed_with_retry/4)
 
     result =
-      video_fun.(Prompts.video(timestamp.channel_name), key, timestamp.url,
-        max_seconds: timestamp.video_duration_seconds,
-        generation_config: %{"mediaResolution" => "MEDIA_RESOLUTION_LOW"}
+      ProcessingAttempts.around(
+        %{
+          kind: :stage,
+          stage: "video",
+          provider: "gemini",
+          operation: :video,
+          prompt_version: "video-2026-09-09-v1"
+        },
+        fn ->
+          video_fun.(Prompts.video(timestamp.channel_name), key, timestamp.url,
+            max_seconds: timestamp.video_duration_seconds,
+            generation_config: %{"mediaResolution" => "MEDIA_RESOLUTION_LOW"}
+          )
+          |> usable_generation_result()
+        end
       )
 
     case result do
@@ -82,6 +145,9 @@ defmodule DragNStamp.Submissions.Processor do
           timestamp.video_duration_seconds
         )
 
+      {:error, %{kind: kind}} when kind in [:work_budget_exceeded, :input_limit_exceeded] ->
+        {:error, failure(kind, WorkBudget.message(kind), false)}
+
       {:error, reason} ->
         generate_captions(timestamp, key, opts, "vlm_failure", reason)
     end
@@ -91,10 +157,12 @@ defmodule DragNStamp.Submissions.Processor do
     caption_fun = Keyword.get(opts, :caption_fun, &CaptionFallback.process/4)
 
     result =
-      caption_fun.(timestamp.channel_name, timestamp.url, key,
-        trigger: trigger,
-        max_seconds: timestamp.video_duration_seconds
-      )
+      ProcessingAttempts.around(%{kind: :stage, stage: "captions", provider: "local"}, fn ->
+        caption_fun.(timestamp.channel_name, timestamp.url, key,
+          trigger: trigger,
+          max_seconds: timestamp.video_duration_seconds
+        )
+      end)
 
     case result do
       {:ok, content, meta} ->
@@ -114,11 +182,15 @@ defmodule DragNStamp.Submissions.Processor do
         meta = put_video_error(meta, video_error)
         record_caption_attempt(timestamp, meta)
 
+        retryable =
+          reason not in [:input_limit_exceeded, :work_budget_exceeded] and
+            (meta["retryable"] == true or retryable?(reason) or retryable?(video_error))
+
         {:error,
          failure(
            reason,
            message,
-           meta["retryable"] == true or retryable?(reason) or retryable?(video_error)
+           retryable
          )}
     end
   end
@@ -128,6 +200,8 @@ defmodule DragNStamp.Submissions.Processor do
       (timestamp.processing_context || %{})
       |> Map.put("generation_model", model)
       |> Map.put("output_bound_seconds", bound)
+
+    {cost, context} = cost_attributes(%{timestamp | processing_context: context}, cost)
 
     updated =
       Submissions.update!(timestamp, %{
@@ -148,7 +222,22 @@ defmodule DragNStamp.Submissions.Processor do
       timestamp.video_duration_seconds ||
         (timestamp.processing_context || %{})["output_bound_seconds"]
 
-    case text_fun.(Prompts.distillation(timestamp.content), key, max_seconds: bound) do
+    result =
+      ProcessingAttempts.around(
+        %{
+          kind: :stage,
+          stage: "distillation",
+          provider: "gemini",
+          operation: :text,
+          prompt_version: "distillation-2026-09-09-v1"
+        },
+        fn ->
+          text_fun.(Prompts.distillation(timestamp.content), key, max_seconds: bound)
+          |> usable_generation_result()
+        end
+      )
+
+    case result do
       {:ok, result} ->
         finish(timestamp, result.content, CostEstimator.estimate_usd(result), opts)
 
@@ -157,7 +246,11 @@ defmodule DragNStamp.Submissions.Processor do
         # complete. Record the degraded outcome for the baseline and operators.
         context = Map.put(timestamp.processing_context || %{}, "distillation_failed", true)
         timestamp = Submissions.update!(timestamp, %{processing_context: context})
-        Logger.warning("Submission #{timestamp.id} distillation failed: #{inspect(reason)}")
+
+        Logger.warning(
+          "Submission #{timestamp.id} distillation failed category=#{ProcessingAttempts.failure_kind(reason)}"
+        )
+
         finish(timestamp, nil, nil, opts)
     end
   end
@@ -165,12 +258,16 @@ defmodule DragNStamp.Submissions.Processor do
   defp finish(timestamp, distilled, cost, opts) do
     result =
       Repo.transaction(fn ->
+        {total_cost, cost_context} =
+          cost_attributes(timestamp, CostEstimator.add(timestamp.estimated_cost_usd, cost))
+
         updated =
           timestamp
           |> Timestamp.changeset(%{
             content: sign(timestamp.content, timestamp),
             distilled_content: if(is_binary(distilled), do: sign(distilled, timestamp)),
-            estimated_cost_usd: CostEstimator.add(timestamp.estimated_cost_usd, cost),
+            estimated_cost_usd: total_cost,
+            processing_context: cost_context,
             processing_status: :ready,
             processing_phase: "ready",
             processing_error: nil
@@ -178,7 +275,22 @@ defmodule DragNStamp.Submissions.Processor do
           |> Repo.update!()
 
         if Keyword.get(opts, :publish, true) and is_binary(distilled) do
-          %{timestamp_id: timestamp.id} |> PublishWorker.new() |> Oban.insert!()
+          case PublicationPolicy.enqueue(updated, :automatic) do
+            {:ok, _job} ->
+              :ok
+
+            {:error, reason}
+            when reason in [
+                   :publication_not_authorized,
+                   :already_published,
+                   :publication_in_flight,
+                   :submission_not_ready
+                 ] ->
+              :ok
+
+            {:error, reason} ->
+              Repo.rollback(reason)
+          end
         end
 
         updated
@@ -189,8 +301,8 @@ defmodule DragNStamp.Submissions.Processor do
         Submissions.broadcast(updated)
         {:ok, updated}
 
-      {:error, reason} ->
-        {:error, failure(:persistence_failed, inspect(reason), true)}
+      {:error, _reason} ->
+        {:error, failure(:persistence_failed, "The completed result could not be saved.", true)}
     end
   end
 
@@ -218,7 +330,65 @@ defmodule DragNStamp.Submissions.Processor do
   defp put_video_error(meta, nil), do: meta
 
   defp put_video_error(meta, error),
-    do: Map.put(meta, "vlm_error", inspect(error, limit: 20, printable_limit: 2_000))
+    do: Map.put(meta, "vlm_error", ProcessingAttempts.failure_kind(error))
+
+  defp usable_generation_result({:ok, result} = response) do
+    if unwatched_content?(result.content),
+      do: {:error, %{kind: :invalid_model_output, reason: :unwatched}},
+      else: response
+  end
+
+  defp usable_generation_result(response), do: response
+
+  defp unwatched_content?(content) when is_binary(content),
+    do: Regex.match?(~r/^\s*0:00\s+UNWATCHED\s*$/im, content)
+
+  defp unwatched_content?(_content), do: false
+
+  defp record_cost_summary({:ok, _} = result, _timestamp_id), do: result
+
+  defp record_cost_summary(result, timestamp_id) do
+    summary = ProcessingAttempts.cost_summary(timestamp_id)
+
+    if summary.request_count > 0 do
+      timestamp = Repo.get!(Timestamp, timestamp_id)
+      context = timestamp.processing_context || %{}
+
+      context =
+        context
+        |> Map.put("unknown_cost_requests", summary.unknown_request_count)
+        |> Map.put("cost_complete", summary.unknown_request_count == 0)
+        |> Map.put("model_request_count", summary.request_count)
+
+      updated =
+        Submissions.update!(timestamp, %{
+          estimated_cost_usd: summary.known_cost_usd,
+          processing_context: context
+        })
+
+      case result do
+        {:ok, _} -> {:ok, updated}
+        _ -> result
+      end
+    else
+      result
+    end
+  end
+
+  defp cost_attributes(timestamp, fallback_cost) do
+    summary = ProcessingAttempts.cost_summary(timestamp.id)
+    context = timestamp.processing_context || %{}
+
+    if summary.request_count > 0 do
+      {summary.known_cost_usd,
+       context
+       |> Map.put("unknown_cost_requests", summary.unknown_request_count)
+       |> Map.put("cost_complete", summary.unknown_request_count == 0)
+       |> Map.put("model_request_count", summary.request_count)}
+    else
+      {fallback_cost, context}
+    end
+  end
 
   defp metadata(timestamp) do
     if Application.get_env(:drag_n_stamp, :fetch_video_metadata_on_ingest, true) do

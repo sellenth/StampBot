@@ -4,8 +4,9 @@ defmodule DragNStamp.SubmissionsConcurrencyTest do
   import Ecto.Query
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias DragNStamp.{Repo, Submissions, Timestamp}
+  alias DragNStamp.{ProcessingAttempts, Repo, Submissions, Timestamp}
   alias DragNStamp.Submissions.Worker
+  alias DragNStamp.Timestamps.GeminiClient
   alias DragNStamp.Timestamps.GeminiClient.Result
 
   @generated "0:00 Opening evidence introduces the subject and planned demonstration\n" <>
@@ -113,13 +114,20 @@ defmodule DragNStamp.SubmissionsConcurrencyTest do
         {:ok, model_result()}
       end,
       caption_fun: fn _, _, _, _ -> flunk("The video fixture does not need captions") end,
-      text_fun: fn _, _, _ ->
+      text_fun: fn prompt, key, opts ->
         :counters.add(calls, 2, 1)
-        send(parent, {:distillation_blocked, self()})
 
-        receive do
-          :unexpected_continue -> flunk("The first executor must be killed before returning")
-        end
+        GeminiClient.text_only_detailed(
+          prompt,
+          key,
+          Keyword.put(opts, :request_fun, fn _, _ ->
+            send(parent, {:distillation_blocked, self()})
+
+            receive do
+              :unexpected_continue -> flunk("The first executor must be killed before returning")
+            end
+          end)
+        )
       end
     )
 
@@ -138,6 +146,14 @@ defmodule DragNStamp.SubmissionsConcurrencyTest do
         assert checkpoint.processing_status == :processing
         assert checkpoint.processing_context["output_bound_seconds"] == 180
         assert Repo.get!(Oban.Job, job_id).state == "executing"
+
+        assert [request] =
+                 ProcessingAttempts.for_timestamp(timestamp_id)
+                 |> Enum.filter(&(&1.kind == :request))
+
+        assert request.dispatched
+        assert request.status == :running
+        assert request.cost_status == :unknown
       end)
 
       # :kill is untrappable: neither Worker rescue nor Oban acknowledgement can
@@ -175,10 +191,15 @@ defmodule DragNStamp.SubmissionsConcurrencyTest do
         metadata_fun: fn _ -> flunk("Restart must reuse the saved checkpoint") end,
         video_fun: fn _, _, _, _ -> flunk("Restart must not repeat video generation") end,
         caption_fun: fn _, _, _, _ -> flunk("Restart must not reacquire captions") end,
-        text_fun: fn _, _, opts ->
+        text_fun: fn prompt, key, opts ->
           :counters.add(calls, 2, 1)
           assert opts[:max_seconds] == 180
-          {:ok, model_result()}
+
+          GeminiClient.text_only_detailed(
+            prompt,
+            key,
+            Keyword.put(opts, :request_fun, fn _, _ -> provider_response() end)
+          )
         end
       )
 
@@ -190,6 +211,23 @@ defmodule DragNStamp.SubmissionsConcurrencyTest do
         assert ready.processing_status == :ready
         assert ready.distilled_content =~ @generated
         assert [%Oban.Job{state: "completed", attempt: 2}] = jobs_for([timestamp_id])
+
+        attempts = ProcessingAttempts.for_timestamp(timestamp_id)
+        assert Enum.all?(attempts, &(&1.status != :running))
+        assert [interrupted, resumed] = Enum.filter(attempts, &(&1.kind == :request))
+        assert interrupted.job_id == job_id
+        assert interrupted.job_attempt == 1
+        assert interrupted.status == :interrupted
+        assert interrupted.failure_kind == "worker_interrupted"
+        assert interrupted.duration_ms == nil
+        assert interrupted.cost_status == :unknown
+        assert interrupted.estimated_cost_usd == nil
+        assert resumed.job_attempt == 2
+        assert resumed.status == :succeeded
+        assert resumed.cost_status == :estimated
+        assert ready.processing_context["model_request_count"] == 2
+        assert ready.processing_context["unknown_cost_requests"] == 1
+        refute ready.processing_context["cost_complete"]
       end)
 
       assert :counters.get(calls, 1) == 1
@@ -303,5 +341,25 @@ defmodule DragNStamp.SubmissionsConcurrencyTest do
       duration_ms: 1,
       attempts: 1
     }
+  end
+
+  defp provider_response do
+    {:ok,
+     %Finch.Response{
+       status: 200,
+       headers: [],
+       body:
+         Jason.encode!(%{
+           "candidates" => [
+             %{
+               "content" => %{
+                 "parts" => [%{"text" => Jason.encode!(%{timestamps: model_result().timestamps})}]
+               },
+               "finishReason" => "STOP"
+             }
+           ],
+           "usageMetadata" => %{"promptTokenCount" => 100, "candidatesTokenCount" => 20}
+         })
+     }}
   end
 end

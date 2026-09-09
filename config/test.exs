@@ -41,3 +41,6 @@ config :drag_n_stamp, :seo_fetch_metadata, false
 
 # Enqueue real database jobs, but never run external services automatically.
 config :drag_n_stamp, Oban, testing: :manual
+
+# Budget behavior has dedicated tests; unrelated fixtures do not share caller quotas.
+config :drag_n_stamp, :work_budget, enabled: false

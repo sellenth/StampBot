@@ -5,6 +5,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   """
 
   alias DragNStamp.SEO.VideoMetadata
+  alias DragNStamp.{ProcessingAttempts, WorkBudget}
   alias DragNStamp.Timestamps.{CostEstimator, GeminiClient, Prompts, TimestampSet}
   alias DragNStamp.YouTube.Captions
 
@@ -62,7 +63,17 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     trigger = Keyword.get(opts, :trigger)
     fetch_transcript = Keyword.get(opts, :fetch_transcript_fun, &Captions.fetch_transcript/1)
 
-    case fetch_transcript.(video_id) do
+    fetched =
+      ProcessingAttempts.around(
+        %{
+          kind: :stage,
+          stage: "caption_acquisition",
+          provider: "youtube"
+        },
+        fn -> fetch_transcript.(video_id) end
+      )
+
+    case fetched do
       {:ok, %{segments: segments, context: caption_context}} ->
         case build_transcript_payload(segments, opts) do
           {:ok, chunks, stats} ->
@@ -166,30 +177,71 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
           max_seconds: max_seconds
         )
 
-      case generate.(prompt, api_key, max_seconds: max_seconds) do
-        {:ok, %GeminiClient.Result{} = result} ->
-          total_cost = CostEstimator.add(cost, CostEstimator.estimate_usd(result))
+      generated =
+        ProcessingAttempts.around(
+          %{
+            kind: :chunk,
+            stage: "caption_chunk",
+            provider: "gemini",
+            operation: :text,
+            chunk_index: index,
+            start_seconds: div(chunk.start_ms, 1_000),
+            end_seconds: ceil_seconds(chunk.end_ms),
+            input_bytes: byte_size(chunk.text),
+            prompt_version: "captions-2026-09-09-v2"
+          },
+          fn ->
+            case generate.(prompt, api_key, max_seconds: max_seconds) do
+              {:ok, %GeminiClient.Result{} = result} ->
+                case validate_chunk_timestamps(result.timestamps, chunk, max_seconds) do
+                  :ok ->
+                    {:ok, result}
 
-          case validate_chunk_timestamps(result.timestamps, chunk, max_seconds) do
-            :ok ->
-              {:cont,
-               {:ok, [result.timestamps | candidates], result.model_version || result.model,
-                total_cost}}
+                  {:error, reason} ->
+                    {:error,
+                     %{
+                       kind: :timestamp_extraction_failed,
+                       reason: reason,
+                       request_cost_usd:
+                         result |> CostEstimator.estimate_usd() |> CostEstimator.serialize()
+                     }}
+                end
 
-            {:error, reason} ->
-              {:halt,
-               {:error, :timestamp_extraction_failed, %{chunk_number: index, reason: reason},
-                total_cost, index - 1}}
+              {:error, reason} ->
+                {:error, reason}
+
+              _ ->
+                {:error, %{kind: :invalid_model_output}}
+            end
           end
+        )
+
+      case generated do
+        {:ok, result} ->
+          {:cont,
+           {:ok, [result.timestamps | candidates], result.model_version || result.model,
+            CostEstimator.add(cost, CostEstimator.estimate_usd(result))}}
 
         {:error, reason} ->
-          {:halt,
-           {:error, :gemini_error, %{chunk_number: index, reason: reason}, cost, index - 1}}
+          failure =
+            case reason do
+              %{kind: kind}
+              when kind in [
+                     :timestamp_extraction_failed,
+                     :input_limit_exceeded,
+                     :work_budget_exceeded
+                   ] ->
+                kind
 
-        other ->
+              _ ->
+                :gemini_error
+            end
+
+          extra_cost = if is_map(reason), do: CostEstimator.parse(reason[:request_cost_usd])
+
           {:halt,
-           {:error, :gemini_error, %{chunk_number: index, reason: {:unexpected_response, other}},
-            cost, index - 1}}
+           {:error, failure, %{chunk_number: index, reason: reason},
+            CostEstimator.add(cost, extra_cost), index - 1}}
       end
     end)
     |> case do
@@ -232,6 +284,13 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     do: {:error, :no_timestamps}
 
   defp build_transcript_payload(segments, opts) when is_list(segments) do
+    case WorkBudget.check_transcript(ProcessingAttempts.context(), segments) do
+      :ok -> build_transcript_chunks(segments, opts)
+      {:error, reason} -> {:error, reason, %{}}
+    end
+  end
+
+  defp build_transcript_chunks(segments, opts) do
     lines =
       segments
       |> Enum.filter(&valid_segment?/1)
@@ -264,7 +323,13 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
           duration_source: if(known_duration?, do: "video_metadata", else: "transcript_end")
         })
 
-      {:ok, chunks, stats}
+      with :ok <- WorkBudget.check_chunks(ProcessingAttempts.context(), length(chunks)),
+           :ok <-
+             WorkBudget.check_duration(ProcessingAttempts.context(), stats.output_bound_seconds) do
+        {:ok, chunks, stats}
+      else
+        {:error, reason} -> {:error, reason, stats}
+      end
     end
   end
 
@@ -466,6 +531,9 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   def failure_message(:missing_api_key),
     do:
       "We couldn't access our caption summarizer right now. Please try again later—this video is saved for future analysis."
+
+  def failure_message(reason) when reason in [:input_limit_exceeded, :work_budget_exceeded],
+    do: WorkBudget.message(reason)
 
   def failure_message(:video_id_not_found),
     do:

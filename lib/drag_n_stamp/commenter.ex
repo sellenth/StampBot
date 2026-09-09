@@ -8,7 +8,7 @@ defmodule DragNStamp.Commenter do
 
   import Ecto.Query
 
-  alias DragNStamp.{Repo, Timestamp, YouTubeAPI}
+  alias DragNStamp.{PublicationPolicy, Repo, Timestamp, YouTubeAPI}
 
   @cooldown_seconds 60
   @daily_attempt_cap 5
@@ -16,38 +16,42 @@ defmodule DragNStamp.Commenter do
   @doc """
   Attempts to post a YouTube comment for the given timestamp.
 
-  Atomically claims an eligible record before network IO. Callers that encounter
+  Requires explicit server-side publication authority; the default is denied.
+  Atomically claims an eligible record and account allowance before network IO. Callers that encounter
   a pending or completed attempt skip without changing its durable status.
   `:post_fun` accepts a two-argument function for an alternative posting adapter.
   """
   def post_for_timestamp(%Timestamp{} = timestamp, opts \\ []) do
-    case claim(timestamp) do
-      {:ok, claimed} ->
-        case do_post(claimed, opts) do
-          {:ok, response} -> handle_success(claimed, response)
-          {:error, reason} -> handle_failure(claimed, reason)
-        end
+    authority = Keyword.get(opts, :authority)
 
-      {:skip, reason, latest} ->
-        {:ok, latest, {:skipped, reason}}
+    with :ok <- PublicationPolicy.authorize(authority) do
+      case claim(timestamp, authority, Keyword.get(opts, :expected_digest)) do
+        {:ok, claimed, attempt} ->
+          case do_post(claimed, opts) do
+            {:ok, response} -> handle_success(claimed, attempt, response)
+            {:error, reason} -> handle_failure(claimed, attempt, reason)
+          end
 
-      {:blocked, reason, latest} ->
-        {:ok, latest, {:error, reason}}
+        {:skip, reason, latest} ->
+          {:ok, latest, {:skipped, reason}}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:blocked, reason, latest} ->
+          {:ok, latest, {:error, reason}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
-  defp claim(timestamp) do
+  defp claim(timestamp, authority, expected_digest) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     with {:ok, latest} <- reload(timestamp),
          :ok <- ensure_ready(latest),
+         :ok <- validate_approved_content(latest, expected_digest),
          :ok <- enforce_limits(latest, now) do
-      dedupe_key =
-        :crypto.hash(:sha256, latest.url <> "|" <> latest.distilled_content)
-        |> Base.encode16(case: :lower)
+      dedupe_key = PublicationPolicy.content_digest(latest)
 
       cooldown_cutoff = DateTime.add(now, -@cooldown_seconds, :second)
       daily_cutoff = DateTime.add(now, -86_400, :second)
@@ -77,11 +81,21 @@ defmodule DragNStamp.Commenter do
         inc: [youtube_comment_attempts: 1]
       ]
 
-      case Repo.update_all(eligible, changes) do
-        {1, [claimed]} -> {:ok, claimed}
-        {0, []} -> claim_changed(latest, now)
-      end
+      PublicationPolicy.claim(authority, fn ->
+        case Repo.update_all(eligible, changes) do
+          {1, [claimed]} -> {:ok, claimed}
+          {0, []} -> claim_changed(latest, now)
+        end
+      end)
     end
+  end
+
+  defp validate_approved_content(_timestamp, nil), do: :ok
+
+  defp validate_approved_content(timestamp, digest) do
+    if PublicationPolicy.content_digest(timestamp) == digest,
+      do: :ok,
+      else: {:error, :publication_content_changed}
   end
 
   defp reload(%Timestamp{id: id}) when not is_nil(id) do
@@ -159,9 +173,10 @@ defmodule DragNStamp.Commenter do
     end
   end
 
-  defp handle_success(timestamp, response) do
+  defp handle_success(timestamp, attempt, response) do
     finish_claim(
       timestamp,
+      attempt,
       [
         youtube_comment_status: :succeeded,
         youtube_comment_error: nil,
@@ -171,17 +186,18 @@ defmodule DragNStamp.Commenter do
     )
   end
 
-  defp handle_failure(timestamp, reason) do
+  defp handle_failure(timestamp, attempt, reason) do
     status = if reason == :auth_required, do: :auth_required, else: :failed
 
     finish_claim(
       timestamp,
+      attempt,
       [youtube_comment_status: status, youtube_comment_error: Atom.to_string(reason)],
       {:error, reason}
     )
   end
 
-  defp finish_claim(timestamp, changes, outcome) do
+  defp finish_claim(timestamp, attempt, changes, outcome) do
     owned =
       from t in Timestamp,
         where:
@@ -199,15 +215,22 @@ defmodule DragNStamp.Commenter do
         NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
       )
 
-    case Repo.update_all(owned, set: changes) do
-      {1, [updated]} ->
-        {:ok, updated, outcome}
+    Repo.transaction(fn ->
+      case Repo.update_all(owned, set: changes) do
+        {1, [updated]} ->
+          PublicationPolicy.finish_attempt!(attempt, updated)
+          {:ok, updated, outcome}
 
-      {0, []} ->
-        case reload(timestamp) do
-          {:ok, latest} -> {:ok, latest, {:skipped, :claim_changed}}
-          error -> error
-        end
+        {0, []} ->
+          case reload(timestamp) do
+            {:ok, latest} -> {:ok, latest, {:skipped, :claim_changed}}
+            error -> error
+          end
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
     end
   end
 

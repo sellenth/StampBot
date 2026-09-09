@@ -2,9 +2,9 @@ defmodule DragNStamp.Timestamps.CostEstimator do
   @moduledoc """
   Estimates Gemini request cost from response usage metadata.
 
-  Rates are configurable and expressed in USD per one million tokens. Estimates
-  intentionally use successful response usage only; requests that fail without
-  usage metadata cannot be included.
+  Rates are configurable and expressed in USD per one million tokens. Missing
+  input/output usage or pricing returns nil; it must never masquerade as a free
+  request. Request ledgers retain estimates even when output validation fails.
   """
 
   alias DragNStamp.Timestamps.GeminiClient.Result
@@ -12,12 +12,25 @@ defmodule DragNStamp.Timestamps.CostEstimator do
   @million Decimal.new(1_000_000)
 
   @spec estimate_usd(Result.t()) :: Decimal.t() | nil
+  def estimate_usd(%Result{request_cost_usd: %Decimal{} = cost}), do: cost
+
   def estimate_usd(%Result{model: model, usage: usage}) when is_binary(model) and is_map(usage) do
+    estimate_usage_usd(model, usage)
+  end
+
+  def estimate_usd(_result), do: nil
+
+  @spec estimate_usage_usd(binary(), map()) :: Decimal.t() | nil
+  def estimate_usage_usd(
+        model,
+        %{prompt_tokens: prompt_tokens, output_tokens: candidate_tokens} = usage
+      )
+      when is_binary(model) and is_integer(prompt_tokens) and prompt_tokens >= 0 and
+             is_integer(candidate_tokens) and candidate_tokens >= 0 do
     with {:ok, rates} <- rates_for(model) do
-      prompt_tokens = Map.get(usage, :prompt_tokens, 0)
       cached_tokens = min(Map.get(usage, :cached_tokens, 0), prompt_tokens)
       regular_input_tokens = prompt_tokens - cached_tokens
-      output_tokens = Map.get(usage, :output_tokens, 0) + Map.get(usage, :thinking_tokens, 0)
+      output_tokens = candidate_tokens + Map.get(usage, :thinking_tokens, 0)
 
       input_rate = Map.fetch!(rates, :input_per_million)
       cached_input_rate = Map.get(rates, :cached_input_per_million, input_rate)
@@ -34,7 +47,7 @@ defmodule DragNStamp.Timestamps.CostEstimator do
     end
   end
 
-  def estimate_usd(_result), do: nil
+  def estimate_usage_usd(_model, _usage), do: nil
 
   @spec add(Decimal.t() | nil, Decimal.t() | nil) :: Decimal.t() | nil
   def add(nil, nil), do: nil

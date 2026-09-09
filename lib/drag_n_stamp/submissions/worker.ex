@@ -11,7 +11,8 @@ defmodule DragNStamp.Submissions.Worker do
     ]
 
   require Logger
-  alias DragNStamp.{Submissions, Timestamp}
+  import Ecto.Query
+  alias DragNStamp.{Repo, Submissions, Timestamp}
   alias DragNStamp.Submissions.Processor
 
   @impl Oban.Worker
@@ -26,9 +27,7 @@ defmodule DragNStamp.Submissions.Worker do
     end
   rescue
     error ->
-      Logger.error(
-        "Submission job #{job.id} crashed: #{Exception.format(:error, error, __STACKTRACE__)}"
-      )
+      Logger.error("Submission job #{job.id} crashed exception_type=#{inspect(error.__struct__)}")
 
       failed(job, %{
         reason: :worker_exception,
@@ -40,7 +39,11 @@ defmodule DragNStamp.Submissions.Worker do
   defp run(timestamp, job) do
     context = (timestamp.processing_context || %{}) |> Map.put("attempt", job.attempt)
     timestamp = Submissions.update!(timestamp, %{processing_context: context})
-    opts = Application.get_env(:drag_n_stamp, :submission_processor_options, [])
+
+    opts =
+      Application.get_env(:drag_n_stamp, :submission_processor_options, [])
+      |> Keyword.put(:job_id, job.id)
+      |> Keyword.put(:job_attempt, job.attempt)
 
     case Processor.process(timestamp, opts) do
       {:ok, _updated} -> :ok
@@ -51,20 +54,47 @@ defmodule DragNStamp.Submissions.Worker do
   defp failed(job, failure) do
     retry? = failure.retryable and job.attempt < job.max_attempts
 
-    if timestamp = Submissions.get(job.args["timestamp_id"]) do
-      context =
-        (timestamp.processing_context || %{})
-        |> Map.put("public_error", failure.message)
-        |> Map.put("last_failure", to_string(failure.reason))
+    {:ok, result} =
+      Repo.transaction(fn ->
+        timestamp =
+          Repo.one(
+            from(t in Timestamp,
+              where: t.id == ^job.args["timestamp_id"],
+              lock: "FOR UPDATE"
+            )
+          )
 
-      Submissions.update!(timestamp, %{
-        processing_status: if(retry?, do: :processing, else: :failed),
-        processing_phase: if(retry?, do: "retrying", else: "failed"),
-        processing_error: failure.message,
-        processing_context: context
-      })
+        case timestamp do
+          %Timestamp{processing_status: :ready} ->
+            :ready
+
+          nil ->
+            nil
+
+          timestamp ->
+            context =
+              (timestamp.processing_context || %{})
+              |> Map.put("public_error", failure.message)
+              |> Map.put("last_failure", to_string(failure.reason))
+
+            timestamp
+            |> Timestamp.changeset(%{
+              processing_status: if(retry?, do: :processing, else: :failed),
+              processing_phase: if(retry?, do: "retrying", else: "failed"),
+              processing_error: failure.message,
+              processing_context: context
+            })
+            |> Repo.update!()
+        end
+      end)
+
+    case result do
+      :ready ->
+        :ok
+
+      timestamp ->
+        if timestamp, do: Submissions.broadcast(timestamp)
+        if retry?, do: {:error, failure.reason}, else: {:cancel, failure.reason}
     end
-
-    if retry?, do: {:error, failure.reason}, else: {:cancel, failure.reason}
   end
 end

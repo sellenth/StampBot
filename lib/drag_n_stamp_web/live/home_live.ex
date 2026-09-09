@@ -1,6 +1,7 @@
 defmodule DragNStampWeb.HomeLive do
   use DragNStampWeb, :live_view
-  alias DragNStamp.{Repo, Submissions, Timestamp}
+  alias DragNStamp.{Repo, Submissions, Timestamp, WorkBudget}
+  alias DragNStamp.Security.Caller
   alias DragNStamp.SEO.PagePath
   alias DragNStamp.Timestamps.{FailureMessage, SubmissionLimit}
   import Ecto.Query
@@ -33,6 +34,11 @@ defmodule DragNStampWeb.HomeLive do
 
     {:ok,
      assign(socket,
+       caller_hash:
+         Caller.from_connection(
+           (get_connect_info(socket, :peer_data) || %{})[:address],
+           get_connect_info(socket, :x_headers) || []
+         ),
        bookmarklet_code: bookmarklet_code,
        loading: false,
        submission_limit_reached: submission_limit_reached,
@@ -77,38 +83,15 @@ defmodule DragNStampWeb.HomeLive do
     {:noreply, assign(socket, page: String.to_integer(page))}
   end
 
-  def handle_event("retry_comment", %{"id" => id}, socket) do
-    case Repo.get(Timestamp, id) do
-      nil ->
-        {:noreply, socket}
-
-      ts ->
-        if ts.youtube_comment_status == :succeeded || not is_nil(ts.youtube_comment_external_id) do
-          {:noreply, socket}
-        else
-          result = DragNStamp.Commenter.post_for_timestamp(ts)
-
-          updated_ts =
-            case result do
-              {:ok, updated, _info} -> updated
-              _ -> ts
-            end
-
-          updated_list =
-            Enum.map(socket.assigns.timestamps, fn t ->
-              if t.id == updated_ts.id, do: updated_ts, else: t
-            end)
-
-          {:noreply, assign(socket, :timestamps, updated_list)}
-        end
-    end
+  def handle_event("retry_comment", _params, socket) do
+    {:noreply, put_flash(socket, :error, "Comment publication requires operator approval.")}
   end
 
   def handle_event("retry_submission", %{"id" => id}, socket) do
     case Submissions.get(id) do
       %Timestamp{} = timestamp ->
         if retry_allowed?(timestamp) do
-          case Submissions.retry(timestamp) do
+          case Submissions.retry(timestamp, caller_hash: socket.assigns.caller_hash) do
             {:ok, updated} ->
               {:noreply,
                socket
@@ -130,7 +113,7 @@ defmodule DragNStampWeb.HomeLive do
   defp handle_submission(url, username, socket) do
     attrs = %{channel_name: "anonymous", submitter_username: username}
 
-    case Submissions.submit(url, attrs) do
+    case Submissions.submit(url, attrs, caller_hash: socket.assigns.caller_hash) do
       {:ok, timestamp, _disposition} ->
         message =
           case timestamp.processing_status do
@@ -189,6 +172,17 @@ defmodule DragNStampWeb.HomeLive do
 
   defp submission_error(:retry_not_allowed), do: "Retry not allowed for this submission."
   defp submission_error(:submission_limit_reached), do: SubmissionLimit.message()
+
+  defp submission_error(reason)
+       when reason in [
+              :caller_rate_limited,
+              :video_cooldown,
+              :daily_work_limit,
+              :daily_budget_exceeded
+            ],
+       do: WorkBudget.message(reason)
+
+  defp submission_error(:invalid_input), do: "Names must be 200 characters or fewer."
   defp submission_error(_), do: "StampBot could not save this submission. Please try again."
 
   defp load_timestamps do
@@ -361,6 +355,22 @@ defmodule DragNStampWeb.HomeLive do
 
   defp format_inserted_at(%Timestamp{} = timestamp) do
     format_datetime(timestamp.inserted_at)
+  end
+
+  defp cost_label(timestamp) do
+    if ((timestamp.processing_context || %{})["unknown_cost_requests"] || 0) > 0,
+      do: "Known cost",
+      else: "Est. cost"
+  end
+
+  defp cost_description(timestamp) do
+    case (timestamp.processing_context || %{})["unknown_cost_requests"] do
+      count when is_integer(count) and count > 0 ->
+        "Includes reported usage; #{count} provider requests have unknown cost."
+
+      _ ->
+        "Estimated Gemini API cost from reported usage."
+    end
   end
 
   defp format_estimated_cost(%Timestamp{

@@ -18,6 +18,16 @@ defmodule DragNStampWeb.Router do
     plug DragNStampWeb.Plugs.CORS
   end
 
+  pipeline :operator do
+    plug :accepts, ["json"]
+    plug DragNStampWeb.Plugs.OperatorAuth
+  end
+
+  scope "/api/operator", DragNStampWeb do
+    pipe_through :operator
+    post "/submissions/:id/publish", OperatorController, :publish
+  end
+
   scope "/", DragNStampWeb do
     pipe_through :browser
 

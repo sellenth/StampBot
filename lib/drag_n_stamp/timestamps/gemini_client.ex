@@ -8,7 +8,8 @@ defmodule DragNStamp.Timestamps.GeminiClient do
 
   require Logger
 
-  alias DragNStamp.Timestamps.{Prompts, TimestampSet}
+  alias DragNStamp.{ProcessingAttempts, WorkBudget}
+  alias DragNStamp.Timestamps.{CostEstimator, Prompts, TimestampSet}
 
   @api_base_url "https://generativelanguage.googleapis.com/v1beta/models"
   @default_video_model "gemini-3.7-flash"
@@ -18,6 +19,8 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   @default_timeout 300_000
   @default_max_attempts 3
   @retryable_statuses [408, 409, 425, 429]
+  @schema_version "timestamps-v1"
+  @max_output_tokens 8_192
 
   defmodule Result do
     @moduledoc false
@@ -34,6 +37,8 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       :thinking_level,
       :duration_ms,
       :attempts,
+      :request_cost_usd,
+      unknown_cost_attempts: 0,
       usage: %{}
     ]
   end
@@ -130,14 +135,32 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     )
   end
 
-  defp request_with_retry(request_fun, opts, attempt \\ 1) do
+  defp request_with_retry(
+         request_fun,
+         opts,
+         attempt \\ 1,
+         previous_cost \\ nil,
+         unknown_costs \\ 0
+       ) do
     max_attempts = Keyword.get(opts, :max_attempts, @default_max_attempts)
 
     case request_fun.(attempt) do
       {:ok, %Result{} = result} ->
-        {:ok, %{result | attempts: attempt}}
+        {:ok,
+         %{
+           result
+           | attempts: attempt,
+             request_cost_usd:
+               CostEstimator.add(previous_cost, CostEstimator.estimate_usd(result)),
+             unknown_cost_attempts: unknown_costs + result.unknown_cost_attempts
+         }}
 
-      {:error, reason} = error ->
+      {:error, reason} ->
+        total_cost =
+          CostEstimator.add(previous_cost, CostEstimator.parse(reason[:request_cost_usd]))
+
+        total_unknown = unknown_costs + Map.get(reason, :unknown_cost_attempts, 0)
+
         if attempt < max_attempts and retryable?(reason) do
           delay = retry_delay(reason, attempt, opts)
 
@@ -147,18 +170,57 @@ defmodule DragNStamp.Timestamps.GeminiClient do
 
           sleep_fun = Keyword.get(opts, :sleep_fun, &Process.sleep/1)
           sleep_fun.(delay)
-          request_with_retry(request_fun, opts, attempt + 1)
+          request_with_retry(request_fun, opts, attempt + 1, total_cost, total_unknown)
         else
           Logger.error(
             "Gemini request failed after #{attempt} attempt(s): #{error_summary(reason)}"
           )
 
-          error
+          {:error,
+           Map.merge(reason, %{
+             request_cost_usd: CostEstimator.serialize(total_cost),
+             unknown_cost_attempts: total_unknown
+           })}
         end
     end
   end
 
   defp request_once(model, body, api_key, operation, thinking_level, attempt, opts) do
+    ctx = ProcessingAttempts.context()
+
+    attrs = %{
+      kind: :request,
+      stage: ctx[:stage] || if(operation == :video, do: "video", else: "distillation"),
+      provider: "gemini",
+      operation: operation,
+      request_attempt: attempt,
+      model: model,
+      thinking_level: thinking_level,
+      prompt_version: Keyword.get(opts, :prompt_version, ctx[:prompt_version] || "unspecified"),
+      schema_version: @schema_version,
+      input_bytes: byte_size(Jason.encode!(body))
+    }
+
+    ProcessingAttempts.around(attrs, fn handle ->
+      context = ProcessingAttempts.context()
+
+      with :ok <- WorkBudget.check_request(context, body),
+           :ok <- WorkBudget.before_request(context) do
+        ProcessingAttempts.annotate(handle, %{dispatched: true})
+        dispatch_request(model, body, api_key, operation, thinking_level, attempt, opts, handle)
+      else
+        {:error, reason} ->
+          ProcessingAttempts.annotate(handle, %{
+            cost_status: :not_dispatched,
+            estimated_cost_usd: Decimal.new(0)
+          })
+
+          {:error, %{kind: reason, unknown_cost_attempts: 0, request_cost_usd: "0"}}
+      end
+    end)
+  end
+
+  defp dispatch_request(model, body, api_key, operation, thinking_level, attempt, opts, handle) do
     api_url = "#{@api_base_url}/#{URI.encode(model)}:generateContent"
 
     headers = [
@@ -175,74 +237,107 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     duration_native = System.monotonic_time() - started_at
     duration_ms = System.convert_time_unit(duration_native, :native, :millisecond)
 
-    case response do
-      {:ok, %Finch.Response{status: 200, body: response_body}} ->
-        parse_success(
-          response_body,
-          model,
-          operation,
-          thinking_level,
-          attempt,
-          duration_native,
-          duration_ms,
-          opts
-        )
+    {result, usage, model_version} =
+      case response do
+        {:ok, %Finch.Response{status: status, headers: response_headers, body: response_body}} ->
+          decoded = Jason.decode(response_body)
 
-      {:ok, %Finch.Response{status: status, headers: response_headers, body: response_body}} ->
-        reason = %{
-          kind: :http,
-          status: status,
-          retry_after_ms: retry_after_ms(response_headers),
-          body_preview: truncate(response_body)
-        }
+          payload =
+            case decoded do
+              {:ok, value} when is_map(value) -> value
+              _ -> %{}
+            end
 
-        emit_telemetry(
-          duration_native,
-          %{},
-          model,
-          nil,
-          operation,
-          thinking_level,
-          attempt,
-          reason
-        )
+          usage = normalize_usage(Map.get(payload, "usageMetadata", %{}))
+          model_version = safe_identifier(Map.get(payload, "modelVersion"), 128)
 
-        {:error, reason}
+          # Usage is committed before parsing or validating the candidate output.
+          # A rejected response may still be billable and must survive a later crash.
+          cost =
+            ProcessingAttempts.response(
+              handle,
+              %{
+                model: model,
+                model_version: model_version,
+                http_status: status,
+                provider_request_id: provider_request_id(payload, response_headers),
+                finish_reason: finish_reason(payload)
+              },
+              usage
+            )
 
-      {:error, reason} ->
-        wrapped = %{kind: :transport, reason: inspect(reason)}
+          result =
+            if status == 200 do
+              case decoded do
+                {:ok, value} when is_map(value) ->
+                  parse_success(
+                    value,
+                    model,
+                    model_version,
+                    thinking_level,
+                    attempt,
+                    duration_ms,
+                    usage,
+                    cost,
+                    opts
+                  )
 
-        emit_telemetry(
-          duration_native,
-          %{},
-          model,
-          nil,
-          operation,
-          thinking_level,
-          attempt,
-          wrapped
-        )
+                _ ->
+                  {:error, %{kind: :invalid_json_response}}
+              end
+            else
+              {:error,
+               %{kind: :http, status: status, retry_after_ms: retry_after_ms(response_headers)}}
+            end
 
-        {:error, wrapped}
-    end
+          result = with_cost_metadata(result, cost)
+          {result, usage, model_version}
+
+        {:error, reason} ->
+          wrapped = %{
+            kind: :transport,
+            reason: transport_reason(reason),
+            unknown_cost_attempts: 1
+          }
+
+          {{:error, wrapped}, %{}, nil}
+      end
+
+    status =
+      case result do
+        {:ok, _} -> :ok
+        {:error, reason} -> reason
+      end
+
+    emit_telemetry(
+      duration_native,
+      usage,
+      model,
+      model_version,
+      operation,
+      thinking_level,
+      attempt,
+      status
+    )
+
+    result
   end
 
   defp parse_success(
-         response_body,
+         payload,
          model,
-         operation,
+         model_version,
          thinking_level,
          attempt,
-         duration_native,
          duration_ms,
+         usage,
+         cost,
          opts
        ) do
-    with {:ok, payload} <- Jason.decode(response_body),
-         {:ok, candidate, text} <- extract_candidate_text(payload),
+    with {:ok, candidate, text} <- extract_candidate_text(payload),
          {:ok, content, timestamps} <-
-           TimestampSet.decode(text, max_seconds: Keyword.get(opts, :max_seconds)) do
-      usage = normalize_usage(Map.get(payload, "usageMetadata", %{}))
-      model_version = Map.get(payload, "modelVersion")
+           TimestampSet.decode(text, max_seconds: Keyword.get(opts, :max_seconds)),
+         :ok <- reject_unwatched(timestamps) do
       finish_reason = Map.get(candidate, "finishReason")
 
       result = %Result{
@@ -254,62 +349,28 @@ defmodule DragNStamp.Timestamps.GeminiClient do
         thinking_level: thinking_level,
         duration_ms: duration_ms,
         attempts: attempt,
-        usage: usage
+        usage: usage,
+        request_cost_usd: cost,
+        unknown_cost_attempts: if(is_nil(cost), do: 1, else: 0)
       }
 
-      emit_telemetry(
-        duration_native,
-        usage,
-        model,
-        model_version,
-        operation,
-        thinking_level,
-        attempt,
-        :ok
-      )
-
       Logger.info(
-        "Gemini #{operation} request succeeded model=#{model_version || model} attempt=#{attempt} duration_ms=#{duration_ms} timestamps=#{length(timestamps)} total_tokens=#{usage.total_tokens}"
+        "Gemini request succeeded model=#{model_version || model} attempt=#{attempt} duration_ms=#{duration_ms} timestamps=#{length(timestamps)} total_tokens=#{Map.get(usage, :total_tokens, "unknown")}"
       )
 
       {:ok, result}
     else
-      {:error, %Jason.DecodeError{} = error} ->
-        reason = %{kind: :invalid_json_response, position: error.position}
-
-        emit_telemetry(
-          duration_native,
-          %{},
-          model,
-          nil,
-          operation,
-          thinking_level,
-          attempt,
-          reason
-        )
-
-        {:error, reason}
-
       {:error, reason} ->
-        wrapped = %{kind: :invalid_model_output, reason: reason}
-
-        emit_telemetry(
-          duration_native,
-          %{},
-          model,
-          nil,
-          operation,
-          thinking_level,
-          attempt,
-          wrapped
-        )
-
-        {:error, wrapped}
+        {:error, %{kind: :invalid_model_output, reason: reason}}
     end
   end
 
   defp extract_candidate_text(%{"candidates" => [candidate | _]}) when is_map(candidate) do
-    parts = get_in(candidate, ["content", "parts"]) || []
+    parts =
+      case Map.get(candidate, "content") do
+        %{"parts" => parts} when is_list(parts) -> Enum.filter(parts, &is_map/1)
+        _ -> []
+      end
 
     text =
       parts
@@ -318,19 +379,56 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       |> Enum.filter(&is_binary/1)
       |> Enum.join()
 
-    if String.trim(text) == "" do
-      {:error,
-       {:missing_candidate_text, Map.get(candidate, "finishReason"),
-        Map.get(candidate, "safetyRatings", [])}}
-    else
-      {:ok, candidate, text}
+    cond do
+      Map.get(candidate, "finishReason") != "STOP" -> {:error, :incomplete_output}
+      String.trim(text) == "" -> {:error, :missing_candidate_text}
+      true -> {:ok, candidate, text}
     end
   end
 
-  defp extract_candidate_text(%{"promptFeedback" => feedback}),
-    do: {:error, {:prompt_blocked, feedback}}
+  defp extract_candidate_text(%{"promptFeedback" => _feedback}), do: {:error, :prompt_blocked}
 
   defp extract_candidate_text(_payload), do: {:error, :missing_candidates}
+
+  defp reject_unwatched(timestamps) do
+    if Enum.any?(timestamps, &(String.upcase(String.trim(&1.title)) == "UNWATCHED")),
+      do: {:error, :unwatched},
+      else: :ok
+  end
+
+  defp with_cost_metadata({:ok, _} = result, _cost), do: result
+
+  defp with_cost_metadata({:error, reason}, cost),
+    do:
+      {:error,
+       Map.merge(reason, %{
+         request_cost_usd: CostEstimator.serialize(cost),
+         unknown_cost_attempts: if(is_nil(cost), do: 1, else: 0)
+       })}
+
+  defp provider_request_id(payload, headers) do
+    id =
+      Map.get(payload, "responseId") ||
+        Enum.find_value(headers, fn {key, value} ->
+          if String.downcase(key) in ["x-request-id", "x-goog-request-id"], do: value
+        end)
+
+    safe_identifier(id, 255)
+  end
+
+  defp finish_reason(%{"candidates" => [candidate | _]}) when is_map(candidate),
+    do: safe_identifier(candidate["finishReason"], 64)
+
+  defp finish_reason(_), do: nil
+
+  defp safe_identifier(value, limit) when is_binary(value),
+    do: value |> String.replace(~r/[[:cntrl:]]/, "") |> String.slice(0, limit)
+
+  defp safe_identifier(_value, _limit), do: nil
+
+  defp transport_reason(%{reason: reason}) when is_atom(reason), do: reason
+  defp transport_reason(reason) when is_atom(reason), do: reason
+  defp transport_reason(_reason), do: :transport_error
 
   defp video_body(prompt, video_url, opts) do
     parts =
@@ -362,6 +460,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       caller_config
       |> Map.put("responseMimeType", "application/json")
       |> Map.put("responseSchema", TimestampSet.json_schema())
+      |> Map.put("maxOutputTokens", output_token_limit(caller_config))
       |> maybe_put_thinking_level(thinking_level)
 
     Map.put(body, "generationConfig", config)
@@ -389,6 +488,11 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   end
 
   defp retryable?(%{kind: :transport}), do: true
+
+  defp retryable?(%{kind: :invalid_model_output, reason: reason})
+       when reason in [:unwatched, :incomplete_output, :prompt_blocked],
+       do: false
+
   defp retryable?(%{kind: :invalid_model_output}), do: true
   defp retryable?(%{kind: :invalid_json_response}), do: true
   defp retryable?(%{kind: :http, status: status}) when status in @retryable_statuses, do: true
@@ -424,21 +528,36 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     end
   end
 
-  defp normalize_usage(usage) do
-    %{
-      prompt_tokens: Map.get(usage, "promptTokenCount", 0),
-      output_tokens: Map.get(usage, "candidatesTokenCount", 0),
-      thinking_tokens: Map.get(usage, "thoughtsTokenCount", 0),
-      total_tokens: Map.get(usage, "totalTokenCount", 0),
-      cached_tokens: Map.get(usage, "cachedContentTokenCount", 0)
-    }
+  defp normalize_usage(usage) when is_map(usage) do
+    [
+      {:prompt_tokens, "promptTokenCount"},
+      {:output_tokens, "candidatesTokenCount"},
+      {:thinking_tokens, "thoughtsTokenCount"},
+      {:total_tokens, "totalTokenCount"},
+      {:cached_tokens, "cachedContentTokenCount"}
+    ]
+    |> Enum.reduce(%{}, fn {field, source}, acc ->
+      case usage[source] do
+        count when is_integer(count) and count >= 0 -> Map.put(acc, field, count)
+        _ -> acc
+      end
+    end)
+  end
+
+  defp normalize_usage(_usage), do: %{}
+
+  defp output_token_limit(config) do
+    case config["maxOutputTokens"] do
+      value when is_integer(value) and value > 0 -> min(value, @max_output_tokens)
+      _ -> @max_output_tokens
+    end
   end
 
   defp emit_telemetry(
          duration,
          usage,
-         model,
-         model_version,
+         _model,
+         _model_version,
          operation,
          thinking_level,
          attempt,
@@ -453,8 +572,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     }
 
     metadata = %{
-      model: model,
-      model_version: model_version,
+      model: if(operation == :video, do: "video-tier", else: "text-tier"),
       operation: operation,
       thinking_level: thinking_level,
       attempt: attempt,
@@ -471,7 +589,4 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   defp error_summary(%{kind: :http, status: status}), do: "HTTP #{status}"
   defp error_summary(%{kind: kind}), do: Atom.to_string(kind)
   defp error_summary(reason), do: inspect(reason)
-
-  defp truncate(value) when is_binary(value), do: String.slice(value, 0, 500)
-  defp truncate(value), do: inspect(value) |> String.slice(0, 500)
 end

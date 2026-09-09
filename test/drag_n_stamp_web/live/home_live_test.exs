@@ -23,9 +23,20 @@ defmodule DragNStampWeb.HomeLiveTest do
     assert has_element?(view, "#url-form")
     assert has_element?(view, "#feed")
     refute has_element?(view, "#leaderboard")
-    assert html =~ "Est. total: $0.0123"
+    assert html =~ "Est. cost: $0.0123"
 
     assert html_index(html, ~s(id="url-form")) < html_index(html, ~s(id="feed"))
+  end
+
+  test "partial request costs are labeled as a known subtotal", %{conn: conn} do
+    insert_timestamp(%{
+      estimated_cost_usd: Decimal.new("0.0123"),
+      processing_context: %{"cost_complete" => false, "unknown_cost_requests" => 2}
+    })
+
+    {:ok, _view, html} = live(conn, ~p"/")
+    assert html =~ "Known cost: $0.0123"
+    assert html =~ "2 provider requests have unknown cost"
   end
 
   test "valid submission is durably queued and survives reopening the page", %{conn: conn} do

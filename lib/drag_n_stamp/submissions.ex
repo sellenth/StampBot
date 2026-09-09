@@ -3,22 +3,23 @@ defmodule DragNStamp.Submissions do
 
   import Ecto.Query
 
-  alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.{Repo, Timestamp, WorkBudget}
   alias DragNStamp.Submissions.Worker
   alias DragNStamp.Timestamps.{CostEstimator, FailureMessage, SubmissionLimit}
   alias DragNStamp.YouTube.URL
 
   @active_states ~w(available scheduled executing retryable)
 
-  def submit(url, attrs \\ %{}) do
-    with {:ok, identity} <- URL.parse(url),
+  def submit(url, attrs \\ %{}, opts \\ []) do
+    with :ok <- validate_input(url, attrs),
+         {:ok, identity} <- URL.parse(url),
          {:ok, {timestamp, disposition}} <-
            Repo.transaction(fn ->
              lock_video(identity.video_id)
 
              case find_existing(identity) do
                nil ->
-                 timestamp = insert_timestamp!(identity, attrs)
+                 timestamp = insert_timestamp!(identity, attrs) |> WorkBudget.reserve!(opts)
                  enqueue!(timestamp)
                  {timestamp, :created}
 
@@ -30,12 +31,17 @@ defmodule DragNStamp.Submissions do
                  # cancellation. Do not reset a row then collide with that old
                  # executing job's unique key and silently lose the new run.
                  if active_job?(timestamp.id), do: Repo.rollback(:retry_in_flight)
-                 timestamp = reset!(timestamp)
+                 timestamp = reset!(timestamp) |> WorkBudget.reserve!(opts)
                  enqueue!(timestamp)
                  {timestamp, :existing}
 
                timestamp ->
                  # Also repairs legacy placeholders with no durable job.
+                 timestamp =
+                   if active_job?(timestamp.id),
+                     do: timestamp,
+                     else: WorkBudget.reserve!(timestamp, opts)
+
                  enqueue!(timestamp)
                  {timestamp, :existing}
              end
@@ -49,9 +55,10 @@ defmodule DragNStamp.Submissions do
     end
   end
 
-  def retry(%Timestamp{id: id}), do: retry(id)
+  def retry(timestamp_or_id, opts \\ [])
+  def retry(%Timestamp{id: id}, opts), do: retry(id, opts)
 
-  def retry(id) do
+  def retry(id, opts) do
     case get(id) do
       nil ->
         {:error, :not_found}
@@ -76,7 +83,7 @@ defmodule DragNStamp.Submissions do
               |> Map.put("manual_retry_used", true)
               |> Map.put("manual_retry_last_at", DateTime.to_iso8601(DateTime.utc_now()))
 
-            timestamp = reset!(timestamp, context)
+            timestamp = reset!(timestamp, context) |> WorkBudget.reserve!(opts)
             enqueue!(timestamp)
             timestamp
           end)
@@ -110,7 +117,9 @@ defmodule DragNStamp.Submissions do
       submission_id: timestamp.id,
       status_url: "/api/submissions/#{timestamp.id}",
       phase: timestamp.processing_phase,
-      estimated_cost_usd: CostEstimator.serialize(timestamp.estimated_cost_usd)
+      estimated_cost_usd: CostEstimator.serialize(timestamp.estimated_cost_usd),
+      cost_complete: (timestamp.processing_context || %{})["cost_complete"],
+      unknown_cost_requests: (timestamp.processing_context || %{})["unknown_cost_requests"]
     }
 
     case timestamp.processing_status do
@@ -229,7 +238,8 @@ defmodule DragNStamp.Submissions do
         "output_bound_seconds",
         "last_failure",
         "attempt",
-        "distillation_failed"
+        "distillation_failed",
+        "work_reservation_id"
       ])
 
     timestamp
@@ -276,6 +286,27 @@ defmodule DragNStamp.Submissions do
     case URL.parse(timestamp.url) do
       {:ok, identity} -> identity.video_id
       _ -> timestamp.video_id || timestamp.url
+    end
+  end
+
+  defp validate_input(url, attrs) do
+    cond do
+      not is_binary(url) or byte_size(url) > 2048 ->
+        {:error, :invalid_url}
+
+      not is_map(attrs) ->
+        {:error, :invalid_input}
+
+      Enum.any?([:channel_name, :submitter_username], fn key ->
+        value = Map.get(attrs, key, Map.get(attrs, Atom.to_string(key)))
+
+        not is_nil(value) and
+            (not is_binary(value) or byte_size(value) > 800 or String.length(value) > 200)
+      end) ->
+        {:error, :invalid_input}
+
+      true ->
+        :ok
     end
   end
 
