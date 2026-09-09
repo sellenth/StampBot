@@ -598,7 +598,7 @@ defmodule DragNStamp.SEO.StaticPageRenderer do
     |> maybe_put("videoId", assigns.video_id)
     |> maybe_put("duration", format_duration(assigns.duration))
     |> maybe_put("author", build_author(assigns.channel_name))
-    |> Jason.encode!()
+    |> Jason.encode!(escape: :html_safe)
   end
 
   defp publisher(site_name) do
