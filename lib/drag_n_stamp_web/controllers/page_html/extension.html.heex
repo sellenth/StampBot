@@ -177,7 +177,7 @@
       <div id="alerts"></div>
 
       <div class="form-section">
-        <form id="timestamp-form">
+        <form id="timestamp-form" data-api-endpoint={@api_endpoint}>
           <div class="form-group">
             <label class="label" for="url">YouTube URL</label>
             <input
@@ -206,123 +206,23 @@
           </button>
 
           <p class="help-text">
-            Processing takes 3-5 minutes. You can close this popup after submitting.
+            After your submission is saved, you can close this popup. Reopen it to see progress.
           </p>
         </form>
       </div>
+      <button type="button" class="btn" id="resume-updates" hidden>Check progress</button>
+      <p class="help-text">
+        <a href="/" target="_blank" rel="noopener noreferrer">View all submissions</a>
+      </p>
+      <section id="result" hidden style="padding: 15px; margin-top: 15px;">
+        <h2 style="font-size: 1rem; margin-bottom: 10px;">Generated Timestamps</h2>
+        <pre id="generated-timestamps" style="white-space: pre-wrap; font-size: 0.85rem;"></pre>
+      </section>
     </div>
 
-    <script>
-      // Listen for messages from extension popup
-      window.addEventListener('message', function(event) {
-        if (event.data.type === 'EXTENSION_INIT') {
-          const { url, username, darkMode } = event.data.data;
-
-          // Apply dark mode if enabled
-          if (darkMode) {
-            document.body.classList.add('dark-mode');
-          }
-
-          // Pre-fill URL if provided
-          if (url) {
-            document.getElementById('url').value = url;
-          }
-
-          // Pre-fill username if provided
-          if (username) {
-            document.getElementById('username').value = username;
-          }
-        }
-      });
-
-      // Get username from localStorage if available (fallback)
-      document.addEventListener('DOMContentLoaded', function() {
-        const savedUsername = localStorage.getItem('drag-n-stamp-username');
-        if (savedUsername && !document.getElementById('username').value) {
-          document.getElementById('username').value = savedUsername;
-        }
-      });
-
-      // Handle form submission
-      document.getElementById('timestamp-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const url = document.getElementById('url').value.trim();
-        const username = document.getElementById('username').value.trim() || 'anonymous';
-        const submitBtn = document.getElementById('submit-btn');
-        const alertsDiv = document.getElementById('alerts');
-
-        // Validate YouTube URL
-        if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-          showAlert('Please enter a valid YouTube URL', 'error');
-          return;
-        }
-
-        // Save username if provided
-        if (username !== 'anonymous') {
-          localStorage.setItem('drag-n-stamp-username', username);
-        }
-
-        // Disable button and show loading state
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Generating...';
-
-        // Show processing message
-        showAlert('Processing video... This may take a few minutes. You can close this window.', 'info');
-
-        try {
-          const response = await fetch('<%= @api_endpoint %>', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-              url: url,
-              channel_name: 'anonymous',
-              submitter_username: username
-            })
-          });
-
-          const data = await response.json().catch(() => ({}));
-
-          if (response.ok && data.status === 'success') {
-            showAlert('Timestamps generated successfully!', 'success');
-
-            // Display the timestamps
-            const timestampsDiv = document.createElement('div');
-            timestampsDiv.style.cssText = 'background: #f8f8f8; padding: 15px; border-radius: 8px; margin-top: 15px;';
-            timestampsDiv.innerHTML = '<h3 style="margin-bottom: 10px;">Generated Timestamps:</h3><pre style="white-space: pre-wrap; font-size: 0.85rem;">' + data.response + '</pre>';
-            document.querySelector('.container').appendChild(timestampsDiv);
-
-            // Reset form
-            document.getElementById('url').value = '';
-          } else {
-            const msg = data.message || 'Failed to generate timestamps. Please try again.';
-            showAlert(msg, 'error');
-          }
-        } catch (error) {
-          console.error('Error:', error);
-          showAlert('An error occurred. Please try again.', 'error');
-        } finally {
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Generate Timestamps';
-        }
-      });
-
-      function showAlert(message, type) {
-        const alertsDiv = document.getElementById('alerts');
-        const alert = document.createElement('div');
-        alert.className = 'alert alert-' + type;
-        alert.textContent = message;
-        alertsDiv.innerHTML = '';
-        alertsDiv.appendChild(alert);
-
-        // Auto-hide success messages after 5 seconds
-        if (type === 'success') {
-          setTimeout(() => alert.remove(), 5000);
-        }
-      }
+    <script src={~p"/js/submission-client.js"}>
+    </script>
+    <script src={~p"/js/extension-page.js"}>
     </script>
   </body>
 </html>

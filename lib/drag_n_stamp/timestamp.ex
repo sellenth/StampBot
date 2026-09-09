@@ -30,6 +30,7 @@ defmodule DragNStamp.Timestamp do
       default: :processing
 
     field :processing_error, :string
+    field :processing_phase, :string, default: "queued"
     field :processing_context, :map
     field :estimated_cost_usd, :decimal
 
@@ -58,6 +59,7 @@ defmodule DragNStamp.Timestamp do
       :youtube_comment_attempts,
       :processing_status,
       :processing_error,
+      :processing_phase,
       :processing_context,
       :estimated_cost_usd
     ])

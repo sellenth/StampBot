@@ -55,6 +55,8 @@ defmodule DragNStampWeb.Router do
     options "/receive-url", ApiController, :receive_url
     post "/gemini", ApiController, :gemini
     options "/gemini", ApiController, :gemini
+    get "/submissions/:id", ApiController, :submission
+    options "/submissions/:id", ApiController, :submission
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

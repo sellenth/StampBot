@@ -19,6 +19,7 @@ defmodule DragNStamp.Application do
       {Phoenix.PubSub, name: DragNStamp.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: DragNStamp.Finch},
+      {Oban, Application.fetch_env!(:drag_n_stamp, Oban)},
       # Start a worker by calling: DragNStamp.Worker.start_link(arg)
       # {DragNStamp.Worker, arg},
       # Start to serve requests, typically the last entry

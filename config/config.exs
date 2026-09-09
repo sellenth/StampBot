@@ -11,6 +11,15 @@ config :drag_n_stamp,
   ecto_repos: [DragNStamp.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :drag_n_stamp, Oban,
+  repo: DragNStamp.Repo,
+  queues: [submissions: 2, publishing: 1, maintenance: 1],
+  # Longer than the submission worker's 30 minute timeout, so healthy jobs
+  # cannot be rescued and executed twice by the time-based lifeline.
+  lifeline: [rescue_after: {35, :minutes}],
+  pruner: [max_age: {14, :days}],
+  cron: [crontab: [{"* * * * *", DragNStamp.Submissions.RecoveryWorker}]]
+
 # Keep model roles explicit so quality-critical video understanding can advance
 # independently from lower-cost caption summarization and distillation.
 config :drag_n_stamp, :gemini,

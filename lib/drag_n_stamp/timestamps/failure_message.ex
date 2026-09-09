@@ -37,6 +37,15 @@ defmodule DragNStamp.Timestamps.FailureMessage do
   @type details :: %{summary: String.t(), guidance: String.t(), category: String.t()}
 
   @spec for_timestamp(Timestamp.t()) :: details()
+  def for_timestamp(%Timestamp{processing_context: %{"public_error" => message} = context})
+      when is_binary(message) do
+    details(
+      message,
+      context["last_failure"] || "processing_failed",
+      "This attempt has finished. Submit the video again to retry."
+    )
+  end
+
   def for_timestamp(%Timestamp{processing_error: error, processing_context: context}) do
     from_error(error, latest_caption_reason(context))
   end

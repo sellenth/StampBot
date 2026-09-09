@@ -1,10 +1,13 @@
 defmodule DragNStamp.Commenter do
   @moduledoc """
-  Handles idempotent, rate-limited posting of YouTube comments for a Timestamp.
-  Adds spam prevention and maps API failures to durable status fields.
+  Claims and posts YouTube comments with durable duplicate and rate-limit guards.
+
+  A pending claim is deliberately not reclaimed automatically: an interrupted
+  network call may already have published a comment on YouTube.
   """
 
-  require Logger
+  import Ecto.Query
+
   alias DragNStamp.{Repo, Timestamp, YouTubeAPI}
 
   @cooldown_seconds 60
@@ -13,155 +16,233 @@ defmodule DragNStamp.Commenter do
   @doc """
   Attempts to post a YouTube comment for the given timestamp.
 
-  - Idempotent via `youtube_comment_dedupe_key`.
-  - Applies cooldown and daily attempt cap.
-  - Updates status fields on the record and returns the updated struct.
+  Atomically claims an eligible record before network IO. Callers that encounter
+  a pending or completed attempt skip without changing its durable status.
+  `:post_fun` accepts a two-argument function for an alternative posting adapter.
   """
-  def post_for_timestamp(%Timestamp{} = ts) do
-    with {:ok, ts} <- maybe_reload(ts),
-         {:ok, _} <- ensure_ready(ts),
-         {:ok, dedupe_key} <- compute_dedupe_key(ts),
-         :ok <- enforce_limits(ts),
-         {:ok, ts} <- mark_pending(ts, dedupe_key),
-         {:ok, result} <- do_post(ts) do
-      handle_success(ts, result)
-    else
-      {:skip, reason, %Timestamp{} = ts} ->
-        {:ok, ts, {:skipped, reason}}
+  def post_for_timestamp(%Timestamp{} = timestamp, opts \\ []) do
+    case claim(timestamp) do
+      {:ok, claimed} ->
+        case do_post(claimed, opts) do
+          {:ok, response} -> handle_success(claimed, response)
+          {:error, reason} -> handle_failure(claimed, reason)
+        end
+
+      {:skip, reason, latest} ->
+        {:ok, latest, {:skipped, reason}}
+
+      {:blocked, reason, latest} ->
+        {:ok, latest, {:error, reason}}
 
       {:error, reason} ->
-        with {:ok, %Timestamp{} = updated} <- handle_failure(ts, reason) do
-          {:ok, updated, {:error, reason}}
-        else
-          other -> other
-        end
+        {:error, reason}
     end
   end
 
-  defp maybe_reload(%Timestamp{id: id}) do
-    {:ok, Repo.get!(Timestamp, id)}
+  defp claim(timestamp) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    with {:ok, latest} <- reload(timestamp),
+         :ok <- ensure_ready(latest),
+         :ok <- enforce_limits(latest, now) do
+      dedupe_key =
+        :crypto.hash(:sha256, latest.url <> "|" <> latest.distilled_content)
+        |> Base.encode16(case: :lower)
+
+      cooldown_cutoff = DateTime.add(now, -@cooldown_seconds, :second)
+      daily_cutoff = DateTime.add(now, -86_400, :second)
+
+      eligible =
+        from t in Timestamp,
+          where:
+            t.id == ^latest.id and t.processing_status == :ready and
+              t.youtube_comment_status not in [:pending, :succeeded] and
+              is_nil(t.youtube_comment_external_id) and
+              t.url == ^latest.url and t.distilled_content == ^latest.distilled_content and
+              (is_nil(t.youtube_comment_last_attempt_at) or
+                 t.youtube_comment_last_attempt_at <= ^cooldown_cutoff) and
+              (is_nil(t.youtube_comment_last_attempt_at) or
+                 t.youtube_comment_last_attempt_at <= ^daily_cutoff or
+                 t.youtube_comment_attempts < @daily_attempt_cap),
+          select: t
+
+      changes = [
+        set: [
+          youtube_comment_status: :pending,
+          youtube_comment_error: nil,
+          youtube_comment_last_attempt_at: now,
+          youtube_comment_dedupe_key: dedupe_key,
+          updated_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+        ],
+        inc: [youtube_comment_attempts: 1]
+      ]
+
+      case Repo.update_all(eligible, changes) do
+        {1, [claimed]} -> {:ok, claimed}
+        {0, []} -> claim_changed(latest, now)
+      end
+    end
   end
 
-  defp ensure_ready(%Timestamp{} = ts) do
+  defp reload(%Timestamp{id: id}) when not is_nil(id) do
+    case Repo.get(Timestamp, id) do
+      nil -> {:error, :not_found}
+      latest -> {:ok, latest}
+    end
+  end
+
+  defp reload(_), do: {:error, :not_found}
+
+  defp claim_changed(timestamp, now) do
+    with {:ok, latest} <- reload(timestamp),
+         :ok <- ensure_ready(latest),
+         :ok <- enforce_limits(latest, now) do
+      # The content or another eligibility field changed after it was read.
+      # Let a later caller inspect the new record instead of posting stale text.
+      {:skip, :claim_changed, latest}
+    end
+  end
+
+  defp ensure_ready(%Timestamp{} = timestamp) do
     cond do
-      ts.youtube_comment_status in [:succeeded] or not is_nil(ts.youtube_comment_external_id) ->
-        {:skip, :already_commented, ts}
+      timestamp.youtube_comment_status == :succeeded or
+          not is_nil(timestamp.youtube_comment_external_id) ->
+        {:skip, :already_commented, timestamp}
 
-      is_nil(ts.distilled_content) or String.trim(to_string(ts.distilled_content)) == "" ->
-        {:error, :no_distilled_content}
+      timestamp.youtube_comment_status == :pending ->
+        {:skip, :in_flight, timestamp}
 
-      unwatched_content?(ts) ->
-        # Do not comment when the generated content indicates missing input
-        {:skip, :unwatched, ts}
+      timestamp.processing_status != :ready ->
+        {:skip, :not_ready, timestamp}
+
+      not is_binary(timestamp.distilled_content) or
+          String.trim(timestamp.distilled_content) == "" ->
+        {:blocked, :no_distilled_content, timestamp}
+
+      not is_binary(timestamp.url) ->
+        {:blocked, :invalid_data, timestamp}
+
+      String.contains?(timestamp.distilled_content, "0:00 UNWATCHED") ->
+        {:skip, :unwatched, timestamp}
 
       true ->
-        {:ok, :ready}
+        :ok
     end
   end
 
-  defp unwatched_content?(%Timestamp{} = ts) do
-    base =
-      (ts.distilled_content || ts.content || "")
-      |> to_string()
-
-    String.contains?(base, "0:00 UNWATCHED")
-  end
-
-  defp compute_dedupe_key(%Timestamp{url: url, distilled_content: content}) when is_binary(url) and is_binary(content) do
-    key = :crypto.hash(:sha256, url <> "|" <> content) |> Base.encode16(case: :lower)
-    {:ok, key}
-  end
-
-  defp compute_dedupe_key(_), do: {:error, :invalid_data}
-
-  defp enforce_limits(%Timestamp{} = ts) do
-    now = DateTime.utc_now()
-
-    too_soon =
-      case ts.youtube_comment_last_attempt_at do
-        nil -> false
-        %DateTime{} = last -> DateTime.diff(now, last, :second) < @cooldown_seconds
+  defp enforce_limits(%Timestamp{} = timestamp, now) do
+    elapsed =
+      case timestamp.youtube_comment_last_attempt_at do
+        nil -> nil
+        last -> DateTime.diff(now, last, :second)
       end
 
-    if too_soon do
-      {:error, :cooldown}
-    else
-      recent_cap_hit =
-        case ts.youtube_comment_last_attempt_at do
-          nil -> false
-          %DateTime{} = last -> DateTime.diff(now, last, :second) < 86_400 and ts.youtube_comment_attempts >= @daily_attempt_cap
-        end
+    cond do
+      is_integer(elapsed) and elapsed < @cooldown_seconds ->
+        {:blocked, :cooldown, timestamp}
 
-      if recent_cap_hit, do: {:error, :rate_limited}, else: :ok
+      is_integer(elapsed) and elapsed < 86_400 and
+          timestamp.youtube_comment_attempts >= @daily_attempt_cap ->
+        {:blocked, :rate_limited, timestamp}
+
+      true ->
+        :ok
     end
   end
 
-  defp mark_pending(%Timestamp{} = ts, dedupe_key) do
-    changes = %{
-      youtube_comment_status: :pending,
-      youtube_comment_last_attempt_at: DateTime.utc_now(),
-      youtube_comment_attempts: (ts.youtube_comment_attempts || 0) + 1,
-      youtube_comment_dedupe_key: dedupe_key
-    }
+  defp do_post(%Timestamp{url: url, distilled_content: content}, opts) do
+    post_fun = Keyword.get(opts, :post_fun, &YouTubeAPI.post_comment/2)
 
-    case Repo.update(Timestamp.changeset(ts, changes)) do
-      {:ok, updated} -> {:ok, updated}
-      {:error, _} = err -> err
-    end
-  end
-
-  defp do_post(%Timestamp{url: url, distilled_content: content}) do
-    case YouTubeAPI.post_comment(url, content) do
-      {:ok, resp} -> {:ok, resp}
+    case post_fun.(url, content) do
+      {:ok, response} -> {:ok, response}
       {:error, reason} -> {:error, normalize_error(reason)}
     end
   end
 
-  defp handle_success(%Timestamp{} = ts, resp) do
-    external_id = extract_comment_id(resp)
-    changes = %{
-      youtube_comment_status: :succeeded,
-      youtube_comment_error: nil,
-      youtube_comment_external_id: external_id
-    }
-
-    case Repo.update(Timestamp.changeset(ts, changes)) do
-      {:ok, updated} -> {:ok, updated, :ok}
-      other -> other
-    end
+  defp handle_success(timestamp, response) do
+    finish_claim(
+      timestamp,
+      [
+        youtube_comment_status: :succeeded,
+        youtube_comment_error: nil,
+        youtube_comment_external_id: extract_comment_id(response)
+      ],
+      :ok
+    )
   end
 
-  defp handle_failure(%Timestamp{} = ts, reason) do
-    status =
-      case reason do
-        :auth_required -> :auth_required
-        _ -> :failed
-      end
+  defp handle_failure(timestamp, reason) do
+    status = if reason == :auth_required, do: :auth_required, else: :failed
 
-    changes = %{
-      youtube_comment_status: status,
-      youtube_comment_error: to_string(reason)
-    }
+    finish_claim(
+      timestamp,
+      [youtube_comment_status: status, youtube_comment_error: Atom.to_string(reason)],
+      {:error, reason}
+    )
+  end
 
-    Repo.update(Timestamp.changeset(ts, changes))
+  defp finish_claim(timestamp, changes, outcome) do
+    owned =
+      from t in Timestamp,
+        where:
+          t.id == ^timestamp.id and t.youtube_comment_status == :pending and
+            is_nil(t.youtube_comment_external_id) and
+            t.youtube_comment_dedupe_key == ^timestamp.youtube_comment_dedupe_key and
+            t.youtube_comment_last_attempt_at == ^timestamp.youtube_comment_last_attempt_at and
+            t.youtube_comment_attempts == ^timestamp.youtube_comment_attempts,
+        select: t
+
+    changes =
+      Keyword.put(
+        changes,
+        :updated_at,
+        NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      )
+
+    case Repo.update_all(owned, set: changes) do
+      {1, [updated]} ->
+        {:ok, updated, outcome}
+
+      {0, []} ->
+        case reload(timestamp) do
+          {:ok, latest} -> {:ok, latest, {:skipped, :claim_changed}}
+          error -> error
+        end
+    end
   end
 
   defp normalize_error(reason) do
     case reason do
-      :auth_required -> :auth_required
-      :quota -> :quota
-      :bad_request -> :bad_request
-      :unauthorized -> :auth_required
-      :cooldown -> :cooldown
-      :rate_limited -> :rate_limited
-      :invalid_data -> :invalid_data
+      :auth_required ->
+        :auth_required
+
+      :quota ->
+        :quota
+
+      :bad_request ->
+        :bad_request
+
+      :unauthorized ->
+        :auth_required
+
+      :cooldown ->
+        :cooldown
+
+      :rate_limited ->
+        :rate_limited
+
+      :invalid_data ->
+        :invalid_data
+
       other when is_binary(other) ->
         try do
           String.to_existing_atom(other)
         rescue
           ArgumentError -> :unknown
         end
-      _other -> :unknown
+
+      _other ->
+        :unknown
     end
   end
 

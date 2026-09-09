@@ -38,3 +38,6 @@ config :phoenix_live_view,
 
 config :drag_n_stamp, :fetch_video_metadata_on_ingest, false
 config :drag_n_stamp, :seo_fetch_metadata, false
+
+# Enqueue real database jobs, but never run external services automatically.
+config :drag_n_stamp, Oban, testing: :manual

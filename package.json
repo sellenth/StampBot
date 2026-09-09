@@ -2,7 +2,9 @@
   "name": "stampbot",
   "private": true,
   "scripts": {
-    "test:puppeteer": "node test/puppeteer/home_merge.mjs"
+    "test:puppeteer": "node test/puppeteer/home_merge.mjs",
+    "test:js": "node --test test/js/*.cjs",
+    "test:submission-ui": "node test/puppeteer/submission_flow.mjs"
   },
   "devDependencies": {
     "puppeteer": "^24.7.1"

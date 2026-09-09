@@ -5,7 +5,7 @@ defmodule DragNStamp.MixProject do
     [
       app: :drag_n_stamp,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -37,6 +37,7 @@ defmodule DragNStamp.MixProject do
       {:phoenix, "~> 1.8.0"},
       {:phoenix_ecto, "~> 4.6"},
       {:ecto_sql, "~> 3.12"},
+      {:oban, "~> 2.24.1"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.2"},
       {:phoenix_live_reload, "~> 1.5", only: :dev},
