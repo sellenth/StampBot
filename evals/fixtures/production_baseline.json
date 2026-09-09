@@ -1,18 +1,304 @@
 {
-  "version": 1,
+  "version": 2,
   "description": "Synthetic IO fixtures, not assertions about the contents or availability of the referenced real videos. URLs reuse IDs from the historical August 2026 eval solely to exercise production URL handling. Durations, captions, and model responses below are synthetic.",
   "cases": [
-    {"id":"short_video","url":"https://www.youtube.com/watch?v=_NlOIjOByUg","duration_seconds":149,"strata":["short","video"],"expected_route":"video","expected_outcome":"ready"},
-    {"id":"short_url_variant","url":"https://youtu.be/_NlOIjOByUg?t=20","duration_seconds":149,"strata":["url_variant","video"],"expected_route":"video","expected_outcome":"ready"},
-    {"id":"continuous_long_captions","url":"https://www.youtube.com/watch?v=t2I_6p1TwfM","duration_seconds":5400,"caption_profile":"continuous_long","strata":["long","continuous_captions","over_60k_characters"],"expected_route":"captions","expected_outcome":"ready","require_all_segments":true,"min_last_timestamp":5000},
-    {"id":"multilingual_captions","url":"https://www.youtube.com/watch?v=_NlOIjOByUg","duration_seconds":1800,"caption_profile":"multilingual","strata":["multilingual","captions"],"expected_route":"captions","expected_outcome":"ready","require_all_segments":true,"required_prompt_text":["Introducción","日本語","الخاتمة"],"min_last_timestamp":1700},
-    {"id":"unknown_duration","url":"https://www.youtube.com/watch?v=7aYqQN2IzS8","duration_seconds":null,"caption_profile":"brief","metadata_error":true,"strata":["unknown_duration","metadata_failure","captions"],"expected_route":"captions","expected_outcome":"ready","require_all_segments":true},
-    {"id":"video_failure_recovers_with_captions","url":"https://www.youtube.com/watch?v=5qm6_DoM1Pc","duration_seconds":224,"video_response":"unavailable","caption_profile":"brief","strata":["video_ingestion_failure","caption_fallback"],"expected_route":"video_then_captions","expected_outcome":"ready"},
-    {"id":"video_rate_limit_retry","url":"https://www.youtube.com/watch?v=X1aFkAkFASk","duration_seconds":130,"video_response":"rate_limit_once","strata":["rate_limit","transport_retry"],"expected_route":"video","expected_outcome":"ready","expected_video_requests":2},
-    {"id":"long_no_captions","url":"https://www.youtube.com/watch?v=t2I_6p1TwfM","duration_seconds":1800,"caption_error":"no_subtitles","strata":["long","no_captions","terminal_failure"],"expected_route":"captions","expected_outcome":"error","expected_reason":"captions_unavailable","expected_retryable":false},
-    {"id":"caption_rate_limit","url":"https://www.youtube.com/watch?v=t2I_6p1TwfM","duration_seconds":1800,"caption_error":"rate_limited","strata":["caption_access_failure","retryable_failure"],"expected_route":"captions","expected_outcome":"error","expected_reason":"youtube_rate_limited","expected_retryable":true},
-    {"id":"invalid_caption_timestamps","url":"https://www.youtube.com/watch?v=t2I_6p1TwfM","duration_seconds":1800,"caption_profile":"brief","caption_response":"out_of_bounds","strata":["schema_validation","timestamp_bounds","failure"],"expected_route":"captions","expected_outcome":"error"},
-    {"id":"distillation_failure_preserves_primary","url":"https://www.youtube.com/watch?v=7aYqQN2IzS8","duration_seconds":421,"text_response":"invalid_json","strata":["distillation_failure","usable_primary"],"expected_route":"video","expected_outcome":"ready","require_primary_fallback":true},
-    {"id":"resume_persisted_generation","url":"https://www.youtube.com/watch?v=_NlOIjOByUg","duration_seconds":149,"checkpoint_content":"0:00 Synthetic saved opening explains the first processing step\n2:00 Synthetic saved ending explains the final processing step","strata":["restart_checkpoint","skip_duplicate_generation"],"expected_route":"resume_checkpoint","expected_outcome":"ready","expected_video_requests":0}
+    {
+      "id": "short_video",
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg",
+      "duration_seconds": 149,
+      "strata": [
+        "short",
+        "video"
+      ],
+      "expected_route": "video",
+      "expected_outcome": "ready"
+    },
+    {
+      "id": "short_url_variant",
+      "url": "https://youtu.be/_NlOIjOByUg?t=20",
+      "duration_seconds": 149,
+      "strata": [
+        "url_variant",
+        "video"
+      ],
+      "expected_route": "video",
+      "expected_outcome": "ready"
+    },
+    {
+      "id": "continuous_long_captions",
+      "url": "https://www.youtube.com/watch?v=t2I_6p1TwfM",
+      "duration_seconds": 5400,
+      "caption_profile": "continuous_long",
+      "strata": [
+        "long",
+        "continuous_captions",
+        "over_60k_characters"
+      ],
+      "expected_route": "captions",
+      "expected_outcome": "ready",
+      "require_all_segments": true,
+      "min_last_timestamp": 5000
+    },
+    {
+      "id": "multilingual_captions",
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg",
+      "duration_seconds": 1800,
+      "caption_profile": "multilingual",
+      "strata": [
+        "multilingual",
+        "captions"
+      ],
+      "expected_route": "captions",
+      "expected_outcome": "ready",
+      "require_all_segments": true,
+      "required_prompt_text": [
+        "Introducción",
+        "日本語",
+        "الخاتمة"
+      ],
+      "min_last_timestamp": 1700
+    },
+    {
+      "id": "unknown_duration",
+      "url": "https://www.youtube.com/watch?v=7aYqQN2IzS8",
+      "duration_seconds": null,
+      "caption_profile": "brief",
+      "metadata_error": true,
+      "strata": [
+        "unknown_duration",
+        "metadata_failure",
+        "captions"
+      ],
+      "expected_route": "captions",
+      "expected_outcome": "ready",
+      "require_all_segments": true
+    },
+    {
+      "id": "video_failure_recovers_with_captions",
+      "url": "https://www.youtube.com/watch?v=5qm6_DoM1Pc",
+      "duration_seconds": 224,
+      "video_response": "unavailable",
+      "caption_profile": "brief",
+      "strata": [
+        "video_ingestion_failure",
+        "caption_fallback"
+      ],
+      "expected_route": "video_then_captions",
+      "expected_outcome": "ready"
+    },
+    {
+      "id": "video_rate_limit_retry",
+      "url": "https://www.youtube.com/watch?v=X1aFkAkFASk",
+      "duration_seconds": 130,
+      "video_response": "rate_limit_once",
+      "strata": [
+        "rate_limit",
+        "transport_retry"
+      ],
+      "expected_route": "video",
+      "expected_outcome": "ready",
+      "expected_video_requests": 2
+    },
+    {
+      "id": "long_no_captions",
+      "url": "https://www.youtube.com/watch?v=t2I_6p1TwfM",
+      "duration_seconds": 1800,
+      "caption_error": "no_subtitles",
+      "strata": [
+        "long",
+        "no_captions",
+        "terminal_failure"
+      ],
+      "expected_route": "captions",
+      "expected_outcome": "error",
+      "expected_reason": "captions_unavailable",
+      "expected_retryable": false
+    },
+    {
+      "id": "caption_rate_limit",
+      "url": "https://www.youtube.com/watch?v=t2I_6p1TwfM",
+      "duration_seconds": 1800,
+      "caption_error": "rate_limited",
+      "strata": [
+        "caption_access_failure",
+        "retryable_failure"
+      ],
+      "expected_route": "captions",
+      "expected_outcome": "error",
+      "expected_reason": "youtube_rate_limited",
+      "expected_retryable": true
+    },
+    {
+      "id": "invalid_caption_timestamps",
+      "url": "https://www.youtube.com/watch?v=t2I_6p1TwfM",
+      "duration_seconds": 1800,
+      "caption_profile": "brief",
+      "caption_response": "out_of_bounds",
+      "strata": [
+        "schema_validation",
+        "timestamp_bounds",
+        "failure"
+      ],
+      "expected_route": "captions",
+      "expected_outcome": "error"
+    },
+    {
+      "id": "distillation_failure_preserves_primary",
+      "url": "https://www.youtube.com/watch?v=7aYqQN2IzS8",
+      "duration_seconds": 421,
+      "text_response": "invalid_json",
+      "strata": [
+        "distillation_failure",
+        "usable_primary"
+      ],
+      "expected_route": "video",
+      "expected_outcome": "ready",
+      "require_primary_fallback": true
+    },
+    {
+      "id": "resume_persisted_generation",
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg",
+      "duration_seconds": 149,
+      "checkpoint_content": "0:00 Synthetic saved opening explains the first processing step\n2:00 Synthetic saved ending explains the final processing step",
+      "strata": [
+        "restart_checkpoint",
+        "skip_duplicate_generation"
+      ],
+      "expected_route": "resume_checkpoint",
+      "expected_outcome": "ready",
+      "expected_video_requests": 0
+    },
+    {
+      "id": "unwatched_video_recovers_with_captions",
+      "duration_seconds": 180,
+      "video_response": "unwatched",
+      "expected_route": "video_then_captions",
+      "expected_outcome": "ready",
+      "strata": [
+        "unwatched_sentinel",
+        "caption_fallback"
+      ],
+      "expected_video_requests": 1,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "caption_refusal_is_not_completion",
+      "duration_seconds": 1800,
+      "caption_response": "refusal",
+      "expected_route": "captions",
+      "expected_outcome": "error",
+      "strata": [
+        "provider_refusal",
+        "parseable_refusal",
+        "completion_not_quality"
+      ],
+      "expected_reason": "gemini_error",
+      "require_failed_usage": true,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "max_tokens_video_recovers_with_captions",
+      "duration_seconds": 180,
+      "video_response": "max_tokens",
+      "expected_route": "video_then_captions",
+      "expected_outcome": "ready",
+      "strata": [
+        "max_tokens",
+        "parseable_incomplete_output",
+        "caption_fallback"
+      ],
+      "require_failed_usage": true,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "late_caption_chunk_failure",
+      "duration_seconds": 5400,
+      "caption_profile": "continuous_long",
+      "caption_response": "late_chunk_failure",
+      "expected_route": "captions",
+      "expected_outcome": "error",
+      "strata": [
+        "late_chunk_failure",
+        "all_attempt_accounting"
+      ],
+      "expected_reason": "gemini_error",
+      "expected_retryable": true,
+      "expected_completed_chunks": 5,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "oversized_transcript_stops_before_model",
+      "duration_seconds": 1800,
+      "caption_profile": "oversized",
+      "enable_work_budget": true,
+      "expected_route": "captions",
+      "expected_outcome": "error",
+      "strata": [
+        "oversized_input",
+        "resource_budget"
+      ],
+      "expected_reason": "input_limit_exceeded",
+      "expected_retryable": false,
+      "expected_caption_requests": 0,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "transcript_instruction_marker_stays_data",
+      "duration_seconds": 1800,
+      "caption_profile": "injection_marker",
+      "expected_route": "captions",
+      "expected_outcome": "ready",
+      "strata": [
+        "prompt_injection_marker",
+        "data_boundary_only"
+      ],
+      "require_all_segments": true,
+      "require_untrusted_marker_separation": true,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "script_marker_is_escaped_in_rendered_output",
+      "duration_seconds": 180,
+      "text_response": "script_marker",
+      "channel_name": "</script><script>FIXTURE_SCRIPT_MARKER</script>",
+      "expected_route": "video",
+      "expected_outcome": "ready",
+      "strata": [
+        "script_context_encoding",
+        "untrusted_output"
+      ],
+      "require_safe_rendering": true,
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
+    },
+    {
+      "id": "missing_usage_is_unknown",
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg",
+      "duration_seconds": 180,
+      "video_response": "missing_usage",
+      "expected_route": "video",
+      "expected_outcome": "ready",
+      "strata": [
+        "missing_usage",
+        "unknown_cost"
+      ],
+      "require_unknown_usage": true
+    },
+    {
+      "id": "request_budget_stops_distillation_dispatch",
+      "url": "https://www.youtube.com/watch?v=_NlOIjOByUg",
+      "duration_seconds": 180,
+      "enable_work_budget": true,
+      "run_request_limit": 1,
+      "expected_route": "video",
+      "expected_outcome": "ready",
+      "strata": [
+        "request_budget",
+        "pre_dispatch_denial",
+        "usable_primary"
+      ],
+      "require_budget_denial": true,
+      "require_primary_fallback": true,
+      "expected_dispatched_requests": 1
+    }
   ]
 }

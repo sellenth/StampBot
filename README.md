@@ -53,3 +53,22 @@ paid model calls. It is retained as a historical experiment, not the baseline:
 ```sh
 MIX_ENV=test mix run --no-start evals/top_youtube_trending.exs
 ```
+
+## Security and measurement
+
+See [the second milestone](docs/milestone-two.md) for processing limits,
+operator-approved publication, trusted-proxy configuration, and rollout settings.
+Public submissions generate results; system-account comment posting requires
+operator approval by default. Automatic posting is an explicit deployment choice.
+
+```sh
+# Read-only operational summary; no workers or provider calls are started.
+MIX_ENV=prod mix stampbot.operations --hours 24 --json
+
+# Export a private, frozen review cohort; no model calls are made.
+MIX_ENV=prod mix stampbot.export_eval_cohort --output tmp/evals/cohort-2026-09-09
+```
+
+Run these commands against the deliberately selected database environment.
+The [evaluation guide](evals/README.md) explains offline regression checks and
+controlled live runs; [the next review](docs/next-review.md) lists remaining work.

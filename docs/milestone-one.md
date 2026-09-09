@@ -1,5 +1,9 @@
 # First reliability milestone
 
+This records the first milestone. [Milestone two](milestone-two.md) subsequently
+adds work budgets, explicit publication policy, attempt accounting, and evaluation
+checks; its publication default supersedes the automatic behavior described here.
+
 The submission pipeline now lives in `DragNStamp.Submissions.Processor`, shared
 by production workers and the evaluation harness. HTTP controllers no longer
 perform video analysis or call themselves through HTTP.

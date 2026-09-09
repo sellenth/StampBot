@@ -35,7 +35,12 @@ short-link input, 90 minutes of continuous captions exceeding 60,000 characters,
 multilingual captions, unknown duration, video failure followed by caption
 recovery, rate-limit retry, missing captions, caption rate limiting, out-of-bounds
 model output, failed distillation with usable primary output, and resuming a
-persisted generation without duplicate video/caption requests. Separate
+persisted generation without duplicate video/caption requests. It also covers
+`UNWATCHED`, refusals with parseable JSON, `MAX_TOKENS`, failure after five
+completed caption chunks, oversized transcripts rejected before model dispatch,
+missing provider usage, an untrusted instruction marker, and HTML script-context
+encoding, and a request allowance that blocks distillation before HTTP dispatch
+while retaining the primary result. Separate
 [URL cases](fixtures/url_contract.json) check watch, reordered query, shortened,
 mobile, Shorts, live, and embed links as well as invalid hosts and IDs.
 
@@ -45,7 +50,13 @@ the last segment, and that late timestamps survive chunk merging and distillatio
 This detects the old prefix-truncation and continuous-caption-collapse failure
 without a paid model call. The offline model chooses first and last supplied
 timecodes; it does not attempt semantic understanding. Simulated 429s and invalid
-JSON go through the actual Gemini retry/validation code.
+JSON go through the actual Gemini retry/validation code. Every simulated HTTP
+request must have a matching durable request ledger row; usage from rejected
+responses survives validation, and absent usage remains unknown. The report
+separates acquisition evidence, pipeline completion, timestamp format/bounds, and
+human chapter quality. `UNWATCHED` is explicitly unusable. The instruction-marker
+case checks the system/user data boundary only; it does not prove model resistance
+to prompt injection. Rendering uses an in-memory static page and executes no script.
 
 The URL identities are copied from the historical eval. Synthetic durations,
 transcript text, access failures, and model responses **do not describe those
@@ -60,8 +71,10 @@ This does not test the HTTP/UI submission contract, queue scheduling, restart
 recovery, concurrent deduplication, real caption-provider availability, network
 timeouts, or human chapter quality. Those need the focused application tests and
 an explicitly authorized live evaluation. Offline duration and cost are not
-useful model-performance metrics; the report labels cost as zero and semantic
-quality as unmeasured.
+useful model-performance metrics; the report labels actual paid cost as zero and
+semantic quality as unmeasured. Synthetic usage-based estimates are identified
+separately. The oversized case briefly enables real work limits inside the
+sequential fixture process, then restores test configuration.
 
 ## Explicit live runs
 
@@ -83,20 +96,70 @@ STAMPBOT_EVAL_ALLOW_LIVE=1 MIX_ENV=test mix run --no-start \
 ```
 
 `GEMINI_API_KEY` must be set; production metadata/caption adapters use their usual
-environment settings. Only IDs in the historical cohort are accepted, one per
-run. Metadata is fetched again rather than assuming snapshot duration is current.
+environment settings. Only IDs in the selected cohort are accepted, one per
+run; `--cohort PATH/manifest.json` selects an exported cohort instead of the
+historical sample. Metadata is fetched again rather than assuming snapshot duration is current.
 The real processor runs with publication disabled, in a local test transaction
 that rolls back. The output is an **unreviewed observation**, not a pass verdict;
-the retained-result cost estimate excludes failed/discarded attempts, including
-successful chunks from failed pipeline runs. Missing usage or rates leave total
-cost unknown. This refresh's offline run does not execute live mode.
+the attempt ledger includes retries, rejected model responses, and successful
+chunks from failed runs. Only request rows contribute to the cost subtotal.
+Missing usage or rates leave total cost unknown. The artifact includes a SHA-256
+fingerprint of application source and dependency lockfile, stage/request records,
+and generated content for review. This refresh's offline run does not execute live mode.
 
-Before making a reliability claim, extend the real cohort with actual failed
-submissions and the missing strata listed in its manifest. Record source
-availability at run time, language, duration, captions, route, failure category,
-all-attempt cost (or explicitly unknown), and latency. Keep unavailable-source
-cases separate from model-quality failures. Have a reviewer watch chapter
-boundaries and check factual support, omitted important events, and unsupported
-claims. Include the long continuous-caption cases, rather than only short
-trending trailers. Compare the same source inputs and pipeline version across
-model configurations, and keep a held-out set when tuning prompts.
+## Export actual failed and degraded submissions
+
+This is a read-only engineering workflow, separate from a live model run:
+
+```sh
+MIX_ENV=prod mix stampbot.export_eval_cohort --output tmp/evals/cohort-2026-09-09
+```
+
+Run it only in the deliberately selected database environment. It loads normal
+runtime configuration, starts Repo and its dependencies, and issues a bounded
+read-only transaction. It does not start the application supervisor, Oban,
+metadata acquisition, model calls, or publication. Do not prefix it with
+`mix run` or `app.start`. No actual production export was performed by the
+offline evaluation work.
+
+The query selects actual failed rows and ready rows with absent/failed
+distillation, recovered video fallback, or a legacy `UNWATCHED` marker. Active
+processing rows are excluded. It reads the latest 10,000 matching rows by default
+(`--scan-limit`, maximum 100,000), then selects up to 10 distinct video identities
+per outcome/failure-category/duration/recorded-language stratum (`--per-stratum`). The manifest
+reports if the scan limit was reached, which strata exist, and which have no
+held-out examples. This is a failure-focused recovery sample, not an overall
+production success-rate denominator.
+
+Duplicate video identities collapse to one representative submission. A fixed
+hash assigns every video to `tuning` or `held_out`; the default held-out share is
+20% (`--held-out-percent` can be set when first creating the cohort). Membership
+is stable across ordering and duplicate submissions. Freeze that configuration
+and the manifest before prompt tuning; small strata may need more examples.
+
+The task creates a **new private directory** containing `manifest.json` and a
+blank `review.csv`, and refuses to replace an existing cohort. It exports canonical
+video IDs, source submission IDs, and allowlisted historical outcome metadata.
+It does not select or export user names, generated/source text, raw errors, full
+processing context, credentials, or OAuth/cookie data. Keep the cohort private:
+video identities can refer to unlisted submissions. Unknown language and failure
+categories remain unknown rather than being guessed from free text.
+
+An explicitly authorized single-video live run from that frozen manifest is:
+
+```sh
+STAMPBOT_EVAL_ALLOW_LIVE=1 MIX_ENV=test mix run --no-start \
+  evals/production_baseline.exs --live \
+  --cohort tmp/evals/cohort-2026-09-09/manifest.json --video VIDEO_ID \
+  --output tmp/evals/run-VIDEO_ID.json
+```
+
+The live runner still requires an isolated local test database, disables
+publication, enables real work limits for the scoped processor call, and rolls
+back row writes. Run request/input limits apply. Because attempt and reservation
+rows are rolled back, this does **not** enforce or measure a shared daily budget
+across separate eval runs or against production spend. It does not run the cohort in bulk or
+assign quality scores. Follow the [human review rubric](HUMAN_REVIEW.md) for source
+evidence, factual support, chapter timing, coverage, safety, stable held-out
+comparisons, and denominators. Acquisition, completion, and usable chapters must
+be reported separately. Add healthy controls before claiming overall reliability.
