@@ -5,14 +5,23 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   """
 
   alias DragNStamp.SEO.VideoMetadata
-  alias DragNStamp.Timestamps.{CostEstimator, GeminiClient, Parser, Prompts}
+  alias DragNStamp.Timestamps.{CostEstimator, GeminiClient, Prompts, TimestampSet}
   alias DragNStamp.YouTube.Captions
 
   @caption_merge_window_ms 15_000
   @caption_char_limit 60_000
+  @caption_chunk_window_ms 15 * 60_000
 
   @type attempt_meta :: map()
 
+  @doc """
+  Summarizes every caption excerpt, retaining timecodes from the original video.
+
+  `:max_seconds` supplies a known video duration. When it is unavailable, the last
+  caption end provides a conservative output bound, recorded separately from the
+  video's duration. The `:fetch_transcript_fun` and `:generate_fun` options allow
+  callers to replace acquisition and model IO without replacing preprocessing.
+  """
   @spec process(String.t(), String.t(), String.t(), keyword()) ::
           {:ok, binary(), attempt_meta}
           | {:error, atom(), String.t(), attempt_meta}
@@ -21,7 +30,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
     case VideoMetadata.extract_video_id(url) do
       {:ok, video_id} ->
-        maybe_process_with_video_id(video_id, channel_name, url, api_key, trigger)
+        maybe_process_with_video_id(video_id, channel_name, url, api_key, opts)
 
       {:error, reason} ->
         attempt =
@@ -36,40 +45,50 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     end
   end
 
-  defp maybe_process_with_video_id(_video_id, _channel_name, url, api_key, trigger)
+  defp maybe_process_with_video_id(_video_id, _channel_name, url, api_key, opts)
        when api_key in [nil, ""] do
     attempt =
       build_caption_attempt_meta(nil, "failure", %{
         "reason" => "missing_gemini_api_key",
         "failure_reason" => "missing_api_key",
         "video_url" => url,
-        "trigger" => trigger
+        "trigger" => Keyword.get(opts, :trigger)
       })
 
     {:error, :missing_api_key, failure_message(:missing_api_key), attempt}
   end
 
-  defp maybe_process_with_video_id(video_id, channel_name, url, api_key, trigger) do
-    case Captions.fetch_transcript(video_id) do
+  defp maybe_process_with_video_id(video_id, channel_name, url, api_key, opts) do
+    trigger = Keyword.get(opts, :trigger)
+    fetch_transcript = Keyword.get(opts, :fetch_transcript_fun, &Captions.fetch_transcript/1)
+
+    case fetch_transcript.(video_id) do
       {:ok, %{segments: segments, context: caption_context}} ->
-        case build_transcript_payload(segments) do
-          {:ok, transcript_text, stats} ->
-            case summarize_captions(channel_name, transcript_text, api_key) do
+        case build_transcript_payload(segments, opts) do
+          {:ok, chunks, stats} ->
+            case summarize_captions(
+                   channel_name,
+                   chunks,
+                   api_key,
+                   stats.output_bound_seconds,
+                   opts
+                 ) do
               {:ok, cleaned, model, estimated_cost_usd} ->
                 attempt =
                   build_caption_attempt_meta(video_id, "success", %{
                     "caption_context" => caption_context,
-                    "transcript_stats" => stats,
-                    "prompt_character_count" => String.length(transcript_text),
+                    "transcript_stats" => Map.put(stats, :completed_chunk_count, length(chunks)),
+                    "prompt_character_count" => stats.char_count,
                     "model" => model,
                     "estimated_cost_usd" => CostEstimator.serialize(estimated_cost_usd),
                     "video_url" => url,
                     "trigger" => trigger
                   })
+                  |> put_duration_metadata(stats)
 
                 {:ok, cleaned, attempt}
 
-              {:error, reason_atom, info} ->
+              {:error, reason_atom, info, estimated_cost_usd, completed_chunk_count} ->
                 attempt =
                   build_failure_attempt(
                     video_id,
@@ -77,9 +96,11 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
                     url,
                     trigger,
                     reason_atom,
-                    stats,
+                    Map.put(stats, :completed_chunk_count, completed_chunk_count),
                     info
                   )
+                  |> put_duration_metadata(stats)
+                  |> Map.put("estimated_cost_usd", CostEstimator.serialize(estimated_cost_usd))
 
                 {:error, reason_atom, failure_message(reason_atom), attempt}
             end
@@ -107,6 +128,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
             "caption_context" => context,
             "reason" => inspect(reason),
             "failure_reason" => Atom.to_string(failure_reason),
+            "retryable" => retryable_acquisition_failure?(failure_reason),
             "video_url" => url,
             "trigger" => trigger
           })
@@ -120,6 +142,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       %{
         "caption_context" => caption_context,
         "failure_reason" => Atom.to_string(reason_atom),
+        "retryable" => retryable_generation_failure?(info),
         "video_url" => url,
         "trigger" => trigger
       }
@@ -129,63 +152,128 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     build_caption_attempt_meta(video_id, "failure", extra)
   end
 
-  defp summarize_captions(channel_name, transcript_text, api_key) do
-    prompt = build_caption_prompt(channel_name, transcript_text)
+  defp summarize_captions(channel_name, chunks, api_key, max_seconds, opts) do
+    generate = Keyword.get(opts, :generate_fun, &GeminiClient.text_only_detailed/3)
 
-    case GeminiClient.text_only_detailed(prompt, api_key) do
-      {:ok, result} when is_binary(result.content) ->
-        response = result.content
+    chunks
+    |> Enum.with_index(1)
+    |> Enum.reduce_while({:ok, [], nil, nil}, fn {chunk, index},
+                                                 {:ok, candidates, _model, cost} ->
+      prompt =
+        Prompts.captions(channel_name, chunk.text,
+          start_seconds: div(chunk.start_ms, 1_000),
+          end_seconds: ceil_seconds(chunk.end_ms),
+          max_seconds: max_seconds
+        )
 
-        case Parser.extract_timestamps_only(response) do
-          cleaned when is_binary(cleaned) ->
-            cleaned_trimmed = String.trim(cleaned)
+      case generate.(prompt, api_key, max_seconds: max_seconds) do
+        {:ok, %GeminiClient.Result{} = result} ->
+          total_cost = CostEstimator.add(cost, CostEstimator.estimate_usd(result))
 
-            if cleaned_trimmed != "" do
-              {:ok, cleaned_trimmed, result.model_version || result.model,
-               CostEstimator.estimate_usd(result)}
-            else
-              {:error, :no_timestamps, response}
-            end
+          case validate_chunk_timestamps(result.timestamps, chunk, max_seconds) do
+            :ok ->
+              {:cont,
+               {:ok, [result.timestamps | candidates], result.model_version || result.model,
+                total_cost}}
 
-          other ->
-            {:error, :timestamp_extraction_failed, other}
-        end
+            {:error, reason} ->
+              {:halt,
+               {:error, :timestamp_extraction_failed, %{chunk_number: index, reason: reason},
+                total_cost, index - 1}}
+          end
 
-      {:ok, _result} ->
-        {:error, :gemini_error, :non_binary_response}
+        {:error, reason} ->
+          {:halt,
+           {:error, :gemini_error, %{chunk_number: index, reason: reason}, cost, index - 1}}
 
-      {:error, reason} ->
-        {:error, :gemini_error, reason}
+        other ->
+          {:halt,
+           {:error, :gemini_error, %{chunk_number: index, reason: {:unexpected_response, other}},
+            cost, index - 1}}
+      end
+    end)
+    |> case do
+      {:ok, candidates, model, cost} ->
+        content =
+          candidates
+          |> Enum.reverse()
+          |> List.flatten()
+          |> Enum.sort_by(& &1.seconds)
+          |> Enum.uniq_by(& &1.seconds)
+          |> TimestampSet.render()
+
+        {:ok, content, model, cost}
+
+      error ->
+        error
     end
   end
 
-  defp build_caption_prompt(channel_name, transcript_text) do
-    Prompts.captions(channel_name, transcript_text)
+  defp validate_chunk_timestamps(timestamps, chunk, max_seconds) when is_list(timestamps) do
+    first_seconds = div(chunk.start_ms, 1_000)
+    last_seconds = min(ceil_seconds(chunk.end_ms), max_seconds)
+
+    cond do
+      timestamps == [] ->
+        {:error, :no_timestamps}
+
+      true ->
+        case Enum.find(timestamps, &(&1.seconds < first_seconds or &1.seconds > last_seconds)) do
+          nil ->
+            :ok
+
+          timestamp ->
+            {:error, {:timestamp_outside_excerpt, timestamp.seconds, first_seconds, last_seconds}}
+        end
+    end
   end
 
-  defp build_transcript_payload(segments) when is_list(segments) do
+  defp validate_chunk_timestamps(_timestamps, _chunk, _max_seconds),
+    do: {:error, :no_timestamps}
+
+  defp build_transcript_payload(segments, opts) when is_list(segments) do
     lines =
       segments
+      |> Enum.filter(&valid_segment?/1)
+      |> Enum.sort_by(& &1.start_ms)
       |> collapse_segments(@caption_merge_window_ms)
-      |> Enum.reject(&(String.trim(&1) == ""))
+      |> Enum.flat_map(&split_long_line(&1, @caption_char_limit))
 
-    original_line_count = length(lines)
-    {trimmed_lines, truncated?} = trim_lines_to_char_limit(lines, @caption_char_limit)
-    transcript_text = trimmed_lines |> Enum.join("\n") |> String.trim()
+    chunks = chunk_lines(lines, @caption_char_limit, @caption_chunk_window_ms)
 
     stats = %{
-      line_count: original_line_count,
-      used_line_count: length(trimmed_lines),
-      truncated: truncated?,
-      char_count: String.length(transcript_text)
+      line_count: length(lines),
+      used_line_count: length(lines),
+      truncated: false,
+      char_count: Enum.reduce(chunks, 0, &(&1.char_count + &2)),
+      chunk_count: length(chunks)
     }
 
-    if transcript_text == "" do
+    if chunks == [] do
       {:error, :transcript_empty, stats}
     else
-      {:ok, transcript_text, stats}
+      transcript_end_seconds = chunks |> Enum.map(& &1.end_ms) |> Enum.max() |> ceil_seconds()
+      known_seconds = Keyword.get(opts, :max_seconds)
+      known_duration? = is_integer(known_seconds) and known_seconds > 0
+
+      stats =
+        Map.merge(stats, %{
+          coverage_end_seconds: transcript_end_seconds,
+          output_bound_seconds:
+            if(known_duration?, do: known_seconds, else: transcript_end_seconds),
+          duration_source: if(known_duration?, do: "video_metadata", else: "transcript_end")
+        })
+
+      {:ok, chunks, stats}
     end
   end
+
+  defp valid_segment?(%{start_ms: start_ms, end_ms: end_ms, text: text})
+       when is_integer(start_ms) and start_ms >= 0 and is_integer(end_ms) and end_ms > start_ms and
+              is_binary(text),
+       do: String.trim(text) != ""
+
+  defp valid_segment?(_segment), do: false
 
   defp collapse_segments(segments, window_ms) do
     {reversed, current} =
@@ -197,7 +285,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
           {chunks, %{start_ms: start_ms, last_ms: end_ms, texts: [text]}}
 
         %{start_ms: start_ms, end_ms: end_ms, text: text}, {chunks, current_chunk} ->
-          if start_ms - current_chunk.last_ms <= window_ms do
+          if max(end_ms, current_chunk.last_ms) - current_chunk.start_ms <= window_ms do
             updated =
               current_chunk
               |> Map.update!(:texts, fn texts -> [text | texts] end)
@@ -216,11 +304,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
         chunk -> [finalize_chunk(chunk) | reversed]
       end
 
-    chunks
-    |> Enum.reverse()
-    |> Enum.map(fn %{start_ms: start_ms, text: text} ->
-      "#{format_caption_time(start_ms)} #{text}"
-    end)
+    Enum.reverse(chunks)
   end
 
   defp finalize_chunk(%{start_ms: start_ms, last_ms: last_ms, texts: texts}) do
@@ -230,7 +314,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       |> Enum.join(" ")
       |> normalize_whitespace()
 
-    %{start_ms: start_ms, last_ms: last_ms, text: text}
+    %{start_ms: start_ms, end_ms: last_ms, text: text}
   end
 
   defp normalize_whitespace(text) when is_binary(text) do
@@ -239,33 +323,95 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     |> String.trim()
   end
 
-  defp trim_lines_to_char_limit(lines, limit) when is_list(lines) do
-    {acc, _total, truncated?} =
-      Enum.reduce(lines, {[], 0, false}, fn line, {acc, total, truncated?} ->
+  defp split_long_line(line, limit) do
+    prefix = "#{format_caption_time(line.start_ms)} "
+
+    line.text
+    |> split_text(limit - String.length(prefix))
+    |> Enum.map(&%{line | text: prefix <> &1})
+  end
+
+  defp split_text(text, limit) do
+    if String.length(text) <= limit do
+      [text]
+    else
+      {first, rest} = String.split_at(text, limit)
+      [first | split_text(rest, limit)]
+    end
+  end
+
+  defp chunk_lines(lines, char_limit, window_ms) do
+    {chunks, current} =
+      Enum.reduce(lines, {[], nil}, fn line, {chunks, current} ->
+        line_length = String.length(line.text)
+
         cond do
-          truncated? ->
-            {acc, total, truncated?}
+          is_nil(current) ->
+            {chunks, new_transcript_chunk(line, line_length)}
+
+          current.char_count + line_length + 1 <= char_limit and
+              max(current.end_ms, line.end_ms) - current.start_ms <= window_ms ->
+            updated = %{
+              current
+              | end_ms: max(current.end_ms, line.end_ms),
+                lines: [line.text | current.lines],
+                char_count: current.char_count + line_length + 1
+            }
+
+            {chunks, updated}
 
           true ->
-            separator = if acc == [], do: 0, else: 1
-            potential_total = total + String.length(line) + separator
-
-            cond do
-              potential_total <= limit ->
-                {[line | acc], potential_total, truncated?}
-
-              acc == [] ->
-                trimmed = String.slice(line, 0, limit)
-                {[trimmed | acc], limit, true}
-
-              true ->
-                {acc, total, true}
-            end
+            {[finalize_transcript_chunk(current) | chunks],
+             new_transcript_chunk(line, line_length)}
         end
       end)
 
-    {Enum.reverse(acc), truncated?}
+    case current do
+      nil -> []
+      current -> Enum.reverse([finalize_transcript_chunk(current) | chunks])
+    end
   end
+
+  defp new_transcript_chunk(line, line_length) do
+    %{
+      start_ms: line.start_ms,
+      end_ms: line.end_ms,
+      lines: [line.text],
+      char_count: line_length
+    }
+  end
+
+  defp finalize_transcript_chunk(chunk) do
+    chunk
+    |> Map.put(:text, chunk.lines |> Enum.reverse() |> Enum.join("\n"))
+    |> Map.delete(:lines)
+  end
+
+  defp put_duration_metadata(attempt, stats) do
+    attempt =
+      attempt
+      |> Map.put("output_bound_seconds", stats.output_bound_seconds)
+      |> Map.put("duration_source", stats.duration_source)
+
+    if stats.duration_source == "video_metadata" do
+      Map.put(attempt, "video_seconds", stats.output_bound_seconds)
+    else
+      attempt
+    end
+  end
+
+  defp ceil_seconds(ms), do: div(ms + 999, 1_000)
+
+  defp retryable_acquisition_failure?(reason),
+    do: reason in [:youtube_network_error, :youtube_rate_limited]
+
+  defp retryable_generation_failure?(%{reason: %{kind: :transport}}), do: true
+
+  defp retryable_generation_failure?(%{reason: %{kind: :http, status: status}})
+       when is_integer(status),
+       do: status in [408, 409, 425, 429] or status in 500..599
+
+  defp retryable_generation_failure?(_info), do: false
 
   defp format_caption_time(ms) when is_integer(ms) do
     total_seconds = div(ms, 1000)
@@ -387,6 +533,8 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       "at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
       "result" => result
     }
+
+    base = if result == "failure", do: Map.put(base, "retryable", false), else: base
 
     base =
       if video_id do

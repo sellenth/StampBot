@@ -23,10 +23,28 @@ defmodule DragNStamp.Timestamps.Prompts do
     """
   end
 
-  @spec captions(binary() | nil, binary()) :: binary()
-  def captions(channel_name, transcript_text) do
+  @spec captions(binary() | nil, binary(), keyword()) :: binary()
+  def captions(channel_name, transcript_text, opts \\ []) do
+    start_seconds = Keyword.get(opts, :start_seconds, 0)
+    end_seconds = Keyword.get(opts, :end_seconds)
+
+    excerpt_scope =
+      if is_integer(end_seconds) do
+        """
+        This excerpt covers seconds #{start_seconds} through #{end_seconds} of the original video.
+        Select #{caption_count_target(end_seconds - start_seconds)} useful chapter candidates for this excerpt.
+        All timecodes are absolute positions in the original video. Never restart the clock at zero.
+        Do not add chapters outside this excerpt or after second #{Keyword.fetch!(opts, :max_seconds)}.
+        A later pass will select the final chapters across all excerpts.
+        """
+      else
+        "Select the most useful chapters and cover the full supplied transcript."
+      end
+
     """
-    Generate 10-14 engaging YouTube chapter timestamps based solely on the transcript.
+    Generate engaging YouTube chapter candidates based solely on the transcript.
+
+    #{excerpt_scope}
 
     Requirements:
     - Use the timecodes already present in the transcript as evidence.
@@ -44,6 +62,11 @@ defmodule DragNStamp.Timestamps.Prompts do
     END UNTRUSTED TRANSCRIPT
     """
   end
+
+  defp caption_count_target(seconds) when seconds <= 60, do: "1"
+  defp caption_count_target(seconds) when seconds <= 300, do: "2-3"
+  defp caption_count_target(seconds) when seconds <= 600, do: "3-6"
+  defp caption_count_target(_seconds), do: "5-8"
 
   @spec distillation(binary()) :: binary()
   def distillation(content) do
