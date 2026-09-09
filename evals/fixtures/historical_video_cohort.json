@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "source": "evals/top_youtube_trending.exs",
+  "snapshot_at": "2026-08-17T19:00:00-07:00",
+  "description": "Existing historical sample, not a current trending list. No new network verification has been performed. Expected route reflects the retained production 20-minute threshold; successful execution and semantic quality remain unmeasured in the refreshed pipeline.",
+  "videos": [
+    {"id":"_NlOIjOByUg","duration_seconds":149,"title":"LIL NAAY - PERRA (VIDEO OFICIAL)","channel":"Lil Naay","expected_route":"video"},
+    {"id":"X1aFkAkFASk","duration_seconds":130,"title":"Avengers: Doomsday | Special Look | In Theaters December 18","channel":"Marvel Entertainment","expected_route":"video"},
+    {"id":"t2I_6p1TwfM","duration_seconds":1636,"title":"AVENGERS DOOMSDAY TRAILER BREAKDOWN! Easter Eggs & Details You Missed | D23 2026","channel":"New Rockstars","expected_route":"captions"},
+    {"id":"5qm6_DoM1Pc","duration_seconds":224,"title":"Kingdom Hearts 4 - Official Coco Extended Gameplay Trailer | D23 2026","channel":"IGN","expected_route":"video"},
+    {"id":"7aYqQN2IzS8","duration_seconds":421,"title":"Waterfall - A Minecraft Music Video","channel":"Rainimator","expected_route":"video"}
+  ],
+  "missing_live_strata": ["60+ minute continuous speech", "multiple caption languages", "no captions", "recent uploads", "private/unlisted/age-restricted", "unknown duration", "creator-authorized upload"],
+  "review_fields": ["availability_at_run", "actual_route", "outcome", "failure_reason", "latency_ms", "all_attempt_cost_usd_or_unknown", "chapter_boundary_accuracy", "factual_support", "important_moments_omitted", "human_reviewer"]
+}

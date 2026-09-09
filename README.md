@@ -18,7 +18,37 @@ Timestamp cards persist and display an estimated total API cost calculated from
 the successful generation and distillation usage metadata. Pricing rates live in
 the `:gemini_cost_rates` application config so they can be updated independently.
 
-Run the current top-YouTube comparison without starting the database:
+## Durable submissions
+
+Submissions are saved with an Oban job in the same PostgreSQL transaction. The
+web app, extension, and bookmarklet show saved job progress and can reconnect
+without restarting generation. Run migrations before starting the updated app:
+
+```sh
+mix deps.get
+mix ecto.migrate
+```
+
+The Docker entrypoint already runs release migrations before application startup.
+See [the milestone implementation notes](docs/milestone-one.md) for recovery,
+checkpoint, retry, and rollout behavior. Elixir 1.15+ is required.
+
+## Validation and evaluation
+
+```sh
+MIX_ENV=test mix test
+npm run test:js
+npm run test:submission-ui
+MIX_ENV=test mix run --no-start evals/production_baseline.exs
+```
+
+The production baseline uses deterministic fixtures, rolls back its database
+writes, and makes no provider calls. See [evaluation instructions](evals/README.md)
+and [the recorded baseline](evals/results/production_baseline_2026-09-09.md).
+These checks do not measure live YouTube availability or chapter quality.
+
+The old top-YouTube model comparison below bypasses production routing and makes
+paid model calls. It is retained as a historical experiment, not the baseline:
 
 ```sh
 MIX_ENV=test mix run --no-start evals/top_youtube_trending.exs

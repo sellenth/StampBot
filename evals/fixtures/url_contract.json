@@ -1,0 +1,21 @@
+{
+  "description": "Deterministic canonicalization checks. Valid examples reuse one historical video ID; rejected values are intentionally invalid inputs, not proposed video sources.",
+  "canonical_url": "https://www.youtube.com/watch?v=_NlOIjOByUg",
+  "valid": [
+    "https://www.youtube.com/watch?v=_NlOIjOByUg",
+    "https://www.youtube.com/watch?feature=share&v=_NlOIjOByUg&t=20",
+    "https://youtu.be/_NlOIjOByUg?si=example",
+    "https://m.youtube.com/watch?v=_NlOIjOByUg",
+    "https://www.youtube.com/shorts/_NlOIjOByUg",
+    "https://www.youtube.com/live/_NlOIjOByUg",
+    "https://www.youtube.com/embed/_NlOIjOByUg"
+  ],
+  "invalid": [
+    "https://youtube.com.example.org/watch?v=_NlOIjOByUg",
+    "https://example.org/watch?v=_NlOIjOByUg",
+    "https://youtube.com@localhost/watch?v=_NlOIjOByUg",
+    "https://www.youtube.com/watch?v=too-short",
+    "https://www.youtube.com/playlist?list=example",
+    "file:///watch?v=_NlOIjOByUg"
+  ]
+}
