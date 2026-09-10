@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
 # Multi-stage Dockerfile for building and running the drag‑n‑stamp
-# Phoenix application on Fly.io.  The build stage compiles Elixir
+# Phoenix application on Railway.  The build stage compiles Elixir
 # sources, installs Node dependencies, builds static assets, and
 # generates an OTP release.  The final stage contains just the
 # compiled release and minimal runtime dependencies, keeping
@@ -82,9 +82,8 @@ COPY --from=build /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 # Set working directory
 WORKDIR /app
 
-# Enable IPv6 inside Ecto so the app can connect to Fly Postgres via
-# the internal IPv6 flycast address.  See config/runtime.exs for
-# details.
+# Enable IPv6 database connections for the private network. Override
+# ECTO_IPV6=false for an IPv4-only database; see config/runtime.exs.
 ENV ECTO_IPV6=true
 
 # Copy the release built in the previous stage.  The `_build` path
@@ -100,7 +99,7 @@ COPY --from=build /app/priv/static ./priv/static
 # variable the app will compile but not start accepting requests.
 ENV PHX_SERVER=true
 
-# Expose port 4000 (Fly will map this automatically to 80/443)
+# Default application port; the hosting service routes HTTPS traffic here.
 EXPOSE 4000
 
 # Apply database migrations, update yt-dlp, then start the release. Ecto's

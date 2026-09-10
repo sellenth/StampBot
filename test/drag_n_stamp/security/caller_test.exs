@@ -7,12 +7,19 @@ defmodule DragNStamp.Security.CallerTest do
 
   setup do
     previous = Application.fetch_env(:drag_n_stamp, :trusted_proxy_cidrs)
+    previous_mode = Application.fetch_env(:drag_n_stamp, :proxy_mode)
     Application.put_env(:drag_n_stamp, :trusted_proxy_cidrs, [])
+    Application.put_env(:drag_n_stamp, :proxy_mode, :cidr)
 
     on_exit(fn ->
       case previous do
         {:ok, value} -> Application.put_env(:drag_n_stamp, :trusted_proxy_cidrs, value)
         :error -> Application.delete_env(:drag_n_stamp, :trusted_proxy_cidrs)
+      end
+
+      case previous_mode do
+        {:ok, value} -> Application.put_env(:drag_n_stamp, :proxy_mode, value)
+        :error -> Application.delete_env(:drag_n_stamp, :proxy_mode)
       end
     end)
   end
@@ -80,6 +87,78 @@ defmodule DragNStamp.Security.CallerTest do
 
     refute Caller.from_ip({0, 0, 0, 0, 0, 0xFFFF, 0xCB00, 0x7114}) ==
              Caller.from_ip(@client)
+  end
+
+  test "Railway headers have no authority in the default CIDR mode" do
+    headers = [{"x-real-ip", "203.0.113.19"}]
+    assert Caller.from_connection(@peer, headers) == Caller.from_ip(@peer)
+    trust(["10.0.0.0/24"])
+    assert Caller.from_connection(@peer, headers) == Caller.from_ip(@peer)
+  end
+
+  test "explicit Railway mode uses a single X-Real-IP and ignores conflicting forwarding chains" do
+    Application.put_env(:drag_n_stamp, :proxy_mode, :railway)
+
+    headers = [
+      {"X-Real-IP", "203.0.113.19"},
+      {"x-forwarded-for", "198.51.100.99, 192.0.2.10"}
+    ]
+
+    assert Caller.from_connection(@peer, headers) == Caller.from_ip(@client)
+
+    refute Caller.from_connection(@peer, headers) ==
+             Caller.from_connection(@peer, [{"x-real-ip", "203.0.113.20"}])
+  end
+
+  test "Railway mode preserves IPv6 grouping and IPv4-mapped normalization" do
+    Application.put_env(:drag_n_stamp, :proxy_mode, :railway)
+
+    assert Caller.from_connection(@peer, [{"x-real-ip", "::ffff:203.0.113.19"}]) ==
+             Caller.from_ip(@client)
+
+    assert Caller.from_connection(@peer, [{"x-real-ip", "2001:db8:2:3::19"}]) ==
+             Caller.from_connection(@peer, [{"x-real-ip", "2001:db8:2:3::20"}])
+
+    refute Caller.from_connection(@peer, [{"x-real-ip", "2001:db8:2:3::19"}]) ==
+             Caller.from_connection(@peer, [{"x-real-ip", "2001:db8:2:4::19"}])
+  end
+
+  test "invalid Railway headers fall back to the peer without trying X-Forwarded-For" do
+    Application.put_env(:drag_n_stamp, :proxy_mode, :railway)
+    trust(["10.0.0.0/24"])
+
+    for real_headers <- [
+          [],
+          [{"x-real-ip", "203.0.113.19"}, {"X-Real-IP", "203.0.113.20"}],
+          [{"x-real-ip", "203.0.113.19"}, {"x-real-ip", "203.0.113.19"}],
+          [{"x-real-ip", "203.0.113.19, 203.0.113.20"}],
+          [{"x-real-ip", "203.0.113.19:8080"}],
+          [{"x-real-ip", "[2001:db8::1]"}],
+          [{"x-real-ip", "fe80::1%eth0"}],
+          [{"x-real-ip", "203.0.113.19\r\n"}],
+          [{"x-real-ip", " 203.0.113.19 "}],
+          [{"x-real-ip", ""}],
+          [{"x-real-ip", "unknown"}],
+          [{"x-real-ip", <<255>>}],
+          [{"x-real-ip", String.duplicate("1", 46)}],
+          [{"x-real-ip", nil}],
+          [{"x-real-ip", ["203.0.113.19"]}]
+        ] do
+      headers = real_headers ++ [{"x-forwarded-for", "203.0.113.19"}]
+      assert Caller.from_connection(@peer, headers) == Caller.from_ip(@peer)
+    end
+
+    assert Caller.from_connection(@peer, nil) == Caller.from_ip(@peer)
+  end
+
+  test "an unknown proxy mode cannot grant authority to either header" do
+    Application.put_env(:drag_n_stamp, :proxy_mode, :unknown)
+    trust(["10.0.0.0/24"])
+
+    assert Caller.from_connection(@peer, [
+             {"x-real-ip", "203.0.113.19"},
+             {"x-forwarded-for", "203.0.113.20"}
+           ]) == Caller.from_ip(@peer)
   end
 
   defp trust(networks), do: Application.put_env(:drag_n_stamp, :trusted_proxy_cidrs, networks)

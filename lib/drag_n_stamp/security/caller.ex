@@ -8,10 +8,11 @@ defmodule DragNStamp.Security.Caller do
   Malformed configuration, duplicate/invalid headers, and all-trusted chains
   fall back to the transport peer, which can group users behind the same proxy.
 
-  Fly's HTTP handler puts the app's public IP at the right of X-Forwarded-For.
-  Deployments using it must explicitly allowlist that address as well as ingress
-  peers. No Fly networks or other proxies are inferred or automatically trusted.
-  Never allowlist client networks merely to make forwarded headers work.
+  Explicit `:proxy_mode, :railway` uses Railway's overwritten X-Real-IP header.
+  Enable it only when all untrusted HTTP traffic must traverse Railway's edge.
+  Exactly one strict IP address is accepted; missing or malformed headers fall
+  back to the peer. This mode relies on the verified ingress boundary and does
+  not infer trusted networks from private addresses or request headers.
   """
 
   import Bitwise
@@ -21,6 +22,22 @@ defmodule DragNStamp.Security.Caller do
   @max_proxy_cidrs 64
 
   def from_connection(peer_address, x_headers) do
+    case Application.get_env(:drag_n_stamp, :proxy_mode, :cidr) do
+      :railway ->
+        case railway_address(x_headers) do
+          {:ok, client} -> from_ip(client)
+          _ -> from_ip(peer_address)
+        end
+
+      :cidr ->
+        from_forwarded_chain(peer_address, x_headers)
+
+      _ ->
+        from_ip(peer_address)
+    end
+  end
+
+  defp from_forwarded_chain(peer_address, x_headers) do
     with {:ok, networks} <- trusted_networks(),
          true <- trusted?(peer_address, networks),
          {:ok, chain} <- forwarded_chain(x_headers),
@@ -132,6 +149,26 @@ defmodule DragNStamp.Security.Caller do
   end
 
   defp forwarded_chain(_), do: :error
+
+  defp railway_address(headers) when is_list(headers) do
+    values =
+      for {name, value} <- headers,
+          is_binary(name),
+          String.downcase(name) == "x-real-ip",
+          do: value
+
+    case values do
+      [value] when is_binary(value) and byte_size(value) <= 45 ->
+        # Erlang's strict parser accepts IPv6 zone suffixes; HTTP client
+        # addresses here must contain only the address itself.
+        if Regex.match?(~r/\A[0-9A-Fa-f:.]+\z/, value), do: parse_address(value), else: :error
+
+      _ ->
+        :error
+    end
+  end
+
+  defp railway_address(_), do: :error
 
   defp parse_address(address) when is_binary(address) and byte_size(address) <= 45 do
     if String.valid?(address),

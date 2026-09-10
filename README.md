@@ -2,6 +2,17 @@
 
 On a mission to watch the most YouTube ever.
 
+## Development and deployment
+
+Production runs on **Railway** at **https://stamp-bot.com**. See
+[deployment instructions](docs/deployment.md) for selecting the production
+service, deploying a reviewed GitHub commit, and checking a rollout.
+
+Local development uses PostgreSQL at the URL configured in `config/dev.exs`
+(or your explicit `DATABASE_URL`). After installing dependencies and creating
+the development database with `mix ecto.create`, run `./dev.sh` to apply
+migrations and start Phoenix.
+
 ## Gemini configuration
 
 StampBot uses separate model tiers for video understanding and text-only caption

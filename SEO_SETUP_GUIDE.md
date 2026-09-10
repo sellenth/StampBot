@@ -38,10 +38,9 @@
 ## 🔧 Next Steps for Full SEO Implementation
 
 ### 1. Domain Configuration
-Set the `PHX_HOST` environment variable in production:
-```bash
-fly secrets set PHX_HOST=stamp-bot.com
-```
+Set `PHX_HOST=stamp-bot.com` in the production app service's Railway Variables
+tab. See [deployment instructions](docs/deployment.md) for the production target
+and rollout process.
 
 ### 2. Google Search Console Setup
 1. Go to [Google Search Console](https://search.google.com/search-console)

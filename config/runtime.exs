@@ -35,6 +35,16 @@ config :drag_n_stamp,
   publication_daily_limit: String.to_integer(System.get_env("STAMPBOT_DAILY_POST_LIMIT") || "10")
 
 # Forwarding headers are ignored unless the ingress path is explicitly trusted.
+proxy_mode =
+  case System.get_env("STAMPBOT_PROXY_MODE") do
+    nil -> :cidr
+    "cidr" -> :cidr
+    "railway" -> :railway
+    _ -> raise "STAMPBOT_PROXY_MODE must be cidr or railway"
+  end
+
+config :drag_n_stamp, :proxy_mode, proxy_mode
+
 if proxy_cidrs = System.get_env("STAMPBOT_TRUSTED_PROXY_CIDRS") do
   config :drag_n_stamp,
          :trusted_proxy_cidrs,
@@ -78,9 +88,9 @@ if config_env() == :prod do
 
   # Configure the Ecto repository for production.
   #
-  # The `ssl: true` option ensures the database connection uses TLS.
-  # Fly.io databases require encrypted connections by default, so we
-  # configure SSL with verify_none to avoid certificate verification issues.
+  # Encrypt database traffic with TLS. The current verify_none setting does
+  # not authenticate the server certificate; configure a trusted CA before
+  # enabling certificate verification for the selected database host.
   config :drag_n_stamp, DragNStamp.Repo,
     ssl: [verify: :verify_none],
     url: database_url,

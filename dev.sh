@@ -1,17 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Start database proxy in background
-fly mpg proxy --cluster n83v7rg59zg05gxk &
-PROXY_PID=$!
+cd "$(dirname "$0")"
 
-# Wait for proxy to start
-sleep 3
+# Use DATABASE_URL or the local PostgreSQL default in config/dev.exs.
 
 # Run migrations
 mix ecto.migrate
 
 # Start Phoenix server
-mix phx.server
-
-# Cleanup: kill proxy when server stops
-trap "kill $PROXY_PID 2>/dev/null" EXIT
+exec mix phx.server

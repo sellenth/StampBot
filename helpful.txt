@@ -5,10 +5,8 @@ mix ecto.migrate
 
 yt-dlp --cookies-from-browser chrome --cookies cookies.txt
 gzip -c cookies.txt | base64 -w0 > youtube.cookies.b64
-fly secrets set YTDLP_COOKIES_B64=$(cat youtube.cookies.b6) -a drag-n-stamp-prod
-
-fly mpg proxy
-fly mpg connect
+Set YTDLP_COOKIES_B64 in the production app service's Railway Variables tab.
+See docs/deployment.md for deployment and database access instructions.
 
 DELETE FROM timestamps
 WHERE id IN (

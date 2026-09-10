@@ -69,17 +69,26 @@ secret key base. Raw IP addresses are not stored in the work reservation table.
 IPv6 addresses share a /64 bucket. A username, JSON field, or untrusted forwarding
 header cannot choose a caller bucket.
 
-Forwarded addresses are used only with an explicit `:trusted_proxy_cidrs` allowlist
-(`STAMPBOT_TRUSTED_PROXY_CIDRS`, a comma-separated list).
-The API and LiveView apply the same chain validation. Without a verified proxy
-configuration, the conservative fallback is the transport peer; users behind a
-shared proxy can therefore share a rate limit. Configure the actual ingress path
-before rollout, rather than broadly trusting arbitrary private networks.
+The default `STAMPBOT_PROXY_MODE=cidr` uses X-Forwarded-For only when the transport
+peer belongs to an explicit `STAMPBOT_TRUSTED_PROXY_CIDRS` allowlist (a
+comma-separated list). The chain is read from right to left, discarding trusted
+proxies. Without verified proxy configuration, callers share transport-peer
+buckets. Never guess trusted private networks or allowlist client networks.
 
-For Fly HTTP ingress, the rightmost X-Forwarded-For entry can be the application's
-public address, so both that address and the actual ingress peer must be accounted
-for in the allowlist. This follows [Fly's request-header documentation](https://fly.io/docs/networking/request-headers/).
-No deployment network addresses were guessed or changed during this milestone.
+For a verified Railway HTTP deployment, explicitly set `STAMPBOT_PROXY_MODE=railway`.
+This mode uses exactly one X-Real-IP header containing one strict IPv4 or IPv6
+address. Missing, duplicate, malformed, oversized, or comma-separated values
+fall back to the transport peer; X-Forwarded-For is ignored in this mode. The API
+and LiveView share this validation, normalization, and HMAC logic. Railway mode
+does not require a CIDR allowlist.
+
+Enable Railway mode only after verifying all untrusted traffic must traverse
+Railway's HTTP edge: no public TCP proxy or alternate listener may bypass it,
+and private-network callers must be trusted. Railway [documents X-Real-IP](https://docs.railway.com/networking/public-networking/specs-and-limits)
+as its client-address header; [Railway staff confirm](https://station.railway.com/questions/need-authoritative-railway-client-ip-p-b7a7b4bd)
+the edge overwrites client-supplied values and public HTTP services cannot be
+reached directly. This explicit deployment assumption replaces a proxy CIDR
+check in Railway mode. Unknown `STAMPBOT_PROXY_MODE` values stop startup.
 
 ## Publication and rendering
 
