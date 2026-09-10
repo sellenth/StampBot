@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "description": "Synthetic IO fixtures, not assertions about the contents or availability of the referenced real videos. URLs reuse IDs from the historical August 2026 eval solely to exercise production URL handling. Durations, captions, and model responses below are synthetic.",
+  "version": 3,
+  "description": "Synthetic IO fixtures exercise production contracts without claiming real-video chapter quality. Most video IDs come from historical evaluations; the #593 regression preserves observed timing boundaries and an invalid returned second while replacing transcript contents with synthetic evidence.",
   "cases": [
     {
       "id": "short_video",
@@ -192,7 +192,7 @@
         "parseable_refusal",
         "completion_not_quality"
       ],
-      "expected_reason": "gemini_error",
+      "expected_reason": "timestamp_extraction_failed",
       "require_failed_usage": true,
       "url": "https://www.youtube.com/watch?v=_NlOIjOByUg"
     },
@@ -299,6 +299,26 @@
       "require_budget_denial": true,
       "require_primary_fallback": true,
       "expected_dispatched_requests": 1
+    },
+    {
+      "id": "prod_593_excerpt_range_retry",
+      "url": "https://www.youtube.com/watch?v=sLSTM9znQNs",
+      "duration_seconds": 4463,
+      "caption_profile": "prod_593_timing",
+      "caption_response": "excerpt_range_once",
+      "expected_route": "captions",
+      "expected_outcome": "ready",
+      "expected_caption_requests": 6,
+      "expected_dispatched_requests": 7,
+      "require_failed_usage": true,
+      "strata": [
+        "long",
+        "captions",
+        "range_retry",
+        "production_regression_synthetic_content"
+      ],
+      "require_all_segments": true,
+      "min_last_timestamp": 3600
     }
   ]
 }

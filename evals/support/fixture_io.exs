@@ -98,6 +98,17 @@ defmodule StampBot.Evals.FixtureIO do
     [segment(0, 0, 15, String.duplicate("Synthetic oversized caption. ", 80_000))]
   end
 
+  def segments("prod_593_timing") do
+    for start <- [0, 900, 1800, 2700, 3600] do
+      segment(
+        div(start, 900),
+        start,
+        min(893, 4463 - start),
+        "Synthetic evidence recreating excerpt boundaries, not the video's contents."
+      )
+    end
+  end
+
   def segments("continuous_long") do
     for index <- 0..1079 do
       segment(
@@ -194,6 +205,9 @@ defmodule StampBot.Evals.FixtureIO do
     behavior = fixture["#{stage}_response"]
 
     cond do
+      behavior == "excerpt_range_once" and stage_attempt == 1 ->
+        successful_model_response(Jason.encode!(%{timestamps: [chapter(1019)]}))
+
       behavior == "unavailable" ->
         response(400, %{"error" => "Synthetic video unavailable"})
 

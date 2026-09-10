@@ -15,10 +15,10 @@ Production database TLS still uses `verify_none`. Configure CA and hostname
 verification for the actual deployment and test both valid and invalid server
 identities. Do not guess the provider's CA or silently fall back to no verification.
 
-Verify ingress addresses and configure the new trusted-proxy allowlist before
-rollout; the default transport-peer fallback can group multiple users behind a
-shared proxy. Review the proposed processing allowances and publication default
-against the deployment's budget and intended product behavior.
+Production uses the explicit Railway proxy mode after verification of its HTTP
+ingress and absence of a public TCP bypass. Reverify that boundary if networking
+changes. Review processing allowances and publication settings against actual
+usage and intended product behavior.
 
 ## Real outcome evaluation
 
@@ -45,7 +45,6 @@ traces rather than metric labels, and maintain payload redaction.
 
 Define retention and reconciliation policies for attempt records and uncertain
 publication. Export aggregates before pruning detail needed for cost analysis.
-Add per-caption-chunk execution checkpoints so a late failure does not repeat
-successful excerpts. The current checkpoint remains between generation and
-final distillation; the ledger preserves evidence of earlier work but does not
-reuse every successful chunk.
+Per-caption-chunk checkpoints now preserve validated excerpts across retries and
+worker restarts; see [caption recovery](caption-recovery.md). Add operational
+retention for these derived chapter records and measure reuse in real workloads.

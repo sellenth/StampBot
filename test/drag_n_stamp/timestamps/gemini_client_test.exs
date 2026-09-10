@@ -3,6 +3,32 @@ defmodule DragNStamp.Timestamps.GeminiClientTest do
 
   alias DragNStamp.Timestamps.GeminiClient
 
+  test "retry-after cannot stall a worker and attempt overrides cannot exceed the hard retry ceiling" do
+    parent = self()
+    counter = :counters.new(1, [])
+
+    assert {:error, %{attempts: 3}} =
+             GeminiClient.text_only_detailed("Prompt", "key",
+               max_attempts: 100,
+               request_fun: fn _, _ ->
+                 :counters.add(counter, 1, 1)
+
+                 {:ok,
+                  %Finch.Response{
+                    status: 429,
+                    headers: [{"retry-after", "999999999"}],
+                    body: "{}"
+                  }}
+               end,
+               sleep_fun: fn milliseconds -> send(parent, {:delay, milliseconds}) end
+             )
+
+    assert :counters.get(counter, 1) == 3
+    assert_receive {:delay, 30_000}
+    assert_receive {:delay, 30_000}
+    refute_receive {:delay, _}
+  end
+
   test "uses the configured video model, API key header, thinking level, and schema" do
     parent = self()
 

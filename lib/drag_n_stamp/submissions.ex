@@ -131,7 +131,7 @@ defmodule DragNStamp.Submissions do
 
       :failed ->
         details = FailureMessage.for_timestamp(timestamp)
-        message = (timestamp.processing_context || %{})["public_error"] || details.summary
+        message = details.summary
         Map.merge(base, %{status: "error", message: message})
 
       :processing ->

@@ -55,7 +55,7 @@ defmodule DragNStamp.ProcessingAttemptsTest do
 
     assert Enum.all?(
              requests,
-             &(&1.prompt_version == "test-prompt-v1" and &1.schema_version == "timestamps-v1")
+             &(&1.prompt_version == "test-prompt-v1" and &1.schema_version == "timestamps-v2")
            )
 
     assert Enum.all?(requests, &(&1.duration_ms >= 0 and &1.cost_status == :estimated))
@@ -257,6 +257,48 @@ defmodule DragNStamp.ProcessingAttemptsTest do
     assert ProcessingAttempts.cost_summary(timestamp.id).request_count == 0
   end
 
+  test "an invalid excerpt cannot bypass the request budget through correction retries" do
+    Application.put_env(:drag_n_stamp, :work_budget, enabled: true, run_request_limit: 1)
+    timestamp = timestamp()
+    {:ok, reserved} = DragNStamp.WorkBudget.ensure_reservation(timestamp)
+    calls = :counters.new(1, [])
+
+    result =
+      ProcessingAttempts.with_run(
+        %{
+          timestamp_id: timestamp.id,
+          job_attempt: 1,
+          reservation_id: reserved.processing_context["work_reservation_id"]
+        },
+        fn _ ->
+          GeminiClient.text_only_detailed("Excerpt 0 through 893", "fixture-key",
+            min_seconds: 0,
+            max_seconds: 893,
+            sleep_fun: fn _ -> :ok end,
+            request_fun: fn _, _ ->
+              :counters.add(calls, 1, 1)
+
+              response(
+                Jason.encode!(%{
+                  timestamps: [%{seconds: 1019, title: "Outside the supplied excerpt"}]
+                }),
+                usage(100, 20),
+                "rejected"
+              )
+            end
+          )
+        end
+      )
+
+    assert {:error, %{kind: :work_budget_exceeded}} = result
+    assert :counters.get(calls, 1) == 1
+    assert [rejected, denied] = requests(timestamp)
+    assert rejected.dispatched and rejected.cost_status == :estimated
+    refute denied.dispatched
+    assert denied.cost_status == :not_dispatched
+    assert ProcessingAttempts.cost_summary(timestamp.id).request_count == 1
+  end
+
   test "production records discarded distillation costs alongside successful video generation" do
     timestamp = timestamp(%{video_duration_seconds: 180})
     video_calls = :counters.new(1, [])
@@ -341,7 +383,7 @@ defmodule DragNStamp.ProcessingAttemptsTest do
 
     calls = :counters.new(1, [])
 
-    assert {:error, :gemini_error, _, meta} =
+    assert {:error, :timestamp_extraction_failed, _, meta} =
              traced(timestamp, fn ->
                CaptionFallback.process(nil, timestamp.url, "fixture-key",
                  max_seconds: 2_000,

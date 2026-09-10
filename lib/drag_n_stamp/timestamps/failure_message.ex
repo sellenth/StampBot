@@ -2,9 +2,8 @@ defmodule DragNStamp.Timestamps.FailureMessage do
   @moduledoc """
   Converts stored processing failures into safe, useful public copy.
 
-  Raw provider payloads stay in logs and processing context. The UI receives a
-  stable explanation and honest retry guidance instead of promising an
-  automatic retry that the application does not schedule.
+  The UI receives a stable explanation and honest retry guidance. New attempts
+  retain failure metadata, not raw provider responses.
   """
 
   alias DragNStamp.Timestamp
@@ -29,6 +28,7 @@ defmodule DragNStamp.Timestamps.FailureMessage do
     "transcript_empty" => :transcript_empty,
     "gemini_error" => :gemini_error,
     "timestamp_extraction_failed" => :timestamp_extraction_failed,
+    "timestamp_outside_excerpt" => :timestamp_outside_excerpt,
     "no_timestamps" => :no_timestamps
   }
 
@@ -39,9 +39,27 @@ defmodule DragNStamp.Timestamps.FailureMessage do
   @spec for_timestamp(Timestamp.t()) :: details()
   def for_timestamp(%Timestamp{processing_context: %{"public_error" => message} = context})
       when is_binary(message) do
+    reason = context["last_failure"] || "processing_failed"
+
+    # Older records used the generic extraction category even when the saved
+    # validation metadata identified a chapter outside the excerpt.
+    reason =
+      if reason == "timestamp_extraction_failed" and
+           String.contains?(
+             get_in(context, ["caption_attempts", Access.at(0), "detail"]) || "",
+             "timestamp_outside_excerpt"
+           ),
+         do: "timestamp_outside_excerpt",
+         else: reason
+
+    message =
+      if reason in ["timestamp_outside_excerpt", "timestamp_extraction_failed", "gemini_error"],
+        do: CaptionFallback.failure_message(Map.fetch!(@caption_reason_atoms, reason)),
+        else: message
+
     details(
       message,
-      context["last_failure"] || "processing_failed",
+      reason,
       "This attempt has finished. Submit the video again to retry."
     )
   end

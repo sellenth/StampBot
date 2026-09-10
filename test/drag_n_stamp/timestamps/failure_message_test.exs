@@ -4,6 +4,25 @@ defmodule DragNStamp.Timestamps.FailureMessageTest do
   alias DragNStamp.Timestamps.FailureMessage
   alias DragNStamp.Timestamp
 
+  test "legacy out-of-excerpt failures get accurate copy through the public API" do
+    timestamp = %Timestamp{
+      id: 593,
+      processing_status: :failed,
+      processing_context: %{
+        "last_failure" => "timestamp_extraction_failed",
+        "public_error" =>
+          "Gemini responded without clear timestamps. We've saved the output for debugging.",
+        "caption_attempts" => [%{"detail" => "{:timestamp_outside_excerpt, 1019, 0, 893}"}]
+      }
+    }
+
+    details = FailureMessage.for_timestamp(timestamp)
+    assert details.category == "timestamp_outside_excerpt"
+    assert details.summary =~ "outside the excerpt"
+    refute details.summary =~ "saved the output"
+    assert DragNStamp.Submissions.response(timestamp).message == details.summary
+  end
+
   test "shows the friendly caption failure stored on the record" do
     error =
       "[captions_fallback_failed] YouTube temporarily rate-limited caption requests. (length=59m)"

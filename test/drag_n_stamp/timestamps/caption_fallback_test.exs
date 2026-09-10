@@ -35,7 +35,9 @@ defmodule DragNStamp.Timestamps.CaptionFallbackTest do
       transcripts =
         for _ <- 1..stats["chunk_count"] do
           assert_receive {:excerpt, transcript, opts}
-          assert opts[:max_seconds] == 3_600
+          assert opts[:min_seconds] == hd(timecodes(transcript))
+          assert opts[:max_seconds] <= 3_600
+          assert opts[:max_seconds] - opts[:min_seconds] <= 900
           assert String.length(transcript) <= 60_000
           transcript
         end
@@ -135,7 +137,7 @@ defmodule DragNStamp.Timestamps.CaptionFallbackTest do
         {:ok, model_result(timestamps)}
       end
 
-      assert {:error, :timestamp_extraction_failed, _message, attempt} =
+      assert {:error, :timestamp_outside_excerpt, _message, attempt} =
                CaptionFallback.process(nil, video_url(), "test-key",
                  max_seconds: 3_600,
                  fetch_transcript_fun: transcript_fetcher(continuous_segments(1_800)),
@@ -179,10 +181,16 @@ defmodule DragNStamp.Timestamps.CaptionFallbackTest do
       ]
 
       for {reason, retryable?} <- cases do
-        assert {:error, :gemini_error, _message, attempt} =
+        assert {:error, category, _message, attempt} =
                  CaptionFallback.process(nil, video_url(), "test-key",
                    fetch_transcript_fun: transcript_fetcher(continuous_segments(2)),
                    generate_fun: fn _, _, _ -> {:error, reason} end
+                 )
+
+        assert category ==
+                 if(reason[:kind] == :invalid_model_output,
+                   do: :timestamp_extraction_failed,
+                   else: :gemini_error
                  )
 
         assert attempt["retryable"] == retryable?, inspect(reason)

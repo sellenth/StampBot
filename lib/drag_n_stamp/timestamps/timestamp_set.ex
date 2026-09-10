@@ -11,9 +11,9 @@ defmodule DragNStamp.Timestamps.TimestampSet do
 
   @type timestamp :: %{seconds: non_neg_integer(), title: String.t()}
 
-  @spec json_schema() :: map()
-  def json_schema do
-    %{
+  @spec json_schema(keyword()) :: map()
+  def json_schema(opts \\ []) do
+    schema = %{
       "type" => "object",
       "description" => "An ordered set of YouTube chapter timestamps.",
       "properties" => %{
@@ -41,6 +41,17 @@ defmodule DragNStamp.Timestamps.TimestampSet do
       },
       "required" => ["timestamps"]
     }
+
+    path = ["properties", "timestamps", "items", "properties", "seconds"]
+
+    update_in(schema, path, fn seconds ->
+      seconds = Map.put(seconds, "minimum", Keyword.get(opts, :min_seconds, 0))
+
+      case Keyword.get(opts, :max_seconds) do
+        maximum when is_integer(maximum) and maximum > 0 -> Map.put(seconds, "maximum", maximum)
+        _ -> seconds
+      end
+    end)
   end
 
   @spec decode(binary(), keyword()) :: {:ok, binary(), [timestamp()]} | {:error, term()}
@@ -63,12 +74,11 @@ defmodule DragNStamp.Timestamps.TimestampSet do
   def validate(raw_timestamps, opts \\ [])
 
   def validate(raw_timestamps, opts) when is_list(raw_timestamps) do
-    max_seconds = Keyword.get(opts, :max_seconds)
-
     with :ok <- validate_count(raw_timestamps),
          {:ok, timestamps} <- normalize_all(raw_timestamps),
          :ok <- validate_order(timestamps),
-         :ok <- validate_bounds(timestamps, max_seconds) do
+         :ok <- validate_bounds(timestamps, Keyword.get(opts, :max_seconds)),
+         :ok <- validate_excerpt(timestamps, opts) do
       {:ok, timestamps}
     end
   end
@@ -153,6 +163,31 @@ defmodule DragNStamp.Timestamps.TimestampSet do
   end
 
   defp validate_bounds(_timestamps, _max_seconds), do: {:error, :invalid_max_seconds}
+
+  defp validate_excerpt(timestamps, opts) do
+    case Keyword.fetch(opts, :min_seconds) do
+      :error ->
+        :ok
+
+      {:ok, minimum} when is_integer(minimum) and minimum >= 0 ->
+        maximum = Keyword.get(opts, :max_seconds)
+
+        if is_integer(maximum) and maximum >= minimum do
+          case Enum.find(timestamps, &(&1.seconds < minimum)) do
+            nil ->
+              :ok
+
+            timestamp ->
+              {:error, {:timestamp_outside_excerpt, timestamp.seconds, minimum, maximum}}
+          end
+        else
+          {:error, :invalid_excerpt_bounds}
+        end
+
+      _ ->
+        {:error, :invalid_excerpt_bounds}
+    end
+  end
 
   defp pad(value) when value < 10, do: "0#{value}"
   defp pad(value), do: Integer.to_string(value)

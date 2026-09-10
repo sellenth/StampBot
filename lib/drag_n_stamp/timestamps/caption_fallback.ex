@@ -6,7 +6,15 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
   alias DragNStamp.SEO.VideoMetadata
   alias DragNStamp.{ProcessingAttempts, WorkBudget}
-  alias DragNStamp.Timestamps.{CostEstimator, GeminiClient, Prompts, TimestampSet}
+
+  alias DragNStamp.Timestamps.{
+    CaptionCheckpoint,
+    CostEstimator,
+    GeminiClient,
+    Prompts,
+    TimestampSet
+  }
+
   alias DragNStamp.YouTube.Captions
 
   @caption_merge_window_ms 15_000
@@ -84,11 +92,15 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
                    stats.output_bound_seconds,
                    opts
                  ) do
-              {:ok, cleaned, model, estimated_cost_usd} ->
+              {:ok, cleaned, model, estimated_cost_usd, reused_chunks} ->
                 attempt =
                   build_caption_attempt_meta(video_id, "success", %{
                     "caption_context" => caption_context,
-                    "transcript_stats" => Map.put(stats, :completed_chunk_count, length(chunks)),
+                    "transcript_stats" =>
+                      Map.merge(stats, %{
+                        completed_chunk_count: length(chunks),
+                        reused_chunk_count: reused_chunks
+                      }),
                     "prompt_character_count" => stats.char_count,
                     "model" => model,
                     "estimated_cost_usd" => CostEstimator.serialize(estimated_cost_usd),
@@ -99,7 +111,8 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
                 {:ok, cleaned, attempt}
 
-              {:error, reason_atom, info, estimated_cost_usd, completed_chunk_count} ->
+              {:error, reason_atom, info, estimated_cost_usd, completed_chunk_count,
+               reused_chunks} ->
                 attempt =
                   build_failure_attempt(
                     video_id,
@@ -107,7 +120,10 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
                     url,
                     trigger,
                     reason_atom,
-                    Map.put(stats, :completed_chunk_count, completed_chunk_count),
+                    Map.merge(stats, %{
+                      completed_chunk_count: completed_chunk_count,
+                      reused_chunk_count: reused_chunks
+                    }),
                     info
                   )
                   |> put_duration_metadata(stats)
@@ -168,14 +184,21 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
     chunks
     |> Enum.with_index(1)
-    |> Enum.reduce_while({:ok, [], nil, nil}, fn {chunk, index},
-                                                 {:ok, candidates, _model, cost} ->
+    |> Enum.reduce_while({:ok, [], nil, nil, 0}, fn {chunk, index},
+                                                    {:ok, candidates, _model, cost, reused} ->
+      bounds = [
+        min_seconds: div(chunk.start_ms, 1_000),
+        max_seconds: min(ceil_seconds(chunk.end_ms), max_seconds)
+      ]
+
       prompt =
         Prompts.captions(channel_name, chunk.text,
           start_seconds: div(chunk.start_ms, 1_000),
           end_seconds: ceil_seconds(chunk.end_ms),
           max_seconds: max_seconds
         )
+
+      hash = CaptionCheckpoint.key(prompt, bounds)
 
       generated =
         ProcessingAttempts.around(
@@ -188,19 +211,26 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
             start_seconds: div(chunk.start_ms, 1_000),
             end_seconds: ceil_seconds(chunk.end_ms),
             input_bytes: byte_size(chunk.text),
-            prompt_version: "captions-2026-09-09-v2"
+            prompt_version: "captions-2026-09-10-v3"
           },
           fn ->
-            case generate.(prompt, api_key, max_seconds: max_seconds) do
+            response =
+              case CaptionCheckpoint.fetch(index, hash, bounds) do
+                {:ok, result} -> {:ok, result}
+                :miss -> generate.(prompt, api_key, bounds)
+              end
+
+            case response do
               {:ok, %GeminiClient.Result{} = result} ->
                 case validate_chunk_timestamps(result.timestamps, chunk, max_seconds) do
                   :ok ->
+                    unless result.cache_hit, do: CaptionCheckpoint.put(index, hash, result)
                     {:ok, result}
 
                   {:error, reason} ->
                     {:error,
                      %{
-                       kind: :timestamp_extraction_failed,
+                       kind: :timestamp_outside_excerpt,
                        reason: reason,
                        request_cost_usd:
                          result |> CostEstimator.estimate_usd() |> CostEstimator.serialize()
@@ -220,18 +250,29 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
         {:ok, result} ->
           {:cont,
            {:ok, [result.timestamps | candidates], result.model_version || result.model,
-            CostEstimator.add(cost, CostEstimator.estimate_usd(result))}}
+            CostEstimator.add(cost, CostEstimator.estimate_usd(result)),
+            reused + if(result.cache_hit, do: 1, else: 0)}}
 
         {:error, reason} ->
           failure =
             case reason do
               %{kind: kind}
               when kind in [
-                     :timestamp_extraction_failed,
+                     :timestamp_outside_excerpt,
                      :input_limit_exceeded,
                      :work_budget_exceeded
                    ] ->
                 kind
+
+              %{kind: :invalid_model_output, reason: {kind, _, _, _}}
+              when kind == :timestamp_outside_excerpt ->
+                :timestamp_outside_excerpt
+
+              %{kind: :invalid_model_output, reason: {:timestamp_out_of_bounds, _, _}} ->
+                :timestamp_outside_excerpt
+
+              %{kind: :invalid_model_output} ->
+                :timestamp_extraction_failed
 
               _ ->
                 :gemini_error
@@ -241,11 +282,11 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
           {:halt,
            {:error, failure, %{chunk_number: index, reason: reason},
-            CostEstimator.add(cost, extra_cost), index - 1}}
+            CostEstimator.add(cost, extra_cost), index - 1, reused}}
       end
     end)
     |> case do
-      {:ok, candidates, model, cost} ->
+      {:ok, candidates, model, cost, reused} ->
         content =
           candidates
           |> Enum.reverse()
@@ -254,7 +295,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
           |> Enum.uniq_by(& &1.seconds)
           |> TimestampSet.render()
 
-        {:ok, content, model, cost}
+        {:ok, content, model, cost, reused}
 
       error ->
         error
@@ -584,10 +625,15 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
 
   def failure_message(:gemini_error),
     do:
-      "Gemini had trouble summarizing the captions. We've saved the attempt and will keep an eye on it."
+      "The caption summarizer could not complete this attempt. Successful excerpts are saved for a retry."
+
+  def failure_message(:timestamp_outside_excerpt),
+    do:
+      "The caption summarizer returned chapters outside the excerpt's time range. This attempt stopped; successful excerpts are saved for a retry."
 
   def failure_message(:timestamp_extraction_failed),
-    do: "Gemini responded without clear timestamps. We've saved the output for debugging."
+    do:
+      "The caption summarizer returned invalid chapter data. This attempt stopped; successful excerpts are saved for a retry."
 
   def failure_message(:no_timestamps),
     do: "Gemini didn't produce usable timestamps from the captions. We'll review this later."

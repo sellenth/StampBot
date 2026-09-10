@@ -20,7 +20,7 @@ defmodule DragNStamp.ProcessingAttempts do
     input_limit_exceeded missing_api_key video_id_not_found captions_unavailable captions_empty
     captions_fetch_failed caption_downloader_outdated caption_runtime_outdated caption_downloader_unavailable
     youtube_auth_failed youtube_rate_limited youtube_network_error video_unavailable transcript_empty
-    gemini_error timestamp_extraction_failed no_timestamps timestamp_outside_excerpt persistence_failed
+    gemini_error timestamp_extraction_failed no_timestamps timestamp_outside_excerpt timestamp_out_of_bounds persistence_failed
     caller_rate_limited video_cooldown daily_work_limit daily_budget_exceeded
     worker_exception worker_interrupted exception process_exit other)
 
@@ -132,8 +132,18 @@ defmodule DragNStamp.ProcessingAttempts do
   @doc "Returns a bounded failure category, never the source error's message or payload."
   def failure_kind(%{kind: :invalid_model_output, reason: reason}) do
     case failure_kind(reason) do
-      value when value in ["unwatched", "incomplete_output", "prompt_blocked"] -> value
-      _ -> "invalid_model_output"
+      value
+      when value in [
+             "unwatched",
+             "incomplete_output",
+             "prompt_blocked",
+             "timestamp_outside_excerpt",
+             "timestamp_out_of_bounds"
+           ] ->
+        value
+
+      _ ->
+        "invalid_model_output"
     end
   end
 

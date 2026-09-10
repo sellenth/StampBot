@@ -25,8 +25,9 @@ summarization/distillation. The production defaults are:
 
 `GEMINI_API_KEY` is required. Model environment variables are optional and are
 read at request time, which makes canary overrides possible without code changes.
-Timestamp cards persist and display an estimated total API cost calculated from
-the successful generation and distillation usage metadata. Pricing rates live in
+Timestamp cards persist and display known estimated API costs across all recorded
+requests, including rejected responses and retries, with incomplete accounting
+marked when provider usage is missing. Pricing rates live in
 the `:gemini_cost_rates` application config so they can be updated independently.
 
 ## Durable submissions
@@ -43,6 +44,10 @@ mix ecto.migrate
 The Docker entrypoint already runs release migrations before application startup.
 See [the milestone implementation notes](docs/milestone-one.md) for recovery,
 checkpoint, retry, and rollout behavior. Elixir 1.15+ is required.
+
+Caption excerpts now have individual validated checkpoints and bounded timing
+correction retries. See [caption recovery](docs/caption-recovery.md) for failure
+classification, checkpoint invalidation, and the production regression case.
 
 ## Validation and evaluation
 

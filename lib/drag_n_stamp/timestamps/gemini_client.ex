@@ -19,7 +19,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   @default_timeout 300_000
   @default_max_attempts 3
   @retryable_statuses [408, 409, 425, 429]
-  @schema_version "timestamps-v1"
+  @schema_version "timestamps-v2"
   @max_output_tokens 8_192
 
   defmodule Result do
@@ -38,6 +38,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       :duration_ms,
       :attempts,
       :request_cost_usd,
+      cache_hit: false,
       unknown_cost_attempts: 0,
       usage: %{}
     ]
@@ -89,11 +90,12 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     thinking_level = Keyword.get(opts, :thinking_level, video_thinking_level())
 
     request_with_retry(
-      fn attempt ->
+      fn attempt, previous_error ->
         body =
           prompt
           |> video_body(video_url, opts)
           |> put_structured_generation_config(thinking_level, opts)
+          |> put_retry_feedback(previous_error, opts)
 
         request_once(model, body, api_key, :video, thinking_level, attempt, opts)
       end,
@@ -123,11 +125,12 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     thinking_level = Keyword.get(opts, :thinking_level, text_thinking_level())
 
     request_with_retry(
-      fn attempt ->
+      fn attempt, previous_error ->
         body =
           prompt
           |> text_body()
           |> put_structured_generation_config(thinking_level, opts)
+          |> put_retry_feedback(previous_error, opts)
 
         request_once(model, body, api_key, :text, thinking_level, attempt, opts)
       end,
@@ -140,11 +143,16 @@ defmodule DragNStamp.Timestamps.GeminiClient do
          opts,
          attempt \\ 1,
          previous_cost \\ nil,
-         unknown_costs \\ 0
+         unknown_costs \\ 0,
+         previous_error \\ nil
        ) do
-    max_attempts = Keyword.get(opts, :max_attempts, @default_max_attempts)
+    max_attempts =
+      case Keyword.get(opts, :max_attempts, @default_max_attempts) do
+        count when is_integer(count) and count > 0 -> min(count, @default_max_attempts)
+        _ -> 1
+      end
 
-    case request_fun.(attempt) do
+    case request_fun.(attempt, previous_error) do
       {:ok, %Result{} = result} ->
         {:ok,
          %{
@@ -170,7 +178,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
 
           sleep_fun = Keyword.get(opts, :sleep_fun, &Process.sleep/1)
           sleep_fun.(delay)
-          request_with_retry(request_fun, opts, attempt + 1, total_cost, total_unknown)
+          request_with_retry(request_fun, opts, attempt + 1, total_cost, total_unknown, reason)
         else
           Logger.error(
             "Gemini request failed after #{attempt} attempt(s): #{error_summary(reason)}"
@@ -179,7 +187,8 @@ defmodule DragNStamp.Timestamps.GeminiClient do
           {:error,
            Map.merge(reason, %{
              request_cost_usd: CostEstimator.serialize(total_cost),
-             unknown_cost_attempts: total_unknown
+             unknown_cost_attempts: total_unknown,
+             attempts: attempt
            })}
         end
     end
@@ -336,7 +345,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
        ) do
     with {:ok, candidate, text} <- extract_candidate_text(payload),
          {:ok, content, timestamps} <-
-           TimestampSet.decode(text, max_seconds: Keyword.get(opts, :max_seconds)),
+           TimestampSet.decode(text, Keyword.take(opts, [:min_seconds, :max_seconds])),
          :ok <- reject_unwatched(timestamps) do
       finish_reason = Map.get(candidate, "finishReason")
 
@@ -459,12 +468,35 @@ defmodule DragNStamp.Timestamps.GeminiClient do
     config =
       caller_config
       |> Map.put("responseMimeType", "application/json")
-      |> Map.put("responseSchema", TimestampSet.json_schema())
+      |> Map.put("responseSchema", TimestampSet.json_schema(opts))
       |> Map.put("maxOutputTokens", output_token_limit(caller_config))
       |> maybe_put_thinking_level(thinking_level)
 
     Map.put(body, "generationConfig", config)
   end
+
+  defp put_retry_feedback(body, %{kind: kind}, opts)
+       when kind in [:invalid_model_output, :invalid_json_response] do
+    minimum = Keyword.get(opts, :min_seconds, 0)
+    maximum = Keyword.get(opts, :max_seconds)
+
+    bounds =
+      if is_integer(maximum),
+        do:
+          " Every timestamp must be between #{minimum} and #{maximum} whole seconds, inclusive.",
+        else: ""
+
+    feedback =
+      "The previous response failed timestamp validation. Generate a fresh schema-compliant result." <>
+        bounds <>
+        " Use only the supplied evidence and keep absolute video times in strictly increasing order."
+
+    Map.update(body, :systemInstruction, %{parts: [%{text: feedback}]}, fn instruction ->
+      Map.update(instruction, :parts, [%{text: feedback}], &(&1 ++ [%{text: feedback}]))
+    end)
+  end
+
+  defp put_retry_feedback(body, _previous_error, _opts), do: body
 
   defp maybe_put_thinking_level(config, nil), do: config
 
@@ -501,7 +533,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
 
   defp retry_delay(%{retry_after_ms: retry_after_ms}, _attempt, _opts)
        when is_integer(retry_after_ms) and retry_after_ms > 0,
-       do: retry_after_ms
+       do: min(retry_after_ms, 30_000)
 
   defp retry_delay(_reason, attempt, opts) do
     delays = Keyword.get(opts, :retry_delays, [1_000, 3_000])
