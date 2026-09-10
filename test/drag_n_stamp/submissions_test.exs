@@ -190,6 +190,30 @@ defmodule DragNStamp.SubmissionsTest do
     assert Repo.get!(Timestamp, timestamp.id).processing_status == :ready
   end
 
+  test "automatic publishing includes a retained full result when optional distillation fails" do
+    previous = Application.get_env(:drag_n_stamp, :publication_mode)
+    Application.put_env(:drag_n_stamp, :publication_mode, :automatic)
+    on_exit(fn -> Application.put_env(:drag_n_stamp, :publication_mode, previous) end)
+
+    timestamp =
+      insert_timestamp(%{content: "0:00 Opening\n42:57 Ending", video_duration_seconds: 2595})
+
+    assert {:ok, ready} =
+             Processor.process(timestamp,
+               api_key: "fixture-key",
+               text_fun: fn _, _, _ -> {:error, %{kind: :invalid_model_output}} end
+             )
+
+    assert ready.processing_status == :ready
+    assert is_nil(ready.distilled_content)
+    assert ready.content =~ "42:57 Ending"
+
+    assert_enqueued(
+      worker: PublishWorker,
+      args: %{timestamp_id: timestamp.id, publication_source: "automatic"}
+    )
+  end
+
   test "terminal source failures stop retrying and remain visible" do
     {:ok, timestamp, :created} = Submissions.submit(@url)
 

@@ -75,9 +75,18 @@ defmodule DragNStamp.PublicationPolicy do
 
   def enqueue(_, _), do: {:error, :not_found}
 
-  def content_digest(%Timestamp{url: url, distilled_content: content})
-      when is_binary(url) and is_binary(content) do
-    :crypto.hash(:sha256, url <> "|" <> content) |> Base.encode16(case: :lower)
+  @doc "The same selected result displayed publicly, including a retained full generation."
+  def publication_content(%Timestamp{} = timestamp),
+    do: timestamp.distilled_content || timestamp.content
+
+  def content_digest(%Timestamp{url: url} = timestamp) when is_binary(url) do
+    case publication_content(timestamp) do
+      content when is_binary(content) ->
+        :crypto.hash(:sha256, url <> "|" <> content) |> Base.encode16(case: :lower)
+
+      _ ->
+        nil
+    end
   end
 
   def content_digest(_), do: nil
@@ -150,6 +159,8 @@ defmodule DragNStamp.PublicationPolicy do
   end
 
   defp enqueue_eligibility(%Timestamp{} = timestamp) do
+    content = publication_content(timestamp)
+
     cond do
       timestamp.youtube_comment_status == :succeeded or
           not is_nil(timestamp.youtube_comment_external_id) ->
@@ -158,11 +169,11 @@ defmodule DragNStamp.PublicationPolicy do
       timestamp.youtube_comment_status == :pending ->
         {:error, :publication_in_flight}
 
-      timestamp.processing_status != :ready or not is_binary(timestamp.distilled_content) or
-          String.trim(timestamp.distilled_content) == "" ->
+      timestamp.processing_status != :ready or not is_binary(content) or
+          String.trim(content) == "" ->
         {:error, :submission_not_ready}
 
-      String.contains?(timestamp.distilled_content, "0:00 UNWATCHED") ->
+      String.contains?(content, "0:00 UNWATCHED") ->
         {:error, :submission_not_ready}
 
       true ->

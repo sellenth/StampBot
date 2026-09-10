@@ -130,6 +130,12 @@ before the network call; concurrent jobs for different videos share the limit.
 Failed and uncertain attempts count. Interrupted posting remains pending for
 reconciliation rather than being blindly repeated.
 
+Production automatic comments were restored at the operator's request on September
+9, 2026. The published text and approval digest use the same result shown on the
+site: the distilled version when present, otherwise the retained full generation.
+A retained full result can therefore publish even when optional distillation fails
+or its shortened output is rejected. Content changes still invalidate old approvals.
+
 JSON-LD now uses HTML-safe JSON encoding. A regression fixture verifies that
 closing-script and comment markers in names, titles, descriptions, and chapters
 cannot create an injected script element, while the JSON values round-trip.

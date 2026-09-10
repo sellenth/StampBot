@@ -275,7 +275,7 @@ defmodule DragNStamp.Submissions.Processor do
           })
           |> Repo.update!()
 
-        if Keyword.get(opts, :publish, true) and is_binary(distilled) do
+        if Keyword.get(opts, :publish, true) do
           case PublicationPolicy.enqueue(updated, :automatic) do
             {:ok, _job} ->
               :ok

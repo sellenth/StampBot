@@ -89,6 +89,34 @@ defmodule DragNStamp.PublicationPolicyTest do
     assert Repo.get!(Timestamp, timestamp.id).youtube_comment_status == :not_attempted
   end
 
+  test "a retained full result is the approved and published content" do
+    content = "0:00 Opening\n42:57 Final descent\n\nTimestamps by StampBot"
+    timestamp = insert_timestamp(%{distilled_content: nil, content: content})
+    assert {:ok, job} = PublicationPolicy.enqueue(timestamp, :operator)
+    assert is_binary(job.args["content_digest"])
+
+    assert :ok =
+             PublishWorker.perform(job,
+               post_fun: fn _, sent ->
+                 assert sent == content
+                 {:ok, %{"id" => "full-result-comment"}}
+               end
+             )
+
+    assert Repo.get!(Timestamp, timestamp.id).youtube_comment_status == :succeeded
+  end
+
+  test "a retained full result cannot change between approval and publishing" do
+    timestamp = insert_timestamp(%{distilled_content: nil, content: "0:00 Approved full result"})
+    {:ok, job} = PublicationPolicy.enqueue(timestamp, :operator)
+    timestamp |> Timestamp.changeset(%{content: "0:00 Changed full result"}) |> Repo.update!()
+
+    assert {:cancel, :publication_content_changed} =
+             PublishWorker.perform(job, post_fun: &unexpected_post/2)
+
+    assert Repo.aggregate(Attempt, :count) == 0
+  end
+
   test "legacy jobs and jobs without scoped approval cannot publish" do
     timestamp = insert_timestamp()
 

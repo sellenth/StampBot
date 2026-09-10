@@ -52,6 +52,7 @@ defmodule DragNStamp.Commenter do
          :ok <- validate_approved_content(latest, expected_digest),
          :ok <- enforce_limits(latest, now) do
       dedupe_key = PublicationPolicy.content_digest(latest)
+      content = PublicationPolicy.publication_content(latest)
 
       cooldown_cutoff = DateTime.add(now, -@cooldown_seconds, :second)
       daily_cutoff = DateTime.add(now, -86_400, :second)
@@ -62,7 +63,8 @@ defmodule DragNStamp.Commenter do
             t.id == ^latest.id and t.processing_status == :ready and
               t.youtube_comment_status not in [:pending, :succeeded] and
               is_nil(t.youtube_comment_external_id) and
-              t.url == ^latest.url and t.distilled_content == ^latest.distilled_content and
+              t.url == ^latest.url and
+              fragment("COALESCE(?, ?)", t.distilled_content, t.content) == ^content and
               (is_nil(t.youtube_comment_last_attempt_at) or
                  t.youtube_comment_last_attempt_at <= ^cooldown_cutoff) and
               (is_nil(t.youtube_comment_last_attempt_at) or
@@ -118,6 +120,8 @@ defmodule DragNStamp.Commenter do
   end
 
   defp ensure_ready(%Timestamp{} = timestamp) do
+    content = PublicationPolicy.publication_content(timestamp)
+
     cond do
       timestamp.youtube_comment_status == :succeeded or
           not is_nil(timestamp.youtube_comment_external_id) ->
@@ -129,14 +133,13 @@ defmodule DragNStamp.Commenter do
       timestamp.processing_status != :ready ->
         {:skip, :not_ready, timestamp}
 
-      not is_binary(timestamp.distilled_content) or
-          String.trim(timestamp.distilled_content) == "" ->
-        {:blocked, :no_distilled_content, timestamp}
+      not is_binary(content) or String.trim(content) == "" ->
+        {:blocked, :no_publishable_content, timestamp}
 
       not is_binary(timestamp.url) ->
         {:blocked, :invalid_data, timestamp}
 
-      String.contains?(timestamp.distilled_content, "0:00 UNWATCHED") ->
+      String.contains?(content, "0:00 UNWATCHED") ->
         {:skip, :unwatched, timestamp}
 
       true ->
@@ -164,8 +167,9 @@ defmodule DragNStamp.Commenter do
     end
   end
 
-  defp do_post(%Timestamp{url: url, distilled_content: content}, opts) do
+  defp do_post(%Timestamp{url: url} = timestamp, opts) do
     post_fun = Keyword.get(opts, :post_fun, &YouTubeAPI.post_comment/2)
+    content = PublicationPolicy.publication_content(timestamp)
 
     case post_fun.(url, content) do
       {:ok, response} -> {:ok, response}
