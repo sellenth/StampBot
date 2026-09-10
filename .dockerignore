@@ -1,10 +1,27 @@
-# Ignore build artifacts and dependencies so the Docker context
-# remains small.  These directories are re-created during the
-# container build and do not need to be copied from the host.
-_build
-deps
-assets/node_modules
+# Send only application build inputs to the remote builder. Local database
+# backups, credentials, review exports, Git metadata, and test artifacts stay out.
+**
+!Dockerfile
+!.dockerignore
+!mix.exs
+!mix.lock
+!config/
+!config/**
+!lib/
+!lib/**
+!priv/
+!priv/**
+!assets/
+!assets/**
+
+# These allowed directories can also contain local/generated artifacts.
+**/.DS_Store
+**/.env*
+**/node_modules
+**/node_modules/**
 priv/static/assets
+priv/static/assets/**
 priv/static/cache_manifest.json
-*.swp
-.env*
+**/*.cookies.b64
+**/youtube.cookies
+**/cookies.txt
