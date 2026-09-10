@@ -260,7 +260,8 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
               when kind in [
                      :timestamp_outside_excerpt,
                      :input_limit_exceeded,
-                     :work_budget_exceeded
+                     :work_budget_exceeded,
+                     :total_budget_exceeded
                    ] ->
                 kind
 
@@ -573,8 +574,9 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
     do:
       "We couldn't access our caption summarizer right now. Please try again later—this video is saved for future analysis."
 
-  def failure_message(reason) when reason in [:input_limit_exceeded, :work_budget_exceeded],
-    do: WorkBudget.message(reason)
+  def failure_message(reason)
+      when reason in [:input_limit_exceeded, :work_budget_exceeded, :total_budget_exceeded],
+      do: WorkBudget.message(reason)
 
   def failure_message(:video_id_not_found),
     do:

@@ -59,6 +59,7 @@ work_budget_env = [
   daily_request_limit: "STAMPBOT_DAILY_REQUEST_LIMIT",
   run_request_limit: "STAMPBOT_RUN_REQUEST_LIMIT",
   daily_budget_microusd: "STAMPBOT_DAILY_BUDGET_MICROUSD",
+  total_budget_microusd: "STAMPBOT_TOTAL_BUDGET_MICROUSD",
   initial_allowance_microusd: "STAMPBOT_INITIAL_ALLOWANCE_MICROUSD",
   video_request_microusd: "STAMPBOT_VIDEO_REQUEST_MICROUSD",
   text_request_microusd: "STAMPBOT_TEXT_REQUEST_MICROUSD"

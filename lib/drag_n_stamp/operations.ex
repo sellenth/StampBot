@@ -117,12 +117,17 @@ defmodule DragNStamp.Operations do
 
   defp work_allowances(now) do
     day = Repo.get(Day, DateTime.to_date(now))
+    total_reserved = WorkBudget.total_reserved_microusd()
 
     %{
       day: DateTime.to_date(now),
       enabled: WorkBudget.enabled?(),
       reserved_allowance_usd: usd(if(day, do: day.reserved_microusd, else: 0)),
       daily_allowance_limit_usd: usd(WorkBudget.config(:daily_budget_microusd)),
+      total_reserved_allowance_usd: usd(total_reserved),
+      total_allowance_limit_usd: usd(WorkBudget.config(:total_budget_microusd)),
+      total_allowance_remaining_usd:
+        usd(max(WorkBudget.config(:total_budget_microusd) - total_reserved, 0)),
       requests_claimed: if(day, do: day.request_count, else: 0),
       daily_request_limit: WorkBudget.config(:daily_request_limit),
       submissions_reserved: if(day, do: day.submission_count, else: 0),

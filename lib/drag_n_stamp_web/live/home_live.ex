@@ -178,7 +178,8 @@ defmodule DragNStampWeb.HomeLive do
               :caller_rate_limited,
               :video_cooldown,
               :daily_work_limit,
-              :daily_budget_exceeded
+              :daily_budget_exceeded,
+              :total_budget_exceeded
             ],
        do: WorkBudget.message(reason)
 

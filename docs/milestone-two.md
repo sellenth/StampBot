@@ -43,7 +43,18 @@ become visible terminal processing failures.
 ### Dollar allowances and measured costs
 
 Each accepted run initially reserves a configurable **$1.50 allowance** against
-a **$25 UTC-day allowance budget**. Each video request consumes $1.50 of allowance;
+a **$25 UTC-day allowance budget** and a **$25 cumulative allowance budget**.
+The cumulative limit includes all existing `work_budget_days` reservations,
+does not reset at midnight or deployment, and is checked under the same database
+lock at admission and before every provider attempt. Deleting a submission does
+not refund it. Completed cached results remain accessible. New work stops when
+its required allowance would exceed either budget; already reserved work may
+finish within its remaining allowance. An operator must deliberately raise
+`STAMPBOT_TOTAL_BUDGET_MICROUSD` to fund more work. Do not delete budget history
+to restore funds. The operations report exposes the total reserved, limit, and
+remaining allowance.
+
+Each video request consumes $1.50 of allowance;
 each text request consumes $0.50. Additional requests atomically reserve any
 shortfall. Failed, unknown, or interrupted requests never refund their allowance.
 Unused prepaid allowance expires at UTC midnight; later work charges the new day.
@@ -58,7 +69,8 @@ pricing change requires review of both configured prices and allowances.
 Deployment overrides include `STAMPBOT_CALLER_HOURLY_LIMIT`,
 `STAMPBOT_VIDEO_COOLDOWN_SECONDS`, `STAMPBOT_DAILY_SUBMISSION_LIMIT`,
 `STAMPBOT_DAILY_REQUEST_LIMIT`, `STAMPBOT_RUN_REQUEST_LIMIT`,
-`STAMPBOT_DAILY_BUDGET_MICROUSD`, `STAMPBOT_INITIAL_ALLOWANCE_MICROUSD`,
+`STAMPBOT_DAILY_BUDGET_MICROUSD`, `STAMPBOT_TOTAL_BUDGET_MICROUSD`,
+`STAMPBOT_INITIAL_ALLOWANCE_MICROUSD`,
 `STAMPBOT_VIDEO_REQUEST_MICROUSD`, and `STAMPBOT_TEXT_REQUEST_MICROUSD`.
 Dollar values use millionths of a US dollar; all overrides must be positive integers.
 

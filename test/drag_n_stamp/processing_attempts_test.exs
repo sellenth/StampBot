@@ -304,6 +304,37 @@ defmodule DragNStamp.ProcessingAttemptsTest do
     assert ProcessingAttempts.cost_summary(timestamp.id).request_count == 1
   end
 
+  test "a total allowance denial never dispatches or retries a provider request" do
+    Application.put_env(:drag_n_stamp, :work_budget,
+      enabled: true,
+      total_budget_microusd: 1_500_000
+    )
+
+    timestamp = timestamp()
+    {:ok, reserved} = DragNStamp.WorkBudget.ensure_reservation(timestamp)
+
+    context = %{
+      timestamp_id: timestamp.id,
+      reservation_id: reserved.processing_context["work_reservation_id"]
+    }
+
+    assert :ok = DragNStamp.WorkBudget.before_request(Map.put(context, :operation, :video))
+
+    result =
+      ProcessingAttempts.with_run(context, fn _ ->
+        GeminiClient.text_only_detailed("Fixture", "fixture-key",
+          request_fun: fn _, _ -> flunk("Total allowance exhausted: must not dispatch") end,
+          sleep_fun: fn _ -> flunk("Permanent budget denial: must not retry") end
+        )
+      end)
+
+    assert {:error, %{kind: :total_budget_exceeded}} = result
+    assert [denied] = requests(timestamp)
+    refute denied.dispatched
+    assert denied.cost_status == :not_dispatched
+    assert denied.failure_kind == "total_budget_exceeded"
+  end
+
   test "production records discarded distillation costs alongside successful video generation" do
     timestamp = timestamp(%{video_duration_seconds: 180})
     video_calls = :counters.new(1, [])

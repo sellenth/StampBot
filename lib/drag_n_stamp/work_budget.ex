@@ -42,6 +42,7 @@ defmodule DragNStamp.WorkBudget do
     daily_request_limit: 200,
     run_request_limit: 32,
     daily_budget_microusd: 25_000_000,
+    total_budget_microusd: 25_000_000,
     initial_allowance_microusd: 1_500_000,
     video_request_microusd: 1_500_000,
     text_request_microusd: 500_000,
@@ -70,6 +71,7 @@ defmodule DragNStamp.WorkBudget do
       lock!()
       now = DateTime.utc_now()
       day = day!(DateTime.to_date(now))
+      total_reserved = total_reserved_microusd()
       caller = Keyword.get(opts, :caller_hash, Caller.internal())
       video_id = timestamp.video_id || timestamp.url
       cutoff = DateTime.add(now, -3600, :second)
@@ -93,6 +95,9 @@ defmodule DragNStamp.WorkBudget do
 
         day.submission_count >= config(:daily_submission_limit) ->
           Repo.rollback(:daily_work_limit)
+
+        total_reserved + config(:initial_allowance_microusd) > config(:total_budget_microusd) ->
+          Repo.rollback(:total_budget_exceeded)
 
         day.reserved_microusd + config(:initial_allowance_microusd) >
             config(:daily_budget_microusd) ->
@@ -184,6 +189,9 @@ defmodule DragNStamp.WorkBudget do
 
                extra = max(allowance - remaining, 0)
 
+               if total_reserved_microusd() + extra > config(:total_budget_microusd),
+                 do: Repo.rollback(:total_budget_exceeded)
+
                if reservation.request_count >= config(:run_request_limit) or
                     day.request_count >= config(:daily_request_limit) or
                     day.reserved_microusd + extra > config(:daily_budget_microusd),
@@ -263,12 +271,25 @@ defmodule DragNStamp.WorkBudget do
   def message(:daily_budget_exceeded),
     do: "StampBot has reserved today's processing budget. Please try tomorrow."
 
+  def message(:total_budget_exceeded),
+    do:
+      "StampBot has reached its total processing budget. Processing is paused until the operator raises the limit."
+
   def message(:work_budget_exceeded), do: "This submission reached its processing allowance."
 
   def message(:input_limit_exceeded),
     do: "This video or transcript exceeds StampBot's processing limits."
 
   def message(_), do: "StampBot could not reserve processing work. Please try later."
+
+  @doc "Cumulative non-refundable allowance, including every previous UTC day."
+  def total_reserved_microusd do
+    case Repo.aggregate(Day, :sum, :reserved_microusd) do
+      nil -> 0
+      %Decimal{} = total -> Decimal.to_integer(total)
+      total when is_integer(total) -> total
+    end
+  end
 
   defp bounded(valid),
     do: if(not enabled?() or valid, do: :ok, else: {:error, :input_limit_exceeded})

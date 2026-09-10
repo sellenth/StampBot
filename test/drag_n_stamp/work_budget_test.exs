@@ -82,6 +82,46 @@ defmodule DragNStamp.WorkBudgetTest do
              WorkBudget.before_request(%{context | timestamp_id: ts.id + 1})
   end
 
+  test "total allowance includes previous days and rejected admissions leave no record or job" do
+    set_config(total_budget_microusd: 3_000_000)
+    yesterday = Date.add(Date.utc_today(), -1)
+    Repo.insert!(%Day{day: yesterday, reserved_microusd: 1_500_000})
+    assert {:ok, ts, :created} = submit("budget00001")
+    assert {:error, :total_budget_exceeded} = submit("budget00002")
+    assert WorkBudget.total_reserved_microusd() == 3_000_000
+    assert Repo.aggregate(Timestamp, :count) == 1
+    assert Repo.aggregate(Oban.Job, :count) == 1
+
+    # Paid work already reserved fits the ceiling, but a top-up cannot exceed it.
+    assert :ok = WorkBudget.before_request(Map.put(context(ts), :operation, :video))
+    assert {:error, :total_budget_exceeded} = WorkBudget.before_request(context(ts))
+    assert Repo.get!(Reservation, context(ts).reservation_id).request_count == 1
+
+    Submissions.update!(Repo.get!(Timestamp, ts.id), %{
+      processing_status: :ready,
+      content: "0:00 Intro"
+    })
+
+    assert {:ok, %{processing_status: :ready}, :existing} = submit("budget00001")
+    assert WorkBudget.total_reserved_microusd() == 3_000_000
+
+    # Removing a submission does not refund its allowance or reopen admissions.
+    Repo.delete!(Repo.get!(Timestamp, ts.id))
+    assert WorkBudget.total_reserved_microusd() == 3_000_000
+    assert {:error, :total_budget_exceeded} = submit("budget00003")
+  end
+
+  test "crossing UTC midnight cannot restore a spent total allowance" do
+    set_config(total_budget_microusd: 1_500_000)
+    {:ok, ts, :created} = submit("budget00001")
+    yesterday = Date.add(Date.utc_today(), -1)
+    Repo.update_all(Day, set: [day: yesterday])
+    Repo.update_all(Reservation, set: [allowance_day: yesterday])
+    assert {:error, :total_budget_exceeded} = WorkBudget.before_request(context(ts))
+    assert WorkBudget.total_reserved_microusd() == 1_500_000
+    assert Repo.get!(Reservation, context(ts).reservation_id).request_count == 0
+  end
+
   test "daily request cap is shared across reservations and retries" do
     set_config(daily_request_limit: 1)
     {:ok, a, :created} = submit("budget00001")

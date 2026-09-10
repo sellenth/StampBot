@@ -47,6 +47,15 @@ defmodule DragNStampWeb.ApiController do
           message: "The previous attempt is finishing. Please retry shortly."
         })
 
+      {:error, :total_budget_exceeded} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{
+          status: "error",
+          reason: "total_budget_exceeded",
+          message: WorkBudget.message(:total_budget_exceeded)
+        })
+
       {:error, reason}
       when reason in [
              :caller_rate_limited,

@@ -145,7 +145,8 @@ defmodule DragNStamp.Submissions.Processor do
           timestamp.video_duration_seconds
         )
 
-      {:error, %{kind: kind}} when kind in [:work_budget_exceeded, :input_limit_exceeded] ->
+      {:error, %{kind: kind}}
+      when kind in [:work_budget_exceeded, :input_limit_exceeded, :total_budget_exceeded] ->
         {:error, failure(kind, WorkBudget.message(kind), false)}
 
       {:error, reason} ->
@@ -183,7 +184,7 @@ defmodule DragNStamp.Submissions.Processor do
         record_caption_attempt(timestamp, meta)
 
         retryable =
-          reason not in [:input_limit_exceeded, :work_budget_exceeded] and
+          reason not in [:input_limit_exceeded, :work_budget_exceeded, :total_budget_exceeded] and
             (meta["retryable"] == true or retryable?(reason) or retryable?(video_error))
 
         {:error,
