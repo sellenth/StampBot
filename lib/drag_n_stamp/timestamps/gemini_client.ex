@@ -207,7 +207,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       thinking_level: thinking_level,
       prompt_version: Keyword.get(opts, :prompt_version, ctx[:prompt_version] || "unspecified"),
       schema_version: @schema_version,
-      input_bytes: byte_size(Jason.encode!(body))
+      input_bytes: byte_size(Jason.encode!(body, maps: :strict))
     }
 
     ProcessingAttempts.around(attrs, fn handle ->
@@ -237,7 +237,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       {"x-goog-api-key", api_key}
     ]
 
-    request = Finch.build(:post, api_url, headers, Jason.encode!(body))
+    request = Finch.build(:post, api_url, headers, Jason.encode!(body, maps: :strict))
     timeout = Keyword.get(opts, :receive_timeout, @default_timeout)
     request_fun = Keyword.get(opts, :request_fun, &default_request/2)
     started_at = System.monotonic_time()
@@ -491,7 +491,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
         bounds <>
         " Use only the supplied evidence and keep absolute video times in strictly increasing order."
 
-    Map.update(body, :systemInstruction, %{parts: [%{text: feedback}]}, fn instruction ->
+    Map.update(body, "systemInstruction", %{parts: [%{text: feedback}]}, fn instruction ->
       Map.update(instruction, :parts, [%{text: feedback}], &(&1 ++ [%{text: feedback}]))
     end)
   end

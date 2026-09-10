@@ -3,6 +3,58 @@ defmodule DragNStamp.Timestamps.GeminiClientTest do
 
   alias DragNStamp.Timestamps.GeminiClient
 
+  test "serialized corrections contain one system instruction and preserve trusted instructions" do
+    for mode <- [:text, :video, :video_without_system] do
+      counter = :counters.new(1, [])
+
+      request_fun = fn request, _timeout ->
+        :counters.add(counter, 1, 1)
+        attempt = :counters.get(counter, 1)
+        wire = IO.iodata_to_binary(request.body)
+        expected_keys = if mode == :video_without_system and attempt == 1, do: 0, else: 1
+        assert length(Regex.scan(~r/"systemInstruction"\s*:/, wire)) == expected_keys
+        refute wire =~ "secret-key"
+        body = Jason.decode!(wire)
+        parts = get_in(body, ["systemInstruction", "parts"]) || []
+
+        if mode != :video_without_system do
+          assert hd(parts)["text"] == DragNStamp.Timestamps.Prompts.system_instruction()
+        end
+
+        if attempt == 2 do
+          correction = List.last(parts)["text"]
+          assert correction =~ "between 0 and 893 whole seconds"
+          assert correction =~ "strictly increasing order"
+        end
+
+        # First reply repeats the production failure: 1019 exceeds the excerpt.
+        successful_response("fixture-model", if(attempt == 1, do: 1119, else: 100))
+      end
+
+      opts = [request_fun: request_fun, sleep_fun: fn _ -> :ok end, max_seconds: 893]
+
+      result =
+        case mode do
+          :text ->
+            GeminiClient.text_only_detailed("Prompt", "secret-key", opts)
+
+          :video ->
+            GeminiClient.timestamps_detailed_with_retry("Prompt", "secret-key", nil, opts)
+
+          :video_without_system ->
+            GeminiClient.timestamps_detailed_with_retry(
+              "Prompt",
+              "secret-key",
+              nil,
+              Keyword.put(opts, :system_instruction, nil)
+            )
+        end
+
+      assert {:ok, %{attempts: 2}} = result
+      assert :counters.get(counter, 1) == 2
+    end
+  end
+
   test "retry-after cannot stall a worker and attempt overrides cannot exceed the hard retry ceiling" do
     parent = self()
     counter = :counters.new(1, [])

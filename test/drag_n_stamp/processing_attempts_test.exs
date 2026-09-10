@@ -233,6 +233,11 @@ defmodule DragNStamp.ProcessingAttemptsTest do
       assert ProcessingAttempts.failure_kind(%{reason: reason}) == Atom.to_string(reason)
     end
 
+    assert ProcessingAttempts.failure_kind(%{
+             kind: :invalid_model_output,
+             reason: {:timestamps_not_strictly_increasing, 743, 102}
+           }) == "timestamps_not_strictly_increasing"
+
     assert ProcessingAttempts.failure_kind("PRIVATE_ERROR_DETAIL") == "other"
   end
 

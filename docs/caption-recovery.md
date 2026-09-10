@@ -54,5 +54,11 @@ all-excerpt completion, final distillation, and accounting of the rejected reply
 Tests additionally cover exhausted retries, restarted clocks, hard worker kills,
 late failures, changed evidence, corrupted checkpoints, and budget denial.
 
+Live verification also caught a correction-request encoding defect: atom and
+string keys produced two `systemInstruction` fields. Corrections now extend the
+existing instruction, and strict JSON encoding rejects duplicate serialized keys.
+A wire-format regression covers text, video, and an omitted initial instruction.
+Out-of-order responses have a distinct bounded failure category in the ledger.
+
 Apply migrations before workers start. The production Docker entrypoint already
 does this; use the [Railway deployment flow](deployment.md).
