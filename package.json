@@ -4,7 +4,8 @@
   "scripts": {
     "test:puppeteer": "node test/puppeteer/home_merge.mjs",
     "test:js": "node --test test/js/*.cjs",
-    "test:submission-ui": "node test/puppeteer/submission_flow.mjs"
+    "test:submission-ui": "node test/puppeteer/submission_flow.mjs",
+    "test:timestamp-links": "node test/puppeteer/timestamp_links.mjs"
   },
   "devDependencies": {
     "puppeteer": "^24.7.1"

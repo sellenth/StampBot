@@ -1,3 +1,4 @@
+import { linkifyTimestampElement } from "./clickable_timestamps.mjs";
 // If you want to use Phoenix channels, run `mix help phx.gen.channel`
 // to get started and then uncomment the line below.
 // import "./user_socket.js"
@@ -206,59 +207,12 @@ Hooks.UrlForm = {
 
 Hooks.ClickableTimestamps = {
   mounted() {
-    this.makeTimestampsClickable();
+    linkifyTimestampElement(this.el);
   },
 
   updated() {
-    this.makeTimestampsClickable();
+    linkifyTimestampElement(this.el);
   },
-
-  makeTimestampsClickable() {
-    const videoUrl = this.el.dataset.videoUrl;
-    const timestampText = this.el.textContent;
-    
-    // Parse timestamps in format like "0:30", "1:25", "12:45", etc.
-    // Must be at start of line, after whitespace, or after common timestamp prefixes
-    // Avoid matching times with AM/PM or other text suffixes
-    const timestampRegex = /(^|\s)(\d{1,2}:\d{2})(?!\s*[AP]M|[a-zA-Z])/gm;
-    
-    let htmlContent = timestampText;
-    let match;
-    
-    while ((match = timestampRegex.exec(timestampText)) !== null) {
-      const fullMatch = match[0];  // Full match including whitespace
-      const prefix = match[1];     // Whitespace or start of line
-      const timestamp = match[2];  // The actual timestamp
-      const seconds = this.timestampToSeconds(timestamp);
-      
-      if (seconds !== null) {
-        const clickableTimestamp = this.createClickableTimestamp(videoUrl, timestamp, seconds);
-        const replacement = prefix + clickableTimestamp;
-        htmlContent = htmlContent.replace(fullMatch, replacement);
-      }
-    }
-    
-    // Only update if we found timestamps
-    if (htmlContent !== timestampText) {
-      this.el.innerHTML = htmlContent;
-    }
-  },
-
-  timestampToSeconds(timestamp) {
-    const parts = timestamp.split(':').map(Number);
-    if (parts.length === 2 && !parts.some(isNaN)) {
-      return parts[0] * 60 + parts[1];
-    }
-    return null;
-  },
-
-  createClickableTimestamp(videoUrl, timestamp, seconds) {
-    // Create URL with timestamp parameter
-    const url = new URL(videoUrl);
-    url.searchParams.set('t', `${seconds}s`);
-    
-    return `<a href="${url.href}" target="_blank" rel="noopener noreferrer" class="clickable-timestamp" title="Jump to ${timestamp}">${timestamp}</a>`;
-  }
 };
 
 Hooks.WebGLBackground = {

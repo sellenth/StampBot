@@ -55,6 +55,7 @@ classification, checkpoint invalidation, and the production regression case.
 MIX_ENV=test mix test
 npm run test:js
 npm run test:submission-ui
+npm run test:timestamp-links
 MIX_ENV=test mix run --no-start evals/production_baseline.exs
 ```
 
