@@ -50,4 +50,48 @@ defmodule DragNStamp.Timestamps.TimestampSetTest do
     assert {:error, {:invalid_timestamp, 0, :invalid_fields}} =
              TimestampSet.validate([%{"seconds" => "0", "title" => "Wrong type"}])
   end
+
+  test "decoding sorts chapter pairs without losing entries or changing their times and titles" do
+    raw = [
+      %{"seconds" => 772, "title" => "Later discussion"},
+      %{"seconds" => 101, "title" => "Earlier discussion"},
+      %{"seconds" => 0, "title" => "Opening"}
+    ]
+
+    assert {:ok, content, timestamps} =
+             TimestampSet.decode(Jason.encode!(%{timestamps: raw}),
+               min_seconds: 0,
+               max_seconds: 893
+             )
+
+    assert timestamps == [
+             %{seconds: 0, title: "Opening"},
+             %{seconds: 101, title: "Earlier discussion"},
+             %{seconds: 772, title: "Later discussion"}
+           ]
+
+    assert content == "0:00 Opening\n1:41 Earlier discussion\n12:52 Later discussion"
+
+    assert {:ok, ^timestamps} =
+             TimestampSet.validate(Enum.sort_by(raw, & &1["seconds"]), max_seconds: 893)
+  end
+
+  test "sorting does not repair duplicate times, clock resets, or discard invalid entries" do
+    decode = fn seconds, opts ->
+      raw = Enum.map(seconds, &%{seconds: &1, title: "Evidence at this position"})
+      TimestampSet.decode(Jason.encode!(%{timestamps: raw}), opts)
+    end
+
+    assert {:error, {:timestamps_not_strictly_increasing, 101, 101}} =
+             decode.([772, 101, 101], max_seconds: 893)
+
+    assert {:error, {:timestamp_out_of_bounds, 1019, 893}} =
+             decode.([772, 101, 1019], min_seconds: 0, max_seconds: 893)
+
+    assert {:error, {:timestamp_outside_excerpt, 101, 900, 1793}} =
+             decode.([1672, 101], min_seconds: 900, max_seconds: 1793)
+
+    assert {:error, {:invalid_timestamp, 1, :invalid_fields}} =
+             decode.([772, "101"], max_seconds: 893)
+  end
 end

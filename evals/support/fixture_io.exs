@@ -205,6 +205,17 @@ defmodule StampBot.Evals.FixtureIO do
     behavior = fixture["#{stage}_response"]
 
     cond do
+      behavior == "unordered" ->
+        seconds =
+          if stage == :caption do
+            start = opts[:min_seconds] || 0
+            [start + 772, start + 101]
+          else
+            prompt |> timecodes() |> Enum.reverse()
+          end
+
+        successful_model_response(Jason.encode!(%{timestamps: Enum.map(seconds, &chapter/1)}))
+
       behavior == "excerpt_range_once" and stage_attempt == 1 ->
         successful_model_response(Jason.encode!(%{timestamps: [chapter(1019)]}))
 

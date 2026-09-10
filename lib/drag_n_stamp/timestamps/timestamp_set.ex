@@ -4,6 +4,8 @@ defmodule DragNStamp.Timestamps.TimestampSet do
 
   Gemini returns seconds as integers so formatting stays deterministic and
   YouTube-specific rendering remains application code rather than model output.
+  Provider responses are sorted without changing or dropping chapter pairs;
+  stored canonical sets must already be ordered. Duplicate times remain invalid.
   """
 
   @max_timestamps 24
@@ -59,7 +61,7 @@ defmodule DragNStamp.Timestamps.TimestampSet do
 
   def decode(text, opts) when is_binary(text) do
     with {:ok, %{"timestamps" => raw_timestamps}} <- Jason.decode(text),
-         {:ok, timestamps} <- validate(raw_timestamps, opts) do
+         {:ok, timestamps} <- validate(raw_timestamps, opts, :sort) do
       {:ok, render(timestamps), timestamps}
     else
       {:ok, _other} -> {:error, :invalid_timestamp_envelope}
@@ -73,9 +75,13 @@ defmodule DragNStamp.Timestamps.TimestampSet do
   @spec validate(term(), keyword()) :: {:ok, [timestamp()]} | {:error, term()}
   def validate(raw_timestamps, opts \\ [])
 
-  def validate(raw_timestamps, opts) when is_list(raw_timestamps) do
+  def validate(raw_timestamps, opts), do: validate(raw_timestamps, opts, :preserve)
+
+  defp validate(raw_timestamps, opts, order) when is_list(raw_timestamps) do
     with :ok <- validate_count(raw_timestamps),
          {:ok, timestamps} <- normalize_all(raw_timestamps),
+         timestamps =
+           if(order == :sort, do: Enum.sort_by(timestamps, & &1.seconds), else: timestamps),
          :ok <- validate_order(timestamps),
          :ok <- validate_bounds(timestamps, Keyword.get(opts, :max_seconds)),
          :ok <- validate_excerpt(timestamps, opts) do
@@ -83,7 +89,7 @@ defmodule DragNStamp.Timestamps.TimestampSet do
     end
   end
 
-  def validate(_raw_timestamps, _opts), do: {:error, :timestamps_must_be_a_list}
+  defp validate(_raw_timestamps, _opts, _order), do: {:error, :timestamps_must_be_a_list}
 
   @spec render([timestamp()]) :: binary()
   def render(timestamps) do

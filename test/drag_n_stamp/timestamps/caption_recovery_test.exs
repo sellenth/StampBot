@@ -89,6 +89,41 @@ defmodule DragNStamp.Timestamps.CaptionRecoveryTest do
            )
   end
 
+  test "out-of-order chapter pairs complete every excerpt once and persist canonical checkpoints" do
+    timestamp = timestamp()
+    calls = :counters.new(1, [])
+
+    request = fn request, _ ->
+      :counters.add(calls, 1, 1)
+      start = minimum(request)
+
+      response([
+        %{seconds: start + 772, title: "Later evidence within this excerpt"},
+        %{seconds: start + 101, title: "Earlier evidence within this excerpt"}
+      ])
+    end
+
+    assert {:ok, content, meta} = run(timestamp, segments(), request)
+    assert :counters.get(calls, 1) == 5
+    assert meta["transcript_stats"]["completed_chunk_count"] == 5
+    assert length(String.split(content, "\n")) == 10
+
+    assert content =~
+             "1:41 Earlier evidence within this excerpt\n12:52 Later evidence within this excerpt"
+
+    assert Enum.all?(requests(timestamp), &(&1.status == :succeeded and &1.request_attempt == 1))
+
+    assert Enum.all?(Repo.all(CaptionCheckpoint), fn checkpoint ->
+             [early, late] = checkpoint.chapter_data
+             early["seconds"] < late["seconds"]
+           end)
+
+    assert {:ok, ^content, reused} =
+             run(timestamp, segments(), fn _, _ -> flunk("Reuse canonical checkpoints") end)
+
+    assert reused["transcript_stats"]["reused_chunk_count"] == 5
+  end
+
   test "a restarted run reuses a successful excerpt and retains charges for a later failed excerpt" do
     timestamp = timestamp()
 
@@ -273,13 +308,15 @@ defmodule DragNStamp.Timestamps.CaptionRecoveryTest do
     ])
   end
 
-  defp response(seconds) do
+  defp response(seconds) when is_integer(seconds),
+    do:
+      response([
+        %{seconds: seconds, title: "The supplied evidence explains this part of the discussion"}
+      ])
+
+  defp response(timestamps) do
     content =
-      Jason.encode!(%{
-        timestamps: [
-          %{seconds: seconds, title: "The supplied evidence explains this part of the discussion"}
-        ]
-      })
+      Jason.encode!(%{timestamps: timestamps})
 
     {:ok,
      %Finch.Response{

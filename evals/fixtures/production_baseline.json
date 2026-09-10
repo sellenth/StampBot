@@ -52,9 +52,9 @@
       "expected_outcome": "ready",
       "require_all_segments": true,
       "required_prompt_text": [
-        "Introducción",
-        "日本語",
-        "الخاتمة"
+        "Introducci\u00f3n",
+        "\u65e5\u672c\u8a9e",
+        "\u0627\u0644\u062e\u0627\u062a\u0645\u0629"
       ],
       "min_last_timestamp": 1700
     },
@@ -319,6 +319,26 @@
       ],
       "require_all_segments": true,
       "min_last_timestamp": 3600
+    },
+    {
+      "id": "production_593_unordered_chapters",
+      "description": "Synthetic 772-to-101 ordering regression across five excerpts and final distillation; sorting preserves all valid chapter pairs without extra requests.",
+      "duration_seconds": 4463,
+      "caption_profile": "prod_593_timing",
+      "caption_response": "unordered",
+      "text_response": "unordered",
+      "expected_route": "captions",
+      "expected_outcome": "ready",
+      "expected_caption_requests": 5,
+      "expected_dispatched_requests": 6,
+      "strata": [
+        "long",
+        "captions",
+        "ordering_recovery"
+      ],
+      "url": "https://www.youtube.com/watch?v=sLSTM9znQNs",
+      "require_all_segments": true,
+      "min_last_timestamp": 4372
     }
   ]
 }

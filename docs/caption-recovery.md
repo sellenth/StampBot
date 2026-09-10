@@ -60,5 +60,15 @@ existing instruction, and strict JSON encoding rejects duplicate serialized keys
 A wire-format regression covers text, video, and an omitted initial instruction.
 Out-of-order responses have a distinct bounded failure category in the ledger.
 
+The subsequent live retry showed valid chapter pairs arriving out of order on
+every attempt (for example, second 772 followed by second 101). Provider decoding
+now sorts validated integer-time/title pairs before rendering, without changing
+times, discarding entries, or asking the model to sort them again. Duplicate
+times, out-of-range chapters, malformed fields, and incomplete provider responses
+still fail validation. Stored checkpoints must already be in canonical order.
+An additional five-excerpt regression covers ordering in both generation and
+distillation, verifies no correction requests are needed, and checks checkpoint
+reuse. Sorting does not verify the factual accuracy of a chapter title.
+
 Apply migrations before workers start. The production Docker entrypoint already
 does this; use the [Railway deployment flow](deployment.md).
