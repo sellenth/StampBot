@@ -509,7 +509,113 @@ textarea::placeholder {
 }
 
 .filters-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
     margin-bottom: 1rem;
+}
+
+.filters-header .record-count {
+    margin: 0;
+}
+
+.service-updates {
+    position: relative;
+    margin-left: auto;
+    font-size: 0.85rem;
+}
+
+.service-updates summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.4rem 0.65rem;
+    border-radius: 0.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    list-style: none;
+}
+
+.service-updates summary::-webkit-details-marker {
+    display: none;
+}
+
+.service-updates summary:hover,
+.service-updates[open] summary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.service-updates summary:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.service-updates__dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.service-updates__dot--notice {
+    background: #d99a2b;
+}
+
+.service-updates__chevron {
+    width: 0.35rem;
+    height: 0.35rem;
+    margin-left: 0.25rem;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+}
+
+.service-updates[open] .service-updates__chevron {
+    transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.service-updates__panel {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    width: min(22rem, calc(100vw - 3rem));
+    padding: 1.1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.service-updates__panel h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.service-updates__panel p {
+    margin: 0 0 0.75rem;
+}
+
+.service-updates__panel p:last-child {
+    margin-bottom: 0;
+}
+
+.service-updates__context {
+    color: var(--text-primary);
+}
+
+.service-updates__reason {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
 }
 
 .record-count {

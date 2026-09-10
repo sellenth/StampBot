@@ -174,51 +174,53 @@
           <p class="page-description">Browse all generated timestamps</p>
         </div>
 
-        <div class="status-banner-wrapper">
-          <%= case overall_status(assigns) do %>
-            <% {:issue, failure} -> %>
-              <div class="status-banner status-banner--issue" role="status">
-                <span class="status-indicator status-indicator--issue" aria-hidden="true"></span>
-                <div class="status-banner__content">
-                  <strong>Service issue.</strong>
-                  We couldn't generate timestamps at <time
-                    id={"status-failure-time-#{failure.id || "new"}"}
-                    phx-hook="LocalTime"
-                    data-iso={iso_string(status_reference_time(failure))}
-                  >
-                    {format_datetime(status_reference_time(failure))}
-                  </time>.
-                  <%= if failure.processing_error do %>
-                    <span class="status-banner__details">
-                      {failure.processing_error}
-                    </span>
-                  <% end %>
-                </div>
-              </div>
-            <% {:processing, count} -> %>
-              <div class="status-banner status-banner--processing" role="status">
-                <span class="status-indicator status-indicator--processing" aria-hidden="true">
-                </span>
-                <div class="status-banner__content">
-                  Working on {count} new {pluralize(count, "timestamp", "timestamps")} right now.
-                </div>
-              </div>
-            <% :healthy -> %>
-              <div class="status-banner status-banner--healthy" role="status">
-                <span class="status-indicator status-indicator--healthy" aria-hidden="true">
-                </span>
-                <div class="status-banner__content">
-                  All systems operational.
-                </div>
-              </div>
-          <% end %>
-        </div>
-
         <div class="filters-section">
           <div class="filters-header">
             <p class="record-count">
               <span id="record-count">{length(filtered_timestamps(assigns))}</span> timestamps
             </p>
+            <details id="service-updates" class="service-updates">
+              <summary>
+                <span
+                  class={[
+                    "service-updates__dot",
+                    match?({:issue, _}, overall_status(assigns)) && "service-updates__dot--notice"
+                  ]}
+                  aria-hidden="true"
+                >
+                </span>
+                Service updates <span class="service-updates__chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="service-updates__panel">
+                <%= case overall_status(assigns) do %>
+                  <% {:issue, failure} -> %>
+                    <h3>Recent generation issue</h3>
+                    <p>
+                      A timestamp request failed at <time
+                        id={"status-failure-time-#{failure.id || "new"}"}
+                        phx-hook="LocalTime"
+                        data-iso={iso_string(status_reference_time(failure))}
+                      >
+                        {format_datetime(status_reference_time(failure))}
+                      </time>.
+                    </p>
+                    <p class="service-updates__context">
+                      Other videos may still process successfully. You can try submitting yours.
+                    </p>
+                    <p :if={failure.processing_error} class="service-updates__reason">
+                      {failure.processing_error}
+                    </p>
+                  <% {:processing, count} -> %>
+                    <h3>Generating timestamps</h3>
+                    <p>
+                      Working on {count} new {pluralize(count, "timestamp", "timestamps")} right now.
+                    </p>
+                  <% :healthy -> %>
+                    <h3>Recent activity</h3>
+                    <p>No generation issues reported in the last four hours.</p>
+                <% end %>
+              </div>
+            </details>
           </div>
 
           <form phx-change="filter_changed" class="filters-form">
