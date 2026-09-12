@@ -114,7 +114,7 @@ defmodule DragNStamp.Submissions.Processor do
     end
   end
 
-  defp generate_video(timestamp, key, opts) do
+  defp generate_video(timestamp, key, opts, caption_failure \\ nil) do
     video_fun = Keyword.get(opts, :video_fun, &GeminiClient.timestamps_detailed_with_retry/4)
 
     result =
@@ -128,6 +128,7 @@ defmodule DragNStamp.Submissions.Processor do
         },
         fn ->
           video_fun.(Prompts.video(timestamp.channel_name), key, timestamp.url,
+            max_attempts: if(caption_failure, do: 2, else: 3),
             max_seconds: timestamp.video_duration_seconds,
             generation_config: %{"mediaResolution" => "MEDIA_RESOLUTION_LOW"}
           )
@@ -150,7 +151,17 @@ defmodule DragNStamp.Submissions.Processor do
         {:error, failure(kind, WorkBudget.message(kind), false)}
 
       {:error, reason} ->
-        generate_captions(timestamp, key, opts, "vlm_failure", reason)
+        if caption_failure do
+          {:error,
+           failure(
+             :caption_and_video_failed,
+             caption_failure.message <>
+               " Direct video analysis also failed to produce usable timestamps.",
+             retryable?(reason)
+           )}
+        else
+          generate_captions(timestamp, key, opts, "vlm_failure", reason)
+        end
     end
   end
 
@@ -181,19 +192,50 @@ defmodule DragNStamp.Submissions.Processor do
 
       {:error, reason, message, meta} ->
         meta = put_video_error(meta, video_error)
-        record_caption_attempt(timestamp, meta)
+        timestamp = record_caption_attempt(timestamp, meta)
 
         retryable =
           reason not in [:input_limit_exceeded, :work_budget_exceeded, :total_budget_exceeded] and
             (meta["retryable"] == true or retryable?(reason) or retryable?(video_error))
 
-        {:error,
-         failure(
-           reason,
-           message,
-           retryable
-         )}
+        caption_failure = failure(reason, message, retryable)
+
+        if video_error == nil and caption_video_fallback?(timestamp, reason) do
+          timestamp =
+            Submissions.update!(timestamp, %{
+              processing_context:
+                Map.put(
+                  timestamp.processing_context || %{},
+                  "video_fallback_trigger",
+                  to_string(reason)
+                )
+            })
+
+          generate_video(timestamp, key, opts, caption_failure)
+        else
+          {:error, caption_failure}
+        end
     end
+  end
+
+  # Bound the more expensive rescue path; unknown durations cannot be budgeted
+  # safely. Every request still passes through GeminiClient's work allowance.
+  defp caption_video_fallback?(timestamp, reason) do
+    seconds = timestamp.video_duration_seconds
+
+    is_integer(seconds) and seconds > 1_200 and seconds <= 3_600 and
+      reason in [
+        :youtube_auth_failed,
+        :youtube_bot_challenge,
+        :youtube_rate_limited,
+        :youtube_network_error,
+        :captions_unavailable,
+        :captions_empty,
+        :captions_fetch_failed,
+        :caption_downloader_outdated,
+        :caption_downloader_unavailable,
+        :caption_runtime_outdated
+      ]
   end
 
   defp checkpoint(timestamp, content, model, cost, bound) do

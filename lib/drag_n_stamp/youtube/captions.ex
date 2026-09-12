@@ -22,9 +22,10 @@ defmodule DragNStamp.YouTube.Captions do
   Fetches a transcript for the supplied `video_id`.
   """
   @spec fetch_transcript(String.t()) :: transcript_result()
-  def fetch_transcript(video_id) when is_binary(video_id) do
+  def fetch_transcript(video_id, opts \\ [])
+
+  def fetch_transcript(video_id, opts) when is_binary(video_id) do
     url = "https://www.youtube.com/watch?v=#{video_id}"
-    cookies_path = cookies_path()
     language = caption_language()
 
     tmp_root =
@@ -34,15 +35,48 @@ defmodule DragNStamp.YouTube.Captions do
     File.mkdir_p!(tmp_root)
 
     try do
-      attempt_downloads(video_id, url, language, cookies_path, tmp_root)
+      anonymous = attempt_downloads(video_id, url, language, nil, tmp_root, opts)
+
+      case anonymous do
+        {:error, {:yt_dlp_failed, category, _}, context}
+        when category in [:youtube_auth_required, :youtube_bot_challenge] ->
+          case Keyword.get_lazy(opts, :cookies_path, &cookies_path/0) do
+            nil ->
+              anonymous
+
+            path ->
+              # One authenticated extraction can request both subtitle types;
+              # yt-dlp prefers a human track when both exist for a language.
+              authenticated_opts =
+                Keyword.put(opts, :variants, [
+                  {["--write-subs", "--write-auto-subs"], :authenticated_subtitles}
+                ])
+
+              case attempt_downloads(video_id, url, language, path, tmp_root, authenticated_opts) do
+                {:ok, result} ->
+                  {:ok,
+                   put_in(result.context.attempts, context.attempts ++ result.context.attempts)}
+
+                {:error, reason, authenticated_context} ->
+                  {:error, reason,
+                   %{
+                     authenticated_context
+                     | attempts: context.attempts ++ authenticated_context.attempts
+                   }}
+              end
+          end
+
+        _ ->
+          anonymous
+      end
     after
       File.rm_rf(tmp_root)
     end
   end
 
-  def fetch_transcript(_), do: {:error, :invalid_video_id, %{stage: :input_validation}}
+  def fetch_transcript(_, _), do: {:error, :invalid_video_id, %{stage: :input_validation}}
 
-  defp attempt_downloads(video_id, url, language, cookies_path, tmp_root) do
+  defp attempt_downloads(video_id, url, language, cookies_path, tmp_root, opts) do
     base_attempt = %{
       video_id: video_id,
       url: url,
@@ -50,30 +84,36 @@ defmodule DragNStamp.YouTube.Captions do
       language: language
     }
 
-    Enum.reduce_while(@sub_variants, {:error, :no_subtitles, [], base_attempt}, fn {flag, variant},
-                                                                                   {:error,
-                                                                                    _last_reason,
-                                                                                    attempts,
-                                                                                    base} ->
-      case download_variant(url, language, cookies_path, tmp_root, flag, variant) do
-        {:ok, track, segments, attempt_meta} ->
-          context =
-            base
-            |> Map.merge(%{
-              stage: :transcript_ready,
-              fallback_used: true,
-              source: :yt_dlp,
-              chosen_variant: variant,
-              segment_count: length(segments),
-              attempts: Enum.reverse([attempt_meta | attempts])
-            })
+    Enum.reduce_while(
+      Keyword.get(opts, :variants, @sub_variants),
+      {:error, :no_subtitles, [], base_attempt},
+      fn {flag, variant}, {:error, _last_reason, attempts, base} ->
+        case download_variant(url, language, cookies_path, tmp_root, flag, variant, opts) do
+          {:ok, track, segments, attempt_meta} ->
+            context =
+              base
+              |> Map.merge(%{
+                stage: :transcript_ready,
+                fallback_used: true,
+                source: :yt_dlp,
+                chosen_variant: variant,
+                segment_count: length(segments),
+                attempts: Enum.reverse([attempt_meta | attempts])
+              })
 
-          {:halt, {:ok, %{track: track, segments: segments, context: context}}}
+            {:halt, {:ok, %{track: track, segments: segments, context: context}}}
 
-        {:error, reason, attempt_meta} ->
-          {:cont, {:error, reason, [attempt_meta | attempts], base}}
+          {:error, reason, attempt_meta} ->
+            # Switching subtitle type cannot fix a blocked extractor or runtime.
+            action =
+              if match?({:yt_dlp_failed, category, _} when category != :no_subtitles, reason),
+                do: :halt,
+                else: :cont
+
+            {action, {:error, reason, [attempt_meta | attempts], base}}
+        end
       end
-    end)
+    )
     |> case do
       {:ok, result} ->
         {:ok, result}
@@ -93,25 +133,36 @@ defmodule DragNStamp.YouTube.Captions do
     end
   end
 
-  defp download_variant(url, language, cookies_path, tmp_root, flag, variant) do
+  defp download_variant(url, language, cookies_path, tmp_root, flag, variant, opts) do
     variant_dir = Path.join(tmp_root, Atom.to_string(variant))
     File.rm_rf(variant_dir)
     File.mkdir_p!(variant_dir)
 
     params =
       [
+        "--ignore-config",
+        "--no-playlist",
         "--skip-download",
-        flag,
+        "--socket-timeout",
+        "15",
+        "--retries",
+        "1",
+        "--extractor-retries",
+        "1",
+        "--sub-langs",
+        language,
         "--convert-subs=vtt",
         "--quiet",
         "--js-runtimes",
         "node",
         "--output",
         Path.join(variant_dir, @output_template)
-      ] ++ cookies_args(cookies_path)
+      ] ++ List.wrap(flag) ++ cookies_args(cookies_path)
+
+    runner = Keyword.get(opts, :runner, &run_ytdlp/1)
 
     result =
-      case run_ytdlp(params ++ [url]) do
+      case runner.(params ++ [url]) do
         {:ok, _output} ->
           with {:ok, subtitle_path} <- locate_subtitle_file(variant_dir),
                {:ok, segments, parse_meta} <- parse_vtt(subtitle_path) do
@@ -157,7 +208,12 @@ defmodule DragNStamp.YouTube.Captions do
       end
 
     File.rm_rf(variant_dir)
-    result
+    mode = if cookies_path, do: "authenticated", else: "anonymous"
+
+    case result do
+      {:ok, track, segments, meta} -> {:ok, track, segments, Map.put(meta, :access_mode, mode)}
+      {:error, reason, meta} -> {:error, reason, Map.put(meta, :access_mode, mode)}
+    end
   end
 
   defp run_ytdlp(params) do
@@ -198,6 +254,12 @@ defmodule DragNStamp.YouTube.Captions do
       (String.contains?(normalized, "node") or String.contains?(normalized, "javascript")) and
           contains_any?(normalized, ["unsupported version", "not supported", "too old"]) ->
         :unsupported_runtime
+
+      contains_any?(normalized, [
+        "sign in to confirm you're not a bot",
+        "sign in to confirm you’re not a bot"
+      ]) ->
+        :youtube_bot_challenge
 
       contains_any?(normalized, [
         "cookies are no longer valid",

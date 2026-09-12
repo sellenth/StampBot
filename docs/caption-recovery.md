@@ -1,5 +1,34 @@
 # Caption recovery
 
+## Caption access and direct-video rescue
+
+Caption acquisition first runs anonymously, preferring human subtitles and then
+automatic captions. A bot or login challenge stops that extraction immediately;
+when configured cookies exist, one authenticated extraction requests both types.
+Missing captions, rate limits, unavailable videos, and runtime failures do not
+trigger repeated cookie attempts. Each attempt records its access mode. Bot
+challenges and invalid credentials now have separate failure categories.
+
+Downloader calls ignore machine-specific config, forbid playlist processing,
+use the configured caption language (English by default), and bound socket waits
+to 15 seconds with one network retry and one extractor retry. The existing
+30-minute worker timeout remains the overall job limit.
+
+Videos up to 20 minutes still start with direct video analysis. Longer videos
+still prefer captions. When caption acquisition fails, a video with a known
+duration above 20 minutes and at most 60 minutes can use direct Gemini analysis
+at low media resolution. That rescue gets at most two model attempts per job
+run, retains request accounting and timestamp validation, and cannot fall back
+into captions again. Existing job retry limits apply only to transient provider
+failures; request allowances, cumulative spending limits, and publication policy
+remain in force. Dollar allowances are conservative reservations, not a provider
+billing guarantee.
+
+Unknown durations, videos over an hour, unavailable videos, budget/input denials,
+and caption summarization/validation failures do not trigger this rescue.
+Successful caption metadata is retained across generation checkpoints.
+This improves recovery options but does not guarantee YouTube or Gemini access.
+
 The production failure on submission 593 exposed a gap between model validation
 and excerpt validation: a response at second 1019 (16:59) passed the video's
 4463-second bound even though its supplied excerpt ended at second 893 (14:53).

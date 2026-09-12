@@ -270,6 +270,113 @@ defmodule DragNStamp.SubmissionsTest do
     %Timestamp{} |> Timestamp.changeset(Map.merge(defaults, attrs)) |> Repo.insert!()
   end
 
+  test "blocked captions on a 22-minute video recover through bounded video analysis" do
+    timestamp = insert_timestamp(%{video_duration_seconds: 1328})
+    parent = self()
+
+    assert {:ok, ready} =
+             Processor.process(timestamp,
+               api_key: "fixture-key",
+               publish: false,
+               metadata_fun: fn ts -> {:ok, ts} end,
+               caption_fun: fn _, _, _, _ ->
+                 send(parent, :captions)
+
+                 {:error, :youtube_bot_challenge, "YouTube blocked captions.",
+                  %{"failure_reason" => "youtube_bot_challenge"}}
+               end,
+               video_fun: fn _, _, _, options ->
+                 assert options[:max_attempts] == 2
+                 assert options[:max_seconds] == 1328
+                 assert options[:generation_config]["mediaResolution"] == "MEDIA_RESOLUTION_LOW"
+                 send(parent, :video)
+                 {:ok, result("0:00 Opening\n22:00 Ending")}
+               end,
+               text_fun: fn _, _, _ -> {:ok, result("0:00 Opening\n22:00 Ending")} end
+             )
+
+    assert ready.processing_status == :ready
+    assert ready.processing_context["video_fallback_trigger"] == "youtube_bot_challenge"
+
+    assert ready.processing_context["caption_attempts"] |> hd() |> Map.get("failure_reason") ==
+             "youtube_bot_challenge"
+
+    assert_receive :captions
+    assert_receive :video
+    refute_receive :captions
+    refute_receive :video
+  end
+
+  test "caption rescue respects duration, terminal validation and budget boundaries" do
+    timestamp = insert_timestamp(%{})
+
+    for {seconds, reason} <- [
+          {nil, :youtube_auth_failed},
+          {3601, :youtube_auth_failed},
+          {1328, :video_unavailable},
+          {1328, :timestamp_extraction_failed},
+          {1328, :work_budget_exceeded},
+          {1328, :total_budget_exceeded},
+          {1328, :input_limit_exceeded}
+        ] do
+      ts = Submissions.update!(timestamp, %{video_duration_seconds: seconds})
+
+      assert {:error, %{reason: ^reason}} =
+               Processor.process(ts,
+                 api_key: "fixture-key",
+                 metadata_fun: fn ts -> {:ok, ts} end,
+                 caption_fun: fn _, _, _, _ -> {:error, reason, "Unavailable.", %{}} end,
+                 video_fun: fn _, _, _, _ -> flunk("video fallback must not run") end
+               )
+    end
+  end
+
+  test "failed rescue cannot loop back into captions" do
+    timestamp = insert_timestamp(%{video_duration_seconds: 3600})
+    parent = self()
+
+    assert {:error, failure} =
+             Processor.process(timestamp,
+               api_key: "fixture-key",
+               metadata_fun: fn ts -> {:ok, ts} end,
+               caption_fun: fn _, _, _, _ ->
+                 send(parent, :caption_attempt)
+                 {:error, :captions_unavailable, "No captions were available.", %{}}
+               end,
+               video_fun: fn _, _, _, _ ->
+                 send(parent, :video_attempt)
+                 {:error, %{kind: :http, status: 503}}
+               end
+             )
+
+    assert failure.reason == :caption_and_video_failed
+    assert failure.retryable
+    assert failure.message =~ "Direct video analysis also failed"
+    assert_receive :caption_attempt
+    assert_receive :video_attempt
+    refute_receive :caption_attempt
+    refute_receive :video_attempt
+  end
+
+  test "short video failure followed by caption failure never repeats video" do
+    timestamp = insert_timestamp(%{video_duration_seconds: 1200})
+    parent = self()
+
+    assert {:error, %{reason: :youtube_bot_challenge}} =
+             Processor.process(timestamp,
+               api_key: "fixture-key",
+               metadata_fun: fn ts -> {:ok, ts} end,
+               video_fun: fn _, _, _, _ ->
+                 send(parent, :video_attempt)
+                 {:error, %{kind: :http, status: 400}}
+               end,
+               caption_fun: fn _, _, _, _ -> {:error, :youtube_bot_challenge, "Blocked.", %{}} end
+             )
+
+    assert_receive :video_attempt
+    refute_receive :video_attempt
+  end
+
   defp result(content) do
     %Result{
       content: content,

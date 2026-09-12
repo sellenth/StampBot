@@ -136,11 +136,23 @@ defmodule StampBot.Evals.ProductionBaseline do
 
     actual_route =
       cond do
-        video_requests > 0 and snapshot.caption_fetches > 0 -> "video_then_captions"
-        video_requests > 0 -> "video"
-        snapshot.caption_fetches > 0 -> "captions"
-        snapshot.fixture["checkpoint_content"] -> "resume_checkpoint"
-        true -> "none"
+        (persisted.processing_context || %{})["video_fallback_trigger"] != nil ->
+          "captions_then_video"
+
+        video_requests > 0 and snapshot.caption_fetches > 0 ->
+          "video_then_captions"
+
+        video_requests > 0 ->
+          "video"
+
+        snapshot.caption_fetches > 0 ->
+          "captions"
+
+        snapshot.fixture["checkpoint_content"] ->
+          "resume_checkpoint"
+
+        true ->
+          "none"
       end
 
     content = persisted.distilled_content || persisted.content || ""

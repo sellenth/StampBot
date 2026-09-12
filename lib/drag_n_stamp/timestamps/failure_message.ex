@@ -22,6 +22,7 @@ defmodule DragNStamp.Timestamps.FailureMessage do
     "caption_downloader_unavailable" => :caption_downloader_unavailable,
     "caption_runtime_outdated" => :caption_runtime_outdated,
     "youtube_auth_failed" => :youtube_auth_failed,
+    "youtube_bot_challenge" => :youtube_bot_challenge,
     "youtube_rate_limited" => :youtube_rate_limited,
     "youtube_network_error" => :youtube_network_error,
     "video_unavailable" => :video_unavailable,

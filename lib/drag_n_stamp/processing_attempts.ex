@@ -19,7 +19,7 @@ defmodule DragNStamp.ProcessingAttempts do
     missing_candidate_text prompt_blocked unwatched incomplete_output work_budget_exceeded
     input_limit_exceeded missing_api_key video_id_not_found captions_unavailable captions_empty
     captions_fetch_failed caption_downloader_outdated caption_runtime_outdated caption_downloader_unavailable
-    youtube_auth_failed youtube_rate_limited youtube_network_error video_unavailable transcript_empty
+    youtube_auth_failed youtube_bot_challenge caption_and_video_failed youtube_rate_limited youtube_network_error video_unavailable transcript_empty
     gemini_error timestamp_extraction_failed no_timestamps timestamp_outside_excerpt timestamp_out_of_bounds
     timestamps_not_strictly_increasing persistence_failed
     caller_rate_limited video_cooldown daily_work_limit daily_budget_exceeded total_budget_exceeded

@@ -182,6 +182,44 @@ defmodule DragNStamp.WorkBudgetTest do
     assert Repo.aggregate(Reservation, :count) == 0
   end
 
+  test "caption-to-video fallback cannot dispatch when its allowance is exhausted" do
+    {:ok, ts, :created} = submit("budget00001")
+    ts = Submissions.update!(ts, %{video_duration_seconds: 1328})
+    # Exhaust both the existing allowance and the cumulative top-up capacity.
+    assert :ok = WorkBudget.before_request(Map.put(context(ts), :operation, :video))
+    set_config(total_budget_microusd: 1_500_000)
+
+    assert {:error, %{reason: :total_budget_exceeded, retryable: false}} =
+             DragNStamp.Submissions.Processor.process(ts,
+               api_key: "fixture-key",
+               metadata_fun: fn ts -> {:ok, ts} end,
+               caption_fun: fn _, _, _, _ ->
+                 {:error, :youtube_bot_challenge, "YouTube blocked captions.", %{}}
+               end,
+               video_fun: fn prompt, key, url, opts ->
+                 DragNStamp.Timestamps.GeminiClient.timestamps_detailed_with_retry(
+                   prompt,
+                   key,
+                   url,
+                   Keyword.put(opts, :request_fun, fn _, _ ->
+                     flunk("budget denial must prevent HTTP dispatch")
+                   end)
+                 )
+               end
+             )
+
+    assert Repo.get!(Reservation, context(ts).reservation_id).request_count == 1
+
+    blocked =
+      Repo.one!(
+        from a in DragNStamp.ProcessingAttempt,
+          where: a.timestamp_id == ^ts.id and a.kind == :request
+      )
+
+    refute blocked.dispatched
+    assert blocked.cost_status == :not_dispatched
+  end
+
   defp submit(id), do: Submissions.submit(url(id))
   defp url(id), do: "https://www.youtube.com/watch?v=#{id}"
 

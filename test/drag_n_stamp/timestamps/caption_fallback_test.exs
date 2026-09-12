@@ -227,6 +227,7 @@ defmodule DragNStamp.Timestamps.CaptionFallbackTest do
         unsupported_runtime: :caption_runtime_outdated,
         binary_unavailable: :caption_downloader_unavailable,
         cookies_invalid: :youtube_auth_failed,
+        youtube_bot_challenge: :youtube_bot_challenge,
         youtube_auth_required: :youtube_auth_failed,
         rate_limited: :youtube_rate_limited,
         network_error: :youtube_network_error,

@@ -553,6 +553,7 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
       {:yt_dlp_failed, :unsupported_runtime, _} -> :caption_runtime_outdated
       {:yt_dlp_failed, :binary_unavailable, _} -> :caption_downloader_unavailable
       {:yt_dlp_failed, :cookies_invalid, _} -> :youtube_auth_failed
+      {:yt_dlp_failed, :youtube_bot_challenge, _} -> :youtube_bot_challenge
       {:yt_dlp_failed, :youtube_auth_required, _} -> :youtube_auth_failed
       {:yt_dlp_failed, :rate_limited, _} -> :youtube_rate_limited
       {:yt_dlp_failed, :network_error, _} -> :youtube_network_error
@@ -608,6 +609,10 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   def failure_message(:youtube_auth_failed),
     do:
       "YouTube rejected StampBot's caption access credentials. This is a server-side access issue, not necessarily a problem with the submitted video."
+
+  def failure_message(:youtube_bot_challenge),
+    do:
+      "YouTube blocked StampBot's caption request with a bot-verification challenge. We could not retrieve captions from the server."
 
   def failure_message(:youtube_rate_limited),
     do:

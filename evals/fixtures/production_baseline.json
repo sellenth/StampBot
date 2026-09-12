@@ -107,12 +107,12 @@
       "strata": [
         "long",
         "no_captions",
-        "terminal_failure"
+        "video_recovery"
       ],
-      "expected_route": "captions",
-      "expected_outcome": "error",
-      "expected_reason": "captions_unavailable",
-      "expected_retryable": false
+      "expected_route": "captions_then_video",
+      "expected_outcome": "ready",
+      "expected_video_requests": 1,
+      "expected_caption_requests": 0
     },
     {
       "id": "caption_rate_limit",
@@ -121,12 +121,12 @@
       "caption_error": "rate_limited",
       "strata": [
         "caption_access_failure",
-        "retryable_failure"
+        "video_recovery"
       ],
-      "expected_route": "captions",
-      "expected_outcome": "error",
-      "expected_reason": "youtube_rate_limited",
-      "expected_retryable": true
+      "expected_route": "captions_then_video",
+      "expected_outcome": "ready",
+      "expected_video_requests": 1,
+      "expected_caption_requests": 0
     },
     {
       "id": "invalid_caption_timestamps",
