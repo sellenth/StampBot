@@ -29,6 +29,10 @@ and caption summarization/validation failures do not trigger this rescue.
 Successful caption metadata is retained across generation checkpoints.
 This improves recovery options but does not guarantee YouTube or Gemini access.
 
+The image bundles checksum-verified yt-dlp 2026.08.19, matching the version
+observed in production before this rollout. A rate-limited startup self-update
+therefore retains that version instead of reverting to the older July binary.
+
 The production failure on submission 593 exposed a gap between model validation
 and excerpt validation: a response at second 1019 (16:59) passed the video's
 4463-second bound even though its supplied excerpt ended at second 893 (14:53).

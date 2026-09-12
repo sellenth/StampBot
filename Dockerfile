@@ -21,8 +21,8 @@ ARG NODE_VERSION=22
 ARG NODE_ALPINE_VERSION=3.19
 FROM hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-alpine-${ALPINE_VERSION} AS build
 
-ARG YT_DLP_VERSION=2026.07.04
-ARG YT_DLP_SHA256=495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd
+ARG YT_DLP_VERSION=2026.08.19
+ARG YT_DLP_SHA256=1fa6733c37ea6fb51c99ad8fe785e7b7e5f3246c9b980230329d4fb72ed8d4d6
 
 # Install build dependencies.  Node/npm are required for Tailwind
 # and JS bundling, git allows mix to fetch dependencies, and
