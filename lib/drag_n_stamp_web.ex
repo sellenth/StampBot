@@ -17,7 +17,7 @@ defmodule DragNStampWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images js submissions favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images js submissions favicon.ico robots.txt ads.txt)
 
   def router do
     quote do
