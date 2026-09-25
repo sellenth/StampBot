@@ -106,6 +106,7 @@ defmodule DragNStamp.ProcessingAttempts do
       })
 
     annotate(handle, fields)
+    DragNStamp.WorkBudget.reconcile_request(handle.id)
     estimate
   end
 

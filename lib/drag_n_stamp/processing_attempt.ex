@@ -54,6 +54,9 @@ defmodule DragNStamp.ProcessingAttempt do
       default: :not_applicable
 
     field :estimated_cost_usd, :decimal
+    field :budget_day, :date
+    field :budget_reserved_microusd, :integer
+    field :budget_settled_microusd, :integer
     timestamps(type: :utc_datetime_usec)
   end
 

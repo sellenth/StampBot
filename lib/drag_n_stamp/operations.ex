@@ -118,6 +118,10 @@ defmodule DragNStamp.Operations do
   defp work_allowances(now) do
     day = Repo.get(Day, DateTime.to_date(now))
     total_reserved = WorkBudget.total_reserved_microusd()
+    total_spent = Repo.aggregate(Day, :sum, :spent_microusd) || 0
+
+    total_spent =
+      if is_struct(total_spent, Decimal), do: Decimal.to_integer(total_spent), else: total_spent
 
     %{
       day: DateTime.to_date(now),
@@ -125,6 +129,8 @@ defmodule DragNStamp.Operations do
       reserved_allowance_usd: usd(if(day, do: day.reserved_microusd, else: 0)),
       daily_allowance_limit_usd: usd(WorkBudget.config(:daily_budget_microusd)),
       total_reserved_allowance_usd: usd(total_reserved),
+      total_settled_cost_usd: usd(total_spent),
+      total_outstanding_reserve_usd: usd(total_reserved - total_spent),
       total_allowance_limit_usd: usd(WorkBudget.config(:total_budget_microusd)),
       total_allowance_remaining_usd:
         usd(max(WorkBudget.config(:total_budget_microusd) - total_reserved, 0)),
@@ -135,7 +141,7 @@ defmodule DragNStamp.Operations do
       video_request_allowance_usd: usd(WorkBudget.config(:video_request_microusd)),
       text_request_allowance_usd: usd(WorkBudget.config(:text_request_microusd)),
       accounting_note:
-        "Allowances are conservative planning estimates, not a provider billing cap. Unknown outcomes are not refunded."
+        "Budget usage is settled usage-based cost plus outstanding reserves, not a provider billing cap. Unknown request costs retain their reserves; unused admission holds are released."
     }
   end
 

@@ -114,12 +114,13 @@ defmodule DragNStamp.WorkBudgetTest do
   test "crossing UTC midnight cannot restore a spent total allowance" do
     set_config(total_budget_microusd: 1_500_000)
     {:ok, ts, :created} = submit("budget00001")
+    assert :ok = WorkBudget.before_request(Map.put(context(ts), :operation, :video))
     yesterday = Date.add(Date.utc_today(), -1)
     Repo.update_all(Day, set: [day: yesterday])
     Repo.update_all(Reservation, set: [allowance_day: yesterday])
     assert {:error, :total_budget_exceeded} = WorkBudget.before_request(context(ts))
     assert WorkBudget.total_reserved_microusd() == 1_500_000
-    assert Repo.get!(Reservation, context(ts).reservation_id).request_count == 0
+    assert Repo.get!(Reservation, context(ts).reservation_id).request_count == 1
   end
 
   test "daily request cap is shared across reservations and retries" do
@@ -131,12 +132,15 @@ defmodule DragNStamp.WorkBudgetTest do
     assert Repo.get!(Day, Date.utc_today()).request_count == 1
   end
 
-  test "a carried job consumes today's allowance rather than expired prepaid work" do
+  test "a carried job releases yesterday's unused hold before reserving today" do
     {:ok, ts, :created} = submit("budget00001")
     context = context(ts)
-    Repo.update_all(Reservation, set: [allowance_day: Date.add(Date.utc_today(), -1)])
+    yesterday = Date.add(Date.utc_today(), -1)
+    Repo.update_all(Day, set: [day: yesterday])
+    Repo.update_all(Reservation, set: [allowance_day: yesterday])
     assert :ok = WorkBudget.before_request(Map.put(context, :operation, :video))
-    assert Repo.get!(Day, Date.utc_today()).reserved_microusd == 3_000_000
+    assert Repo.get!(Day, yesterday).reserved_microusd == 0
+    assert Repo.get!(Day, Date.utc_today()).reserved_microusd == 1_500_000
     assert Repo.get!(Reservation, context.reservation_id).remaining_microusd == 0
   end
 

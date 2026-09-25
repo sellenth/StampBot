@@ -29,6 +29,9 @@ Timestamp cards persist and display known estimated API costs across all recorde
 requests, including rejected responses and retries, with incomplete accounting
 marked when provider usage is missing. Pricing rates live in
 the `:gemini_cost_rates` application config so they can be updated independently.
+Processing budgets count these usage estimates plus outstanding request reserves.
+Known costs replace temporary reserves; unknown request costs remain reserved,
+and unused admission holds are released when processing ends.
 
 ## Durable submissions
 

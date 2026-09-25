@@ -214,7 +214,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
       context = ProcessingAttempts.context()
 
       with :ok <- WorkBudget.check_request(context, body),
-           :ok <- WorkBudget.before_request(context) do
+           :ok <- WorkBudget.before_request(context, handle.id) do
         ProcessingAttempts.annotate(handle, %{dispatched: true})
         dispatch_request(model, body, api_key, operation, thinking_level, attempt, opts, handle)
       else

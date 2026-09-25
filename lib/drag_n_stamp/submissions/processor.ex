@@ -35,7 +35,11 @@ defmodule DragNStamp.Submissions.Processor do
           ProcessingAttempts.annotate(handle, %{reservation_id: reservation_id})
 
           ProcessingAttempts.with_context(%{reservation_id: reservation_id}, fn ->
-            process_reserved(reserved, opts)
+            try do
+              process_reserved(reserved, opts)
+            after
+              WorkBudget.release_reservation(reservation_id)
+            end
           end)
         else
           {:error, reason} -> {:error, failure(reason, WorkBudget.message(reason), false)}

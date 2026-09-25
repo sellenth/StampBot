@@ -1,13 +1,13 @@
 defmodule DragNStamp.WorkBudget do
   @moduledoc """
-  Atomic work limits and conservative USD allowance reservations.
+  Atomic work limits and USD reservations reconciled to reported usage costs.
 
   Dollar reservations are operator-configured allowances, not a provider billing
   guarantee. Request/admission/input limits are hard application bounds. Unknown
-  outcomes never release an allowance; unused allowance expires at UTC midnight.
+  outcomes retain their request allowance. Unused admission holds are released.
   """
   import Ecto.Query
-  alias DragNStamp.{Repo, Timestamp}
+  alias DragNStamp.{ProcessingAttempt, Repo, Timestamp}
   alias DragNStamp.Security.Caller
 
   defmodule Reservation do
@@ -29,6 +29,7 @@ defmodule DragNStamp.WorkBudget do
     @primary_key {:day, :date, autogenerate: false}
     schema "work_budget_days" do
       field :reserved_microusd, :integer, default: 0
+      field :spent_microusd, :integer, default: 0
       field :request_count, :integer, default: 0
       field :submission_count, :integer, default: 0
     end
@@ -69,6 +70,7 @@ defmodule DragNStamp.WorkBudget do
         do: raise(ArgumentError, "work reservation requires an acceptance transaction")
 
       lock!()
+      reconcile_pending!()
       now = DateTime.utc_now()
       day = day!(DateTime.to_date(now))
       total_reserved = total_reserved_microusd()
@@ -155,9 +157,12 @@ defmodule DragNStamp.WorkBudget do
   end
 
   @doc "Every dispatched provider attempt, including retries, must claim work first."
-  def before_request(context) when not is_map(context), do: before_request(%{})
+  def before_request(context, request_id \\ nil)
 
-  def before_request(context) do
+  def before_request(context, request_id) when not is_map(context),
+    do: before_request(%{}, request_id)
+
+  def before_request(context, request_id) do
     cond do
       not enabled?() ->
         :ok
@@ -168,12 +173,21 @@ defmodule DragNStamp.WorkBudget do
       true ->
         case Repo.transaction(fn ->
                lock!()
+               reconcile_pending!()
 
                reservation =
                  context[:reservation_id] && Repo.get(Reservation, context[:reservation_id])
 
                unless reservation && reservation.timestamp_id == context[:timestamp_id],
                  do: Repo.rollback(:work_budget_exceeded)
+
+               request = if request_id, do: Repo.get!(ProcessingAttempt, request_id)
+
+               if request &&
+                    (request.kind != :request or request.timestamp_id != reservation.timestamp_id or
+                       request.reservation_id != reservation.id or
+                       not is_nil(request.budget_reserved_microusd)),
+                  do: Repo.rollback(:work_budget_exceeded)
 
                day = day!(Date.utc_today())
 
@@ -206,12 +220,121 @@ defmodule DragNStamp.WorkBudget do
                  inc: [reserved_microusd: extra, request_count: 1]
                )
 
+               if request do
+                 request
+                 |> Ecto.Changeset.change(%{
+                   budget_day: day.day,
+                   budget_reserved_microusd: allowance,
+                   dispatched: true
+                 })
+                 |> Repo.update!()
+               end
+
                :ok
              end) do
           {:ok, :ok} -> :ok
           {:error, reason} -> {:error, reason}
         end
     end
+  end
+
+  @doc "Settles a claimed request once usage is durable; repeat calls are harmless."
+  def reconcile_request(nil), do: :ok
+
+  def reconcile_request(id) do
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        lock!()
+        settle_request!(Repo.get!(ProcessingAttempt, id))
+      end)
+
+    :ok
+  end
+
+  @doc "Releases only unclaimed admission credit, never dispatched request reserves."
+  def release_reservation(nil), do: :ok
+
+  def release_reservation(id) do
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        lock!()
+        release_unused!(Repo.get(Reservation, id))
+      end)
+
+    :ok
+  end
+
+  defp settle_request!(
+         %ProcessingAttempt{
+           budget_reserved_microusd: reserved,
+           budget_day: day,
+           cost_status: :estimated,
+           estimated_cost_usd: %Decimal{} = cost
+         } = request
+       )
+       when is_integer(reserved) do
+    # Round up to the ledger's microdollar precision. Even a response rejected
+    # by output validation is billable. Record overruns in full and block later work.
+    actual = cost |> Decimal.mult(1_000_000) |> Decimal.round(0, :ceiling) |> Decimal.to_integer()
+    previous = request.budget_settled_microusd
+
+    Repo.update_all(from(d in Day, where: d.day == ^day),
+      inc: [
+        reserved_microusd: actual - (previous || reserved),
+        spent_microusd: actual - (previous || 0)
+      ]
+    )
+
+    request
+    |> Ecto.Changeset.change(budget_settled_microusd: actual)
+    |> Repo.update!()
+
+    :ok
+  end
+
+  defp settle_request!(_), do: :ok
+
+  defp release_unused!(%Reservation{remaining_microusd: remaining} = reservation)
+       when remaining > 0 do
+    Repo.update_all(from(d in Day, where: d.day == ^reservation.allowance_day),
+      inc: [reserved_microusd: -remaining]
+    )
+
+    reservation |> Ecto.Changeset.change(remaining_microusd: 0) |> Repo.update!()
+    :ok
+  end
+
+  defp release_unused!(_), do: :ok
+
+  defp reconcile_pending! do
+    # Recover a crash between persisting usage and settling its reservation.
+    Repo.all(
+      from a in ProcessingAttempt,
+        where:
+          not is_nil(a.budget_reserved_microusd) and is_nil(a.budget_settled_microusd) and
+            a.cost_status == :estimated and not is_nil(a.estimated_cost_usd)
+    )
+    |> Enum.each(&settle_request!/1)
+
+    # Old-day holds cannot pay for today's requests. Terminal or abandoned jobs
+    # cannot use admission credit either. Request reserves are separate and stay held.
+    today = Date.utc_today()
+    worker = Oban.Worker.to_string(DragNStamp.Submissions.Worker)
+
+    Repo.all(
+      from r in Reservation,
+        join: t in Timestamp,
+        on: t.id == r.timestamp_id,
+        where:
+          r.remaining_microusd > 0 and
+            (r.allowance_day < ^today or t.processing_status != :processing or
+               fragment(
+                 "NOT EXISTS (SELECT 1 FROM oban_jobs j WHERE j.worker = ? AND j.args->>'timestamp_id' = ?::text AND j.state IN ('available', 'scheduled', 'executing', 'retryable'))",
+                 ^worker,
+                 r.timestamp_id
+               ))
+    )
+    |> Enum.each(&release_unused!/1)
   end
 
   def check_duration(_context, nil), do: :ok
@@ -282,7 +405,7 @@ defmodule DragNStamp.WorkBudget do
 
   def message(_), do: "StampBot could not reserve processing work. Please try later."
 
-  @doc "Cumulative non-refundable allowance, including every previous UTC day."
+  @doc "Cumulative settled cost plus outstanding reserves across all UTC days."
   def total_reserved_microusd do
     case Repo.aggregate(Day, :sum, :reserved_microusd) do
       nil -> 0

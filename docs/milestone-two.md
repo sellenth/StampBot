@@ -44,25 +44,36 @@ become visible terminal processing failures.
 
 Each accepted run initially reserves a configurable **$1.50 allowance** against
 a **$25 UTC-day allowance budget** and a **$25 cumulative allowance budget**.
-The cumulative limit includes all existing `work_budget_days` reservations,
-does not reset at midnight or deployment, and is checked under the same database
-lock at admission and before every provider attempt. Deleting a submission does
-not refund it. Completed cached results remain accessible. New work stops when
-its required allowance would exceed either budget; already reserved work may
-finish within its remaining allowance. An operator must deliberately raise
-`STAMPBOT_TOTAL_BUDGET_MICROUSD` to fund more work. Do not delete budget history
-to restore funds. The operations report exposes the total reserved, limit, and
-remaining allowance.
+The cumulative limit counts **settled usage-based costs plus outstanding
+reserves**, including previous days. It does not reset at midnight or deployment.
+Admission, request claims, settlement, and releases share a PostgreSQL lock so
+concurrent workers cannot reuse the same budget. Cached results remain available.
+New work stops when its required reserve would exceed either budget. Do not
+delete budget history to restore funds.
 
-Each video request consumes $1.50 of allowance;
-each text request consumes $0.50. Additional requests atomically reserve any
-shortfall. Failed, unknown, or interrupted requests never refund their allowance.
-Unused prepaid allowance expires at UTC midnight; later work charges the new day.
-The initial reservation alone can reach the allowance budget before the independent
-50-run ceiling; source failures keep their reservation as well.
+Before dispatch, each video request reserves $1.50 and each text request reserves
+$0.50, drawing from any unused admission hold first. Once usage is recorded,
+the request reserve is replaced by its estimated token cost, rounded up to one
+microdollar. Rejected model responses and retries are still charged for their
+reported usage. Unknown or interrupted requests retain their full request
+reserve. Costs exceeding the reserve are recorded in full and can block later work.
+Settlement always adjusts the original request day, even after midnight.
 
-These amounts are conservative operator-configured allocations, **not a provider
-invoice guarantee**. They are separate from measured usage-based estimates. The
+Unused admission holds are released when processing returns or raises. Expired
+holds and holds for terminal or abandoned jobs are reclaimed before new work;
+this never releases reserves already assigned to provider requests. Recorded
+usage left unsettled by a crash is also reconciled before new work. Daily and
+per-run request counts are not refunded.
+
+The September 25 migration reconciles attributable historical requests and
+unused holds, retaining unknown charges. It preserves the original daily totals
+in `legacy_reserved_microusd`; days with missing request history remain
+conservatively charged. The operations report separates settled costs,
+outstanding reserves, and available budget. Raising
+`STAMPBOT_TOTAL_BUDGET_MICROUSD` changes the cumulative spending ceiling.
+
+These costs use configured model pricing and are **not a provider invoice
+guarantee**. Reservations remain conservative operator-configured allocations. The
 request/input/concurrency limits are application-enforced bounds; a model or
 pricing change requires review of both configured prices and allowances.
 

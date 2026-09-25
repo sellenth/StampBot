@@ -85,7 +85,11 @@ defmodule Mix.Tasks.Stampbot.Operations do
       allowance = report.work_allowances
 
       Mix.shell().info(
-        "Today's reserved allowance: $#{allowance.reserved_allowance_usd} / $#{allowance.daily_allowance_limit_usd}; requests #{allowance.requests_claimed}/#{allowance.daily_request_limit}; submissions #{allowance.submissions_reserved}/#{allowance.daily_submission_limit}"
+        "Today's cost plus reserves: $#{allowance.reserved_allowance_usd} / $#{allowance.daily_allowance_limit_usd}; requests #{allowance.requests_claimed}/#{allowance.daily_request_limit}; submissions #{allowance.submissions_reserved}/#{allowance.daily_submission_limit}"
+      )
+
+      Mix.shell().info(
+        "Total budget: $#{allowance.total_reserved_allowance_usd} / $#{allowance.total_allowance_limit_usd}; settled cost $#{allowance.total_settled_cost_usd}; outstanding reserves $#{allowance.total_outstanding_reserve_usd}; available $#{allowance.total_allowance_remaining_usd}"
       )
 
       Mix.shell().info(allowance.accounting_note)
