@@ -86,7 +86,7 @@ defmodule DragNStamp.Timestamps.GeminiClientTest do
 
     request_fun = fn request, timeout ->
       send(parent, {:request, request, timeout})
-      successful_response("gemini-3.7-flash-2026-08", 100)
+      successful_response("gemini-3.8-flash-2026-09", 100)
     end
 
     assert {:ok, result} =
@@ -99,13 +99,13 @@ defmodule DragNStamp.Timestamps.GeminiClientTest do
                max_seconds: 120
              )
 
-    assert result.model == "gemini-3.7-flash"
-    assert result.model_version == "gemini-3.7-flash-2026-08"
+    assert result.model == "gemini-3.8-flash"
+    assert result.model_version == "gemini-3.8-flash-2026-09"
     assert result.content == "0:00 Opening moment introduces the main idea"
     assert result.usage.total_tokens == 15
 
     assert_receive {:request, request, 300_000}
-    assert request.path == "/v1beta/models/gemini-3.7-flash:generateContent"
+    assert request.path == "/v1beta/models/gemini-3.8-flash:generateContent"
     assert request.query == nil
     assert {"x-goog-api-key", "secret-key"} in request.headers
 

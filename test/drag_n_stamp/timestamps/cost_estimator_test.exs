@@ -63,4 +63,17 @@ defmodule DragNStamp.Timestamps.CostEstimatorTest do
 
     assert CostEstimator.estimate_usd(result) == nil
   end
+
+  test "3.8 usage, thinking, and cached tokens have known rates while 3.7 remains priced" do
+    usage = %{
+      prompt_tokens: 1_000_000,
+      cached_tokens: 800_000,
+      output_tokens: 100_000,
+      thinking_tokens: 100_000
+    }
+
+    for model <- ["gemini-3.8-flash", "gemini-3.8-flash-09-2026", "gemini-3.7-flash"] do
+      assert Decimal.equal?(CostEstimator.estimate_usage_usd(model, usage), Decimal.new("0.96"))
+    end
+  end
 end

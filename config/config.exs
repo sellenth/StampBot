@@ -23,14 +23,20 @@ config :drag_n_stamp, Oban,
 # Keep model roles explicit so quality-critical video understanding can advance
 # independently from lower-cost caption summarization and distillation.
 config :drag_n_stamp, :gemini,
-  video_model: "gemini-3.7-flash",
+  video_model: "gemini-3.8-flash",
   text_model: "gemini-3.5-flash-lite",
   video_thinking_level: "medium",
   text_thinking_level: "low"
 
 # Estimated USD per one million tokens. Keep this map configurable because
 # provider pricing changes independently of application releases.
+# 3.7/3.8 Flash use introductory rates through December 31, 2026.
 config :drag_n_stamp, :gemini_cost_rates, %{
+  "gemini-3.8-flash" => %{
+    input_per_million: "0.75",
+    cached_input_per_million: "0.075",
+    output_per_million: "3.75"
+  },
   "gemini-3.7-flash" => %{
     input_per_million: "0.75",
     cached_input_per_million: "0.075",

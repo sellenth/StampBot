@@ -12,7 +12,7 @@ defmodule DragNStamp.Timestamps.GeminiClient do
   alias DragNStamp.Timestamps.{CostEstimator, Prompts, TimestampSet}
 
   @api_base_url "https://generativelanguage.googleapis.com/v1beta/models"
-  @default_video_model "gemini-3.7-flash"
+  @default_video_model "gemini-3.8-flash"
   @default_text_model "gemini-3.5-flash-lite"
   @default_video_thinking_level "medium"
   @default_text_thinking_level "low"

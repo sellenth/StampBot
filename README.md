@@ -18,7 +18,7 @@ migrations and start Phoenix.
 StampBot uses separate model tiers for video understanding and text-only caption
 summarization/distillation. The production defaults are:
 
-- `GEMINI_VIDEO_MODEL=gemini-3.7-flash`
+- `GEMINI_VIDEO_MODEL=gemini-3.8-flash`
 - `GEMINI_VIDEO_THINKING_LEVEL=medium`
 - `GEMINI_TEXT_MODEL=gemini-3.5-flash-lite`
 - `GEMINI_TEXT_THINKING_LEVEL=low`
