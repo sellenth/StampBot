@@ -37,6 +37,10 @@ defmodule DragNStampWeb.Router do
     # Static extension endpoint (no LiveView/WebSockets)
     get "/extension", PageController, :extension
 
+    get "/plugin", PluginController, :show
+    get "/plugin/privacy", PluginController, :privacy
+    get "/plugin/support", PluginController, :support
+
     # Temporary redirect from legacy /seo paths
     get "/seo/:filename", PageController, :legacy_submission_redirect
 
@@ -66,6 +70,13 @@ defmodule DragNStampWeb.Router do
     options "/gemini", ApiController, :gemini
     get "/submissions/:id", ApiController, :submission
     options "/submissions/:id", ApiController, :submission
+  end
+
+  scope "/", DragNStampWeb do
+    post "/mcp", McpController, :handle
+    get "/mcp", McpController, :handle
+    delete "/mcp", McpController, :handle
+    options "/mcp", McpController, :handle
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

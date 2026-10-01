@@ -77,6 +77,24 @@ if work_budget_overrides != [] do
   config :drag_n_stamp, :work_budget, work_budget_overrides
 end
 
+plugin_overrides =
+  for {key, env} <- [
+        daily_new_jobs: "STAMPBOT_PLUGIN_DAILY_NEW_JOBS",
+        actor_daily_new_jobs: "STAMPBOT_PLUGIN_ACTOR_DAILY_NEW_JOBS",
+        transport_hourly_new_jobs: "STAMPBOT_PLUGIN_TRANSPORT_HOURLY_NEW_JOBS"
+      ],
+      value = System.get_env(env),
+      value != nil do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> {key, integer}
+      _ -> raise "#{env} must be a positive integer"
+    end
+  end
+
+config :drag_n_stamp,
+       :plugin,
+       [enabled: System.get_env("STAMPBOT_PLUGIN_ENABLED") != "false"] ++ plugin_overrides
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

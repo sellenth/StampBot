@@ -19,7 +19,7 @@ defmodule DragNStamp.Submissions do
 
              case find_existing(identity) do
                nil ->
-                 timestamp = insert_timestamp!(identity, attrs) |> WorkBudget.reserve!(opts)
+                 timestamp = insert_timestamp!(identity, attrs) |> reserve_work!(opts)
                  enqueue!(timestamp)
                  {timestamp, :created}
 
@@ -31,7 +31,7 @@ defmodule DragNStamp.Submissions do
                  # cancellation. Do not reset a row then collide with that old
                  # executing job's unique key and silently lose the new run.
                  if active_job?(timestamp.id), do: Repo.rollback(:retry_in_flight)
-                 timestamp = reset!(timestamp) |> WorkBudget.reserve!(opts)
+                 timestamp = reset!(timestamp) |> reserve_work!(opts)
                  enqueue!(timestamp)
                  {timestamp, :existing}
 
@@ -40,7 +40,7 @@ defmodule DragNStamp.Submissions do
                  timestamp =
                    if active_job?(timestamp.id),
                      do: timestamp,
-                     else: WorkBudget.reserve!(timestamp, opts)
+                     else: reserve_work!(timestamp, opts)
 
                  enqueue!(timestamp)
                  {timestamp, :existing}
@@ -225,6 +225,18 @@ defmodule DragNStamp.Submissions do
       {:ok, timestamp} -> timestamp
       {:error, reason} -> Repo.rollback(reason)
     end
+  end
+
+  # Internal acceptance hooks run under the video lock and in the submission
+  # transaction. Never derive these options from public request parameters.
+  defp reserve_work!(timestamp, opts) do
+    timestamp =
+      case Keyword.get(opts, :prepare_work) do
+        fun when is_function(fun, 1) -> fun.(timestamp)
+        nil -> timestamp
+      end
+
+    WorkBudget.reserve!(timestamp, opts)
   end
 
   defp reset!(timestamp, context \\ nil) do

@@ -7,6 +7,9 @@
 # General application configuration
 import Config
 
+# Client identity hints are not application log payloads.
+config :phoenix, :filter_parameters, ["password", "_meta"]
+
 config :drag_n_stamp,
   ecto_repos: [DragNStamp.Repo],
   generators: [timestamp_type: :utc_datetime]

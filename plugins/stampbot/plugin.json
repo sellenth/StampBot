@@ -1,0 +1,47 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "stampbot",
+  "version": "0.1.0",
+  "description": "Generate timestamped chapters for public YouTube videos and retrieve saved results.",
+  "author": {"name": "StampBot", "url": "https://stamp-bot.com"},
+  "homepage": "https://stamp-bot.com/plugin",
+  "repository": "https://github.com/sellenth/StampBot",
+  "keywords": ["youtube", "chapters", "timestamps", "video"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "StampBot",
+        "shortDescription": "YouTube chapters & timestamps",
+        "longDescription": "Turn a public YouTube video link into chapter markers and timestamped highlights. StampBot analyzes the video or its available captions and returns a chapter list, clickable links to moments on YouTube, and chapter text you can copy into a video description. Previously processed videos reuse saved results; new requests return a job ID and progress link so you can check the result later. Submitted URLs and generated chapters are saved publicly on StampBot. Processing can take several minutes and is subject to availability and daily limits. StampBot does not access private videos, provide full transcripts, edit videos, or post comments through the plugin.",
+        "developerName": "StampBot",
+        "category": "Productivity",
+        "capabilities": ["Generate YouTube chapters", "Retrieve saved timestamps"],
+        "websiteURL": "https://stamp-bot.com/plugin",
+        "supportURL": "https://stamp-bot.com/plugin/support",
+        "privacyPolicyURL": "https://stamp-bot.com/plugin/privacy",
+        "defaultPrompt": ["Generate chapters for this YouTube video.", "Give me timestamped highlights for a YouTube video.", "Make YouTube chapter markers I can copy into a video description."],
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png"
+      },
+      "review": {
+        "commerce": false,
+        "commerce_description": "The plugin generates and retrieves public video chapters. It does not sell products or process payments.",
+        "test_cases": {
+          "positive": [
+            {"description": "Generate chapters for a public video", "prompt": "Generate chapters for this public YouTube video: <public-video-url>", "tools_triggered": "generate_chapters", "expected_behavior": "Return completed chapters or a saved job ID and progress link. Disclose that results are saved publicly. Do not invent chapters while processing."},
+            {"description": "Retrieve a saved job", "prompt": "Are the chapters ready for job <job-id>?", "tools_triggered": "get_chapters", "expected_behavior": "Read the saved job. Return chapters and timestamp links when ready, or the progress link if still processing, without restarting work."},
+            {"description": "Reuse a completed public video", "prompt": "Generate timestamps for <completed-video-url-from-stampbot-feed>", "tools_triggered": "generate_chapters", "expected_behavior": "Immediately return cached chapters without starting new processing."},
+            {"description": "Prepare copy-ready chapter markers", "prompt": "Make chapters I can paste into my YouTube description for <public-video-url>", "tools_triggered": "generate_chapters", "expected_behavior": "Use chapter_text from a completed result to return timestamp and title lines. If processing, show the saved job instead of fabricated text."},
+            {"description": "Navigate to a topic in completed chapters", "prompt": "Which chapters cover the main topics in job <ready-job-id>? Give me links to those moments.", "tools_triggered": "get_chapters", "expected_behavior": "Use the returned chapter titles and timestamp URLs. Do not claim to have searched a full transcript or quote speech."}
+          ],
+          "negative": [
+            {"description": "Private video access", "prompt": "Access my private YouTube video without signing in.", "expected_behavior": "Explain that private videos are unsupported and do not claim access."},
+            {"description": "Unsupported publication", "prompt": "Post these timestamps as a YouTube comment on my behalf.", "expected_behavior": "Explain that the plugin does not publish comments. No publishing operation is exposed."},
+            {"description": "Unsupported source", "prompt": "Generate chapters for https://example.com/video.mp4", "expected_behavior": "Explain that a public YouTube video URL is required. Invalid source URLs must not start processing."}
+          ]
+        }
+      },
+      "publication": {"release_notes": "Initial chapter generation and retrieval tools with saved progress, cached results, timestamp links, and usage measurement."}
+    }
+  }
+}

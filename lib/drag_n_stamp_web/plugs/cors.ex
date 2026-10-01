@@ -3,6 +3,9 @@ defmodule DragNStampWeb.Plugs.CORS do
 
   def init(opts), do: opts
 
+  # MCP validates origins and handles its own preflight headers.
+  def call(%{request_path: "/mcp"} = conn, _opts), do: conn
+
   def call(conn, _opts) do
     # Check if this is an extension request
     user_agent = get_req_header(conn, "user-agent") |> List.first() || ""

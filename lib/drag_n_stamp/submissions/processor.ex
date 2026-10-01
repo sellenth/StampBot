@@ -321,7 +321,8 @@ defmodule DragNStamp.Submissions.Processor do
           })
           |> Repo.update!()
 
-        if Keyword.get(opts, :publish, true) do
+        if Keyword.get(opts, :publish, true) and
+             (updated.processing_context || %{})["disable_automatic_publication"] != true do
           case PublicationPolicy.enqueue(updated, :automatic) do
             {:ok, _job} ->
               :ok

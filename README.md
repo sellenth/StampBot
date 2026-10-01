@@ -2,6 +2,13 @@
 
 On a mission to watch the most YouTube ever.
 
+## ChatGPT plugin experiment
+
+The MCP endpoint exposes chapter generation and saved-result retrieval. See
+[plugin setup and publication](docs/chatgpt-plugin.md) for the upload package,
+launch limits, and usage reporting. Public directory visibility starts after
+OpenAI review and publication.
+
 ## Development and deployment
 
 Production runs on **Railway** at **https://stamp-bot.com**. See

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={@intro} />
+    <title>{@title}</title>
+    <link rel="icon" href="/images/favicon-32x32.png" />
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #111317; color: #e9edf2; }
+      body { margin: 0; line-height: 1.7; }
+      main { max-width: 720px; padding: 48px 24px; margin: auto; }
+      header { margin-bottom: 40px; }
+      .brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 700; text-decoration: none; color: #fff; }
+      .brand img { width: 40px; height: 40px; border-radius: 10px; }
+      h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; letter-spacing: -.04em; margin: 36px 0 16px; }
+      .intro { font-size: 1.2rem; color: #c0c8d4; }
+      section { border-top: 1px solid #333941; padding: 16px 0 12px; }
+      h2 { font-size: 1.1rem; margin-bottom: 8px; }
+      p { margin-top: 0; color: #b9c2cf; }
+      a { color: #ffb478; text-underline-offset: 4px; }
+      footer { border-top: 1px solid #333941; margin-top: 24px; padding-top: 24px; display: flex; flex-wrap: wrap; gap: 20px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a class="brand" href="/"><img src="/images/128x128.png" alt="" />StampBot</a>
+        <h1>{@title}</h1>
+        <p class="intro">{@intro}</p>
+      </header>
+      <section :for={{heading, text} <- @sections}>
+        <h2>{heading}</h2>
+        <p>{text}</p>
+      </section>
+      <footer>
+        <a href="/plugin">Plugin</a>
+        <a href="/plugin/privacy">Privacy</a>
+        <a href="/plugin/support">Support</a>
+        <a href="https://github.com/sellenth/StampBot/issues">GitHub issues</a>
+      </footer>
+    </main>
+  </body>
+</html>
