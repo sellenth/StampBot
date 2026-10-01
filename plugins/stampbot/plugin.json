@@ -30,6 +30,7 @@
         "websiteURL": "https://stamp-bot.com/plugin",
         "supportURL": "https://stamp-bot.com/plugin/support",
         "privacyPolicyURL": "https://stamp-bot.com/plugin/privacy",
+        "termsOfServiceURL": "https://stamp-bot.com/plugin/terms",
         "defaultPrompt": [
           "Generate chapters for this YouTube video.",
           "Give me timestamped highlights for a YouTube video.",

@@ -63,6 +63,26 @@ defmodule DragNStampWeb.PluginController do
         ]
       )
 
+  def terms(conn, _params),
+    do:
+      render_page(
+        conn,
+        "StampBot plugin terms of use",
+        "Conditions for using StampBot's public chapter service.",
+        [
+          {"Permitted use",
+           "Use StampBot for public YouTube videos you are permitted to submit for processing. Respect applicable law and the rights of video creators. Do not use the service to access private videos, bypass access restrictions, or submit unlawful content."},
+          {"Public results",
+           "Submitting a link requests automated processing and public display of the video's URL, public metadata, and generated chapters on StampBot. Send public videos only. The privacy page explains processing and usage records."},
+          {"Review generated chapters",
+           "Chapters are generated automatically and can contain mistakes or omit important topics. Review timestamps and titles against the video before using or publishing them. The plugin does not edit videos or publish YouTube comments on your behalf."},
+          {"Availability and limits",
+           "This experimental plugin is free to use. Processing is subject to availability and shared daily limits, and requests may fail or be declined. Features and limits may change as the experiment develops."},
+          {"Help and removal requests",
+           "Use the support page to report problems or request review or removal of a public submission. Do not include credentials, private account identifiers, or conversation history in public support issues."}
+        ]
+      )
+
   defp render_page(conn, title, intro, sections),
     do:
       render(put_root_layout(conn, false), :page,

@@ -422,7 +422,7 @@ defmodule DragNStampWeb.McpControllerTest do
     assert json_response(response, 503)["error"]["message"] =~ "temporarily unavailable"
     assert Repo.aggregate(Timestamp, :count) == 0
 
-    for path <- ["/plugin", "/plugin/privacy", "/plugin/support"] do
+    for path <- ["/plugin", "/plugin/privacy", "/plugin/support", "/plugin/terms"] do
       assert html_response(get(conn, path), 200) =~ "StampBot"
     end
 

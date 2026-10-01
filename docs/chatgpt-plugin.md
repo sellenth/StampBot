@@ -95,7 +95,7 @@ The manifests declare the official Agent Plugins JSON schemas.
 
 1. Deploy the reviewed change using the existing [Railway workflow](deployment.md).
    Release startup applies the new usage-table migration. Confirm `/mcp` discovery
-   and `/plugin`, `/plugin/privacy`, and `/plugin/support` in production.
+   and `/plugin`, `/plugin/privacy`, `/plugin/support`, and `/plugin/terms` in production.
 2. In ChatGPT developer mode, add the HTTPS MCP URL with **No authentication**.
    There are no private account capabilities. Test in a new conversation using
    one cached public video, one new request, and its saved job ID.
@@ -108,15 +108,17 @@ The manifests declare the official Agent Plugins JSON schemas.
    `STAMPBOT_OPENAI_APPS_CHALLENGE` to the dashboard's exact token on the verified
    Railway app service and deploy the configuration change. The route returns
    404 until a real token is configured; no placeholder challenge is shipped.
-5. Replace the review-case URL/job placeholders with actual successful public
-   examples, run the five positive and three negative cases in ChatGPT, and
+5. The package uses verified production result `617` for the public review video
+   `https://www.youtube.com/watch?v=iwI5DE2x9MM`. Run the five positive and three
+   negative cases in ChatGPT, and
    supply an accessible walkthrough recording URL in the review information.
    The fixture tests do not establish live YouTube availability or chapter quality.
 6. Resolve dashboard findings, submit for review, and publish after approval.
    Deploying the endpoint or uploading the ZIP does not make it publicly
    discoverable in the directory.
 
-Support and privacy copy live at `/plugin/support` and `/plugin/privacy`. The
+Support, privacy, and terms copy live at `/plugin/support`, `/plugin/privacy`,
+and `/plugin/terms`. All four listing URLs are required for MCP review. The
 support page links to the public repository issue tracker. Digital-service
 upsells are not part of this experiment.
 

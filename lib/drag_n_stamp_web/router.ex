@@ -40,6 +40,7 @@ defmodule DragNStampWeb.Router do
     get "/plugin", PluginController, :show
     get "/plugin/privacy", PluginController, :privacy
     get "/plugin/support", PluginController, :support
+    get "/plugin/terms", PluginController, :terms
     get "/.well-known/openai-apps-challenge", PluginController, :challenge
 
     # Temporary redirect from legacy /seo paths
