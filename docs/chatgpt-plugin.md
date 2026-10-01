@@ -104,9 +104,10 @@ The manifests declare the official Agent Plugins JSON schemas.
    must match the public listing. The package's `StampBot` publisher is draft
    branding until that identity is verified.
 4. Complete the domain challenge. Its exact token must be served at
-   `https://stamp-bot.com/.well-known/openai-apps-challenge`; this endpoint is
-   added only when the dashboard supplies a real challenge token. No placeholder
-   challenge is shipped.
+   `https://stamp-bot.com/.well-known/openai-apps-challenge`. Set
+   `STAMPBOT_OPENAI_APPS_CHALLENGE` to the dashboard's exact token on the verified
+   Railway app service and deploy the configuration change. The route returns
+   404 until a real token is configured; no placeholder challenge is shipped.
 5. Replace the review-case URL/job placeholders with actual successful public
    examples, run the five positive and three negative cases in ChatGPT, and
    supply an accessible walkthrough recording URL in the review information.

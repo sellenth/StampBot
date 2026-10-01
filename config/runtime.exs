@@ -95,6 +95,8 @@ config :drag_n_stamp,
        :plugin,
        [enabled: System.get_env("STAMPBOT_PLUGIN_ENABLED") != "false"] ++ plugin_overrides
 
+config :drag_n_stamp, :openai_apps_challenge, System.get_env("STAMPBOT_OPENAI_APPS_CHALLENGE")
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

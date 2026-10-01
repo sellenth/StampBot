@@ -10,7 +10,7 @@ defmodule DragNStampWeb.McpControllerTest do
 
   setup do
     previous =
-      for key <- [:plugin, :work_budget, :publication_mode],
+      for key <- [:plugin, :work_budget, :publication_mode, :openai_apps_challenge],
           into: %{},
           do: {key, Application.get_env(:drag_n_stamp, key)}
 
@@ -430,6 +430,19 @@ defmodule DragNStampWeb.McpControllerTest do
     assert privacy =~ "Saved public results"
     assert length(Regex.scan(~r/<html\b/, privacy)) == 1
     assert privacy =~ "<title>StampBot plugin privacy</title>"
+  end
+
+  test "domain challenge is absent by default and serves only the exact configured token", %{
+    conn: conn
+  } do
+    Application.delete_env(:drag_n_stamp, :openai_apps_challenge)
+    assert get(conn, "/.well-known/openai-apps-challenge").status == 404
+    Application.put_env(:drag_n_stamp, :openai_apps_challenge, "fixture-verification-token")
+    response = get(conn, "/.well-known/openai-apps-challenge")
+    assert response.status == 200
+    assert response.resp_body == "fixture-verification-token"
+    assert get_resp_header(response, "content-type") == ["text/plain; charset=utf-8"]
+    assert get_resp_header(response, "cache-control") == ["no-store"]
   end
 
   defp rpc(conn, method, params \\ %{}),

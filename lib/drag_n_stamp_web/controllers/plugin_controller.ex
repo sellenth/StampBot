@@ -1,6 +1,16 @@
 defmodule DragNStampWeb.PluginController do
   use DragNStampWeb, :controller
 
+  def challenge(conn, _params) do
+    conn =
+      conn |> put_resp_content_type("text/plain") |> put_resp_header("cache-control", "no-store")
+
+    case Application.get_env(:drag_n_stamp, :openai_apps_challenge) do
+      token when is_binary(token) and byte_size(token) in 1..4096 -> send_resp(conn, 200, token)
+      _ -> send_resp(conn, 404, "")
+    end
+  end
+
   def show(conn, _params),
     do:
       render_page(
