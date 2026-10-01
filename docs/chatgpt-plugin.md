@@ -91,12 +91,49 @@ files under `plugins/stampbot`: the portable manifest, remote MCP configuration,
 and existing StampBot icons. It does not package the repository or credentials.
 The manifests declare the official Agent Plugins JSON schemas.
 
+### Live ChatGPT review checks
+
+On 2026-10-01, a private MCP app connected successfully in ChatGPT web using
+`https://stamp-bot.com/mcp` and **No authentication**. All five positive and
+three negative prompts in the package's review cases passed in separate chats:
+generation, saved-job retrieval, cache reuse, copy-ready chapter text, topic
+links, private-video refusal, unsupported comment publication, and unsupported
+direct MP4 sources.
+
+The positive cases used the existing public result `617`; they did not create
+new paid processing work. ChatGPT returned all seven correct timestamp positions
+and the saved result links. For copy-ready output it shortened chapter titles,
+so wording can differ from the stored text. Generation calls disclosed public
+storage, and approval prompts were allowed once rather than always allowed.
+The comment-publication case retrieved saved chapters but explicitly confirmed
+that it had not posted anything and that StampBot exposes no commenting action.
+
+The outcome report and screenshots are local in `tmp/stampbot-live-review.json`.
+Test traffic remains included in usage aggregates. A connected private MCP app
+and an uploaded personal ZIP are separate from a public directory submission.
+Domain verification, an accessible walkthrough recording, publisher review,
+and public publication still require the publishing workflow below.
+
+### Tool annotation justifications
+
+| Tool | Annotation | Review justification |
+| --- | --- | --- |
+| `generate_chapters` | `readOnlyHint: false` | Can create a durable processing job and save its URL and chapters publicly. |
+| `generate_chapters` | `destructiveHint: false` | Does not delete or overwrite user content, edit videos, or publish comments. |
+| `generate_chapters` | `idempotentHint: false` | Cache and active-job reuse reduce duplicate work, but later requests after a failed job can admit new work. |
+| `generate_chapters` | `openWorldHint: true` | New processing can fetch public YouTube content and use Gemini through the existing processing pipeline. |
+| `get_chapters` | `readOnlyHint: true` | Reads saved progress and chapter results without starting work or modifying the public result. |
+| `get_chapters` | `destructiveHint: false` | Has no deletion, editing, or publication operation. |
+| `get_chapters` | `idempotentHint: true` | Repeated reads do not initiate or restart processing; results reflect the current saved job state. |
+| `get_chapters` | `openWorldHint: false` | Reads StampBot's saved database result and does not fetch external video content. |
+
 ## Publish and connect
 
 1. Deploy the reviewed change using the existing [Railway workflow](deployment.md).
    Release startup applies the new usage-table migration. Confirm `/mcp` discovery
    and `/plugin`, `/plugin/privacy`, `/plugin/support`, and `/plugin/terms` in production.
-2. In ChatGPT developer mode, add the HTTPS MCP URL with **No authentication**.
+2. In ChatGPT, use **Plugins → Add → Create MCP App** to add the HTTPS MCP URL
+   with **No authentication**. Connect the app and use **Try in chat**.
    There are no private account capabilities. Test in a new conversation using
    one cached public video, one new request, and its saved job ID.
 3. Upload the ZIP at [OpenAI Plugins](https://platform.openai.com/plugins).
