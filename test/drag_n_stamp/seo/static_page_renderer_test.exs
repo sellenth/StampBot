@@ -36,4 +36,39 @@ defmodule DragNStamp.SEO.StaticPageRendererTest do
     assert decoded["publisher"]["name"] == marker
     assert [%{"name" => ^marker}] = Enum.map(decoded["hasPart"], &Map.take(&1, ["name"]))
   end
+
+  defp chapters_content(count) do
+    Enum.map_join(0..(count - 1), "\n", fn i -> "#{i}:00 Topic number #{i}" end)
+  end
+
+  defp ready_timestamp(content) do
+    %Timestamp{
+      id: 2,
+      url: "https://www.youtube.com/watch?v=abc123xyz89",
+      video_title: "A video",
+      video_description: "Creator description #hashtag",
+      content: content,
+      distilled_content: content,
+      processing_status: :ready
+    }
+  end
+
+  test "does not republish the creator description or duplicate the raw output" do
+    html = StaticPageRenderer.render(ready_timestamp(chapters_content(6)))
+
+    refute html =~ "Creator description"
+    refute html =~ "Original Output"
+    refute html =~ "Unprocessed Timestamp Content"
+    assert html =~ "Topic number 5"
+  end
+
+  test "indexes pages with enough chapters and noindexes thin or failed ones" do
+    rich = ready_timestamp(chapters_content(6))
+    thin = ready_timestamp(chapters_content(2))
+    failed = %{rich | processing_status: :failed}
+
+    assert StaticPageRenderer.render(rich) =~ ~s(content="index,follow")
+    assert StaticPageRenderer.render(thin) =~ ~s(content="noindex,follow")
+    assert StaticPageRenderer.render(failed) =~ ~s(content="noindex,follow")
+  end
 end

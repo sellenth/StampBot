@@ -4,7 +4,7 @@ defmodule DragNStampWeb.PageController do
 
   import Ecto.Query
   alias DragNStamp.{Repo, Timestamp}
-  alias DragNStamp.SEO.PagePath
+  alias DragNStamp.SEO.{ChapterParser, PagePath, StaticPageRenderer}
 
   def feed_redirect(conn, _params) do
     redirect(conn, to: "/#feed")
@@ -31,6 +31,24 @@ defmodule DragNStampWeb.PageController do
       </url>
       <url>
         <loc>#{base_url}/extension</loc>
+        <lastmod>#{current_date}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+      </url>
+      <url>
+        <loc>#{base_url}/how-it-works</loc>
+        <lastmod>#{current_date}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+      </url>
+      <url>
+        <loc>#{base_url}/youtube-chapters-guide</loc>
+        <lastmod>#{current_date}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+      </url>
+      <url>
+        <loc>#{base_url}/about</loc>
         <lastmod>#{current_date}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
@@ -154,6 +172,7 @@ defmodule DragNStampWeb.PageController do
     # Limit to prevent sitemap from getting too large
     |> limit(1000)
     |> Repo.all()
+    |> Enum.filter(&StaticPageRenderer.indexable?(&1, ChapterParser.from_timestamp(&1)))
     |> Enum.map(&build_seo_entry(&1, base_url))
     |> Enum.join("")
   end

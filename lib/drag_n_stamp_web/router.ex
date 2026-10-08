@@ -37,6 +37,9 @@ defmodule DragNStampWeb.Router do
     # Static extension endpoint (no LiveView/WebSockets)
     get "/extension", PageController, :extension
 
+    get "/how-it-works", InfoController, :how_it_works
+    get "/youtube-chapters-guide", InfoController, :chapters_guide
+    get "/about", InfoController, :about
     get "/plugin", PluginController, :show
     get "/plugin/privacy", PluginController, :privacy
     get "/plugin/support", PluginController, :support

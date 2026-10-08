@@ -1863,3 +1863,17 @@ textarea:focus {
         justify-content: center;
     }
 }
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem 1rem 3rem;
+  font-size: 0.9rem;
+}
+
+.site-footer a {
+  color: inherit;
+  opacity: 0.75;
+}
