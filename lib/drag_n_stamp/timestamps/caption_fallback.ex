@@ -256,6 +256,9 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
         {:error, reason} ->
           failure =
             case reason do
+              %{kind: :http, status: 402} ->
+                :gemini_billing
+
               %{kind: kind}
               when kind in [
                      :timestamp_outside_excerpt,
@@ -629,6 +632,10 @@ defmodule DragNStamp.Timestamps.CaptionFallback do
   def failure_message(:transcript_empty),
     do:
       "Captions didn't contain enough usable speech to build timestamps. We'll keep this video on file to retry."
+
+  def failure_message(:gemini_billing),
+    do:
+      "StampBot's AI provider rejected this request because its billing credits are depleted. The service operator must restore credits before this video can be retried."
 
   def failure_message(:gemini_error),
     do:

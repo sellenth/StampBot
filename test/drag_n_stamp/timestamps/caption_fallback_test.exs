@@ -167,6 +167,18 @@ defmodule DragNStamp.Timestamps.CaptionFallbackTest do
       refute attempt["retryable"]
     end
 
+    test "depleted provider credits have a billing failure without automatic retry" do
+      assert {:error, :gemini_billing, message, attempt} =
+               CaptionFallback.process(nil, video_url(), "test-key",
+                 fetch_transcript_fun: transcript_fetcher(continuous_segments(2)),
+                 generate_fun: fn _, _, _ -> {:error, %{kind: :http, status: 402}} end
+               )
+
+      assert message =~ "billing credits are depleted"
+      assert attempt["failure_reason"] == "gemini_billing"
+      refute attempt["retryable"]
+    end
+
     test "only transient model failures request a job retry" do
       cases = [
         {%{kind: :transport, reason: :timeout}, true},

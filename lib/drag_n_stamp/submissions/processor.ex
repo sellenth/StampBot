@@ -154,6 +154,10 @@ defmodule DragNStamp.Submissions.Processor do
       when kind in [:work_budget_exceeded, :input_limit_exceeded, :total_budget_exceeded] ->
         {:error, failure(kind, WorkBudget.message(kind), false)}
 
+      {:error, %{kind: :http, status: 402}} ->
+        {:error,
+         failure(:gemini_billing, CaptionFallback.failure_message(:gemini_billing), false)}
+
       {:error, reason} ->
         if caption_failure do
           {:error,

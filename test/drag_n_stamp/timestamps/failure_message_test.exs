@@ -4,6 +4,20 @@ defmodule DragNStamp.Timestamps.FailureMessageTest do
   alias DragNStamp.Timestamps.FailureMessage
   alias DragNStamp.Timestamp
 
+  test "billing failures tell users to wait for operator action" do
+    timestamp = %Timestamp{
+      processing_context: %{
+        "last_failure" => "gemini_billing",
+        "public_error" => "StampBot's AI provider billing credits are depleted."
+      }
+    }
+
+    details = FailureMessage.for_timestamp(timestamp)
+    assert details.category == "gemini_billing"
+    assert details.guidance =~ "operator restores"
+    refute details.guidance =~ "Submit the video again"
+  end
+
   test "legacy out-of-excerpt failures get accurate copy through the public API" do
     timestamp = %Timestamp{
       id: 593,

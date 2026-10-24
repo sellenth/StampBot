@@ -21,6 +21,20 @@ defmodule DragNStamp.SubmissionsTest do
     :ok
   end
 
+  test "video billing failures stop before an unrelated caption fallback" do
+    timestamp = insert_timestamp(%{video_duration_seconds: 900})
+
+    assert {:error, %{reason: :gemini_billing, retryable: false, message: message}} =
+             Processor.process(timestamp,
+               api_key: "fixture-key",
+               metadata_fun: fn ts -> {:ok, ts} end,
+               video_fun: fn _, _, _, _ -> {:error, %{kind: :http, status: 402}} end,
+               caption_fun: fn _, _, _, _ -> flunk("Billing failures must not fetch captions") end
+             )
+
+    assert message =~ "billing credits are depleted"
+  end
+
   test "canonical variants share a record/job, while a different video gets its own job" do
     {:ok, first, :created} = Submissions.submit(@url <> "&list=playlist&t=20")
     {:ok, same, :existing} = Submissions.submit("https://youtu.be/#{@video_id}?si=tracking")

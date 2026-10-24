@@ -20,7 +20,7 @@ defmodule DragNStamp.ProcessingAttempts do
     input_limit_exceeded missing_api_key video_id_not_found captions_unavailable captions_empty
     captions_fetch_failed caption_downloader_outdated caption_runtime_outdated caption_downloader_unavailable
     youtube_auth_failed youtube_bot_challenge caption_and_video_failed youtube_rate_limited youtube_network_error video_unavailable transcript_empty
-    gemini_error timestamp_extraction_failed no_timestamps timestamp_outside_excerpt timestamp_out_of_bounds
+    gemini_error gemini_billing timestamp_extraction_failed no_timestamps timestamp_outside_excerpt timestamp_out_of_bounds
     timestamps_not_strictly_increasing persistence_failed
     caller_rate_limited video_cooldown daily_work_limit daily_budget_exceeded total_budget_exceeded
     worker_exception worker_interrupted exception process_exit other)

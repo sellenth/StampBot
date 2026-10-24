@@ -28,6 +28,7 @@ defmodule DragNStamp.Timestamps.FailureMessage do
     "video_unavailable" => :video_unavailable,
     "transcript_empty" => :transcript_empty,
     "gemini_error" => :gemini_error,
+    "gemini_billing" => :gemini_billing,
     "timestamp_extraction_failed" => :timestamp_extraction_failed,
     "timestamp_outside_excerpt" => :timestamp_outside_excerpt,
     "no_timestamps" => :no_timestamps
@@ -61,7 +62,10 @@ defmodule DragNStamp.Timestamps.FailureMessage do
     details(
       message,
       reason,
-      "This attempt has finished. Submit the video again to retry."
+      if(reason == "gemini_billing",
+        do: "Retry after the service operator restores AI provider credits.",
+        else: "This attempt has finished. Submit the video again to retry."
+      )
     )
   end
 
